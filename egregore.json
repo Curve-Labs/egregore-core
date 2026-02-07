@@ -2,9 +2,6 @@
   "org_name": "",
   "github_org": "",
   "memory_repo": "",
-  "neo4j_host": "668bb747.databases.neo4j.io",
-  "neo4j_user": "neo4j",
-  "neo4j_password": "vGZaClcdYGeAzp0LbyVWPfuUgMW_QO-L6LGZQ45lBCY",
-  "telegram_bot_token": "8369604228:AAGKbakgtYUsUlJAIUH7RQfF5T5AHLcRW_s",
-  "telegram_chat_id": "-1003718331376"
+  "api_url": "https://egregore-production-55f2.up.railway.app",
+  "api_key": ""
 }
