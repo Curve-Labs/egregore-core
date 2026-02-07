@@ -1,0 +1,236 @@
+---
+title: "How Egregore Works"
+subtitle: "An AI-native operating system where context accumulates automatically, knowledge lives in open formats, and organizational intelligence emerges from work."
+date: 2026-02-01
+readTime: "10 min read"
+category: "Technical"
+tags: ["architecture", "design-principles", "infrastructure"]
+author: "cem"
+featured: false
+---
+
+Egregore is an AI-native operating system for human-AI collaboration. It enables teams to work with AI agents that share persistent organizational memory, understand relationships between work artifacts, and coordinate through standardized workflows.
+
+Unlike traditional software that requires users to context-switch between tools, Egregore embeds directly in the developer terminal where technical work happens. Context accumulates automatically as a byproduct of work—no separate capture step required.
+
+**Core Insight:** The most valuable organizational knowledge is generated during work, not documented afterward. Egregore captures this context at the source.
+
+---
+
+## Architecture Philosophy
+
+Egregore follows four design principles that differentiate it from traditional collaboration tools:
+
+### 1. Composition Over Monolith
+
+Egregore is not a single application. It's a composition of:
+
+- **Filesystem** — Markdown files in git (portable, inspectable, version-controlled)
+- **Graph database** — Indexed relationships for fast queries
+- **Agent conventions** — Instructions that turn AI assistants into organizational collaborators
+- **External services** — Notifications, analytics, integrations
+
+This architecture means no vendor lock-in, no proprietary formats, and graceful degradation. If the graph goes down, you still have useful documents. If the AI improves, Egregore gets smarter without code changes.
+
+### 2. Convention Over Code
+
+The "application logic" lives in natural language instructions and structural conventions, not custom code. This means:
+
+- **Non-technical extensibility** — Add new capabilities by writing markdown, not deploying software
+- **Model-agnostic** — Works with any LLM that can follow instructions
+- **Transparent** — Every behavior is inspectable and modifiable
+
+### 3. Filesystem as Source of Truth
+
+All knowledge lives in markdown files first. The graph is an index, not the primary store. Benefits:
+
+- **Portable** — Export your organizational memory by copying a folder
+- **Auditable** — Full git history of every change
+- **Recoverable** — Rebuild the graph from files at any time
+
+### 4. Context as Byproduct
+
+Traditional tools require explicit documentation. Egregore captures context automatically during work:
+
+- Working on a problem? The exploration is recorded.
+- Handing off to a colleague? Context transfers with one command.
+- Completing a project? Learnings are indexed for future reference.
+
+---
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                          EGREGORE SYSTEM                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   AGENT LAYER                                                       │
+│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                │
+│   │   Agent 1   │  │   Agent 2   │  │   Agent 3   │   ...          │
+│   │  (Alice)    │  │   (Bob)     │  │  (Carol)    │                │
+│   └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                │
+│          └────────────────┼────────────────┘                        │
+│                           │                                         │
+│                    ┌──────┴──────┐                                  │
+│                    │   Kernel    │  Agent identity + protocols      │
+│                    │  Commands   │  Standardized operations         │
+│                    │   Skills    │  Reusable capabilities           │
+│                    └──────┬──────┘                                  │
+│                           │                                         │
+├───────────────────────────┼─────────────────────────────────────────┤
+│                           │                                         │
+│   MEMORY LAYER            │                                         │
+│   ┌───────────────────────┴────────────────────────────────┐       │
+│   │               Shared Knowledge Base                     │       │
+│   │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │       │
+│   │  │Artifacts │ │  Quests  │ │ Sessions │ │  People  │  │       │
+│   │  │(findings,│ │  (open   │ │(handoffs,│ │  (team   │  │       │
+│   │  │ sources) │ │explorat.)│ │ context) │ │directory)│  │       │
+│   │  └──────────┘ └──────────┘ └──────────┘ └──────────┘  │       │
+│   └────────────────────────────────────────────────────────┘       │
+│                           │                                         │
+├───────────────────────────┼─────────────────────────────────────────┤
+│                           │                                         │
+│   GRAPH LAYER             │                                         │
+│   ┌───────────────────────┴────────────────────────────────┐       │
+│   │              Relationship Index (Neo4j)                 │       │
+│   │                                                         │       │
+│   │   Person ──CONTRIBUTED──> Artifact                     │       │
+│   │   Artifact ──PART_OF──> Quest                          │       │
+│   │   Session ──BY──> Person                               │       │
+│   │   Quest ──RELATES_TO──> Project                        │       │
+│   └─────────────────────────────────────────────────────────┘       │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Agent Layer
+
+AI agents (Claude Code instances) are the primary interface. Each team member works through an agent that:
+
+- Reads organizational memory before starting work
+- Executes standardized commands for common operations
+- Captures context automatically during work
+- Writes to the shared knowledge base
+
+**Commands** provide standardized operations:
+
+| Command | Purpose |
+|---------|---------|
+| `/activity` | See what the team is working on |
+| `/handoff` | End session with context for the next person |
+| `/add` | Contribute a finding, source, or decision |
+| `/save` | Sync work to the shared knowledge base |
+| `/quest` | Manage open explorations |
+| `/reflect` | Org-level pattern analysis |
+
+### Memory Layer
+
+All knowledge exists as markdown files in git:
+
+- **Artifacts** — Sources, findings, decisions, thoughts
+- **Quests** — Open explorations and research threads
+- **Sessions** — Work logs and handoff context
+- **People** — Team directory with roles and expertise
+
+### Graph Layer
+
+Neo4j indexes relationships that filesystem structure can't capture:
+
+- Who contributed what
+- Which artifacts inform which quests
+- Handoff chains between sessions
+- Project scope and team membership
+
+The graph enables fast queries: "What is Alice working on?", "What have we learned about auth?", "Who should pick up this handoff?"
+
+---
+
+## Core Workflows
+
+### The Handoff Loop
+
+The signature Egregore workflow. Context flows between collaborators without meetings:
+
+```
+Alice works on a problem
+       │
+       ▼
+/handoff to Bob
+       │
+       ├──> File: Session summary + next steps
+       ├──> Graph: Session linked to Alice, project
+       └──> Notify: Bob gets Telegram alert
+              │
+              ▼
+Bob runs /activity
+       │
+       ▼
+Sees Alice's handoff with full context
+       │
+       ▼
+Picks up exactly where Alice left off
+```
+
+**Why this matters:** Traditional async collaboration loses context. "What did you try?" "Where did you leave off?" Handoffs preserve the reasoning, not just the result.
+
+### The Reflection Loop
+
+After handoff cycles accumulate, Egregore can surface patterns:
+
+```
+/reflect "What slows us down?"
+       │
+       ▼
+Egregore analyzes accumulated context:
+- "Auth implementations take 40% longer than estimated"
+- "Handoffs on Fridays get picked up 2 days later"
+- "Bob's code reviews catch 60% more issues"
+       │
+       ▼
+Organizational intelligence emerges
+```
+
+**Why this matters:** The org learns things no individual knows. The system becomes smarter than the sum of its parts.
+
+---
+
+## Technical Differentiators
+
+### 1. Model-Agnostic Architecture
+
+Egregore doesn't depend on a specific AI provider. The "intelligence" comes from conventions that any capable LLM can follow. As models improve, Egregore gets smarter without code changes.
+
+### 2. Portable Knowledge
+
+All knowledge is markdown in git. No proprietary formats, no vendor lock-in. Export your organizational memory by copying a folder.
+
+### 3. Graph + Filesystem Duality
+
+Two representations of the same knowledge:
+- Filesystem for durability, portability, version history
+- Graph for relationships, fast queries, pattern analysis
+
+If either fails, the other can reconstruct it.
+
+### 4. Convention-Based Extensibility
+
+Add new capabilities by writing markdown instructions, not deploying code. A non-technical team member can create a new command or skill.
+
+---
+
+## The Bet
+
+As AI capabilities improve, the teams with the best context infrastructure will compound their advantage. Egregore is that infrastructure.
+
+The architecture prioritizes:
+
+- **Portability** — Your knowledge is yours, in open formats
+- **Transparency** — Every behavior is inspectable
+- **Resilience** — Multiple representations, graceful degradation
+- **Extensibility** — Grow capabilities without engineering effort
+
+---
+
+*For implementation details and self-hosting instructions, see our GitHub repository.*

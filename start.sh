@@ -15,4 +15,4 @@ if [ ${#missing[@]} -gt 0 ]; then
   exit 1
 fi
 
-exec claude "hello"
+exec claude "start"

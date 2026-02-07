@@ -1,0 +1,19 @@
+{
+  "name": "@curve-labs/design-system",
+  "version": "0.1.0",
+  "description": "Shared design tokens for Curve Labs projects",
+  "main": "tokens.css",
+  "exports": {
+    ".": "./tokens.css",
+    "./tokens.css": "./tokens.css"
+  },
+  "files": [
+    "tokens.css"
+  ],
+  "keywords": [
+    "design-tokens",
+    "css",
+    "curve-labs"
+  ],
+  "license": "MIT"
+}

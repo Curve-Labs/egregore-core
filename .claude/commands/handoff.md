@@ -12,7 +12,7 @@ Topic: $ARGUMENTS
 4. Create handoff file in memory/conversations/YYYY-MM/
 5. Update the conversation index
 6. **MUST** create Session node in Neo4j via `bash bin/graph.sh query "..."` (never MCP)
-7. **Auto-save**: Run the full `/save` flow (branch, commit, PR, merge)
+7. **Auto-save**: Run the full `/save` flow (push working branch, PR to develop)
 
 **CRITICAL: Step 6 is NOT optional.** Without the Neo4j Session node, the handoff won't appear in `/activity`. Always run the Cypher query below.
 

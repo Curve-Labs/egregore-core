@@ -1,0 +1,149 @@
+---
+title: "The Economics of Organizational Memory"
+subtitle: "Why we chose flat team pricing, what drives our costs, and how we think about building a sustainable business around context infrastructure."
+date: 2026-01-20
+readTime: "6 min read"
+category: "Update"
+tags: ["business-model", "pricing", "transparency", "infrastructure"]
+author: "cem"
+featured: false
+---
+
+We're building Egregore as a sustainable business, not a venture-backed growth experiment. That means being thoughtful about economics from day one.
+
+This post shares our thinking on pricing, costs, and why we believe context infrastructure can be a healthy business.
+
+---
+
+## The Model: Free Tools, Paid Infrastructure
+
+The CLI is free and will remain free. The hosted backend service is the business.
+
+This mirrors successful models like Supabase, PlanetScale, and Vercel — free tools, paid infrastructure. You can self-host everything, but most teams will prefer managed infrastructure.
+
+**What the backend provides:**
+
+- Context storage (vector embeddings + raw documents)
+- Quest/task state
+- Handoff routing and notifications
+- Skills registry and versioning
+- Team management and permissions
+- Org reflection engine
+
+---
+
+## Why Flat Team Pricing
+
+Our recommended model: $75/month for unlimited users on a team.
+
+Why flat instead of per-seat?
+
+**Terminal-native teams dislike per-seat accounting.** Developer tools that charge per user create friction around adding collaborators. We want the opposite incentive.
+
+**Encourages adding collaborators.** More collaborators means more context, more handoffs, more value from the system. Per-seat pricing discourages exactly what makes Egregore valuable.
+
+**Predictable revenue for planning.** We can forecast without guessing seat counts.
+
+**Usage overages capture value from heavy users.** Beyond included limits, additional storage and retrievals are metered. Heavy teams naturally hit these; light teams never worry about them.
+
+---
+
+## The Cost Structure
+
+What does it actually cost us to serve a team?
+
+| Component | Service | Est. Cost/User/Month |
+|-----------|---------|---------------------|
+| Vector Storage | Qdrant Cloud | $0.50 - $1.00 |
+| Document Storage | Cloudflare R2 | $0.10 - $0.30 |
+| Embeddings | Voyage AI | $0.20 - $0.50 |
+| Compute (API) | Railway | $0.30 - $0.50 |
+| Relational DB | Neon | $0.20 - $0.40 |
+| **Total** | | **$1.30 - $2.70** |
+
+At $75/month for a 5-person team, that's $15/user effective price with 82-91% gross margin.
+
+At 10 users, $7.50/user with 64-83% gross margin.
+
+At 15 users, $5/user with 46-74% gross margin.
+
+**The hybrid model addresses large teams:** heavy usage naturally triggers overage charges, maintaining healthy margins without penalizing normal usage.
+
+---
+
+## What Drives Costs
+
+**Heavy `/activity` users** — High retrieval volume queries the graph frequently.
+
+**Large context windows** — More tokens embedded means more vector storage and embedding costs.
+
+**Real-time Slack ingestion** — Constant message embedding adds up.
+
+**Org reflection on large teams** — Cross-team queries are compute-intensive.
+
+**Cost optimization levers we're exploring:**
+
+- Self-hosted vector DB (60% cheaper than managed)
+- Cheaper embedding models (Voyage lite, open-source)
+- Aggressive caching (most retrievals hit recent context)
+- Tiered storage (hot/warm/cold)
+- Batch reflection (nightly, not real-time)
+
+---
+
+## The Unit Economics Story
+
+**Customer acquisition cost is low.** Terminal-native tools spread through word of mouth. Developers trust peer recommendations over marketing.
+
+**Free → Team conversion is organic.** Happens when handoffs become essential workflow. No sales pressure needed.
+
+**Gross margins are SaaS-healthy.** 80%+ at our recommended pricing.
+
+**Retention increases over time.** Context lock-in grows with usage. The more handoffs, the more valuable your Egregore history becomes.
+
+**Value scales with model improvements.** Better AI models = more valuable context layer, without proportional cost increase. We're building on an improving foundation.
+
+---
+
+## The Pricing Table
+
+|  | Free | Team | Enterprise |
+|--|------|------|------------|
+| **Users** | Up to 3 | Unlimited | Unlimited |
+| **Context Storage** | 500 MB | 10 GB included | Custom |
+| **Retrievals/month** | 5,000 | 100,000 included | Unlimited |
+| **Handoffs** | ✓ | ✓ | ✓ |
+| **Skills Sharing** | Community | Team + Community | Private + All |
+| **Org Reflection** | — | ✓ | ✓ (Advanced) |
+| **Slack Integration** | — | ✓ | ✓ |
+| **SSO / Audit Logs** | — | — | ✓ |
+| **Price** | $0 | $75/month | Custom |
+
+**Usage-based overages** (beyond Team tier limits):
+- Additional storage: $0.15/GB/month
+- Additional retrievals: $0.002 per operation
+- Org reflection queries: $0.10 each
+
+---
+
+## What We're Not Doing
+
+**No per-seat pricing.** We want teams to add collaborators freely.
+
+**No annual commitments required.** Monthly is fine. We earn retention through value, not contracts.
+
+**No feature gating on core workflows.** Handoffs work the same on Free and Team. We gate scale and advanced features, not basics.
+
+**No venture-scale growth pressure.** We're building a sustainable business, not optimizing for a funding round.
+
+---
+
+## The Bet
+
+Context infrastructure is a real category. Teams that manage context well outperform teams that don't. As AI becomes central to knowledge work, context management becomes more valuable, not less.
+
+We're building for that future — one where Egregore is the context layer teams rely on, priced fairly, and sustainable long-term.
+
+---
+
+*Questions about pricing or economics? We're happy to discuss. Transparency is a feature.*

@@ -9,9 +9,15 @@ if [ ! -f "$CONFIG" ]; then
   exit 1
 fi
 
-NEO4J_HOST=$(jq -r '.neo4j_host' "$CONFIG")
-NEO4J_USER=$(jq -r '.neo4j_user // "neo4j"' "$CONFIG")
-NEO4J_PASSWORD=$(jq -r '.neo4j_password' "$CONFIG")
+# Env vars override egregore.json
+NEO4J_HOST="${NEO4J_HOST:-$(jq -r '.neo4j_host' "$CONFIG")}"
+NEO4J_USER="${NEO4J_USER:-$(jq -r '.neo4j_user // "neo4j"' "$CONFIG")}"
+NEO4J_PASSWORD="${NEO4J_PASSWORD:-$(jq -r '.neo4j_password' "$CONFIG")}"
+
+# Source .env if it exists (for local overrides)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+  set -a; source "$SCRIPT_DIR/.env"; set +a
+fi
 
 if [ -z "$NEO4J_HOST" ] || [ "$NEO4J_HOST" = "null" ]; then
   echo "Error: neo4j_host not set in egregore.json" >&2

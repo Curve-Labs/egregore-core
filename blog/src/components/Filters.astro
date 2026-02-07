@@ -1,0 +1,109 @@
+---
+const categories = ['All', 'Research', 'Technical', 'Essay', 'Update'];
+---
+
+<div class="filters">
+  {categories.map((category) => (
+    <button
+      data-filter={category}
+      class:list={['filter-btn', { active: category === 'All' }]}
+    >
+      {category}
+    </button>
+  ))}
+</div>
+
+<script>
+  function initFilters() {
+    const filterBtns = document.querySelectorAll('[data-filter]');
+    const posts = document.querySelectorAll('[data-category]');
+
+    function applyFilter(filter: string) {
+      // Update active state
+      filterBtns.forEach(b => b.classList.remove('active'));
+      const activeBtn = document.querySelector(`[data-filter="${filter}"]`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      // Filter posts
+      posts.forEach(post => {
+        const postEl = post as HTMLElement;
+        const category = postEl.dataset.category;
+        if (filter === 'All' || category === filter) {
+          postEl.hidden = false;
+        } else {
+          postEl.hidden = true;
+        }
+      });
+    }
+
+    // Check URL for initial filter
+    const urlParams = new URLSearchParams(window.location.search);
+    const categoryFromUrl = urlParams.get('category');
+    if (categoryFromUrl) {
+      applyFilter(categoryFromUrl);
+      // Scroll to archive if coming from nav link (has hash or category param)
+      if (window.location.hash === '#archive') {
+        const archive = document.getElementById('archive');
+        if (archive) {
+          setTimeout(() => archive.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
+      }
+    }
+
+    // Handle button clicks
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const filter = btn.getAttribute('data-filter') || 'All';
+        applyFilter(filter);
+
+        // Update URL without reload
+        const url = new URL(window.location.href);
+        if (filter === 'All') {
+          url.searchParams.delete('category');
+        } else {
+          url.searchParams.set('category', filter);
+        }
+        history.replaceState(null, '', url.toString());
+      });
+    });
+  }
+
+  // Run on initial load
+  initFilters();
+
+  // Re-run on Astro page navigation
+  document.addEventListener('astro:after-swap', initFilters);
+</script>
+
+<style>
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .filter-btn {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: var(--space-sm) var(--space-md);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .filter-btn:hover {
+    border-color: var(--border-hover);
+    color: var(--text-soft);
+  }
+
+  .filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+  }
+</style>

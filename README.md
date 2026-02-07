@@ -34,7 +34,15 @@ That's it. The onboarding walks you through everything — GitHub auth, shared m
 
 ## After setup
 
-You're inside Claude Code with slash commands:
+From any terminal, just type:
+
+```bash
+egregore
+```
+
+This syncs everything, puts you on a fresh working branch, and shows you where you are.
+
+### Commands
 
 | Command | What it does |
 |---------|-------------|
@@ -51,7 +59,7 @@ You're inside Claude Code with slash commands:
 /invite <github-username>
 ```
 
-Adds them as collaborator and sends a zip to the Telegram group. They unzip, run `bash start.sh`, and they're in.
+Adds them as collaborator and sends a zip to the Telegram group. They unzip, run `bash start.sh`, and they're in. After onboarding, they just type `egregore` from anywhere.
 
 ## How it works
 

@@ -1,0 +1,119 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  post: CollectionEntry<'posts'>;
+}
+
+const { post } = Astro.props;
+const { title, subtitle, date, readTime, category } = post.data;
+---
+
+<article class="grid-card" data-category={category}>
+  <a href={`/${post.slug}/`} class="card-link">
+    <div class="card-meta">
+      <span class="category">{category}</span>
+      <span class="divider">•</span>
+      <span class="read-time">{readTime}</span>
+    </div>
+
+    <h3 class="card-title">{title}</h3>
+    <p class="card-subtitle">{subtitle}</p>
+
+    <div class="card-footer">
+      <time datetime={date.toISOString()}>
+        {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+      </time>
+      <span class="card-arrow">→</span>
+    </div>
+  </a>
+</article>
+
+<style>
+  .grid-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: all var(--transition-base);
+  }
+
+  .grid-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+  }
+
+  .card-link {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: var(--space-lg);
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: var(--space-md);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .category {
+    color: var(--accent);
+  }
+
+  .divider {
+    color: var(--text-dim);
+  }
+
+  .card-title {
+    font-family: var(--font-gothic);
+    font-size: 1.25rem;
+    color: var(--text);
+    margin-bottom: var(--space-sm);
+    line-height: 1.3;
+    transition: color var(--transition-fast);
+  }
+
+  .grid-card:hover .card-title {
+    color: var(--accent);
+  }
+
+  .card-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-soft);
+    line-height: 1.5;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--space-lg);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .card-arrow {
+    color: var(--text-dim);
+    transition: all var(--transition-fast);
+  }
+
+  .grid-card:hover .card-arrow {
+    color: var(--accent);
+    transform: translateX(4px);
+  }
+</style>

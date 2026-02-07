@@ -9,11 +9,19 @@ if [ ! -f "$CONFIG" ]; then
   exit 1
 fi
 
-BOT_TOKEN=$(jq -r '.telegram_bot_token' "$CONFIG")
-CHAT_ID=$(jq -r '.telegram_chat_id' "$CONFIG")
+# Env vars override egregore.json (for production tokens not stored in repo)
+BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-$(jq -r '.telegram_bot_token' "$CONFIG")}"
+CHAT_ID="${TELEGRAM_CHAT_ID:-$(jq -r '.telegram_chat_id' "$CONFIG")}"
+
+# Source .env if it exists (for local overrides)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+  set -a; source "$SCRIPT_DIR/.env"; set +a
+  BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-$BOT_TOKEN}"
+  CHAT_ID="${TELEGRAM_CHAT_ID:-$CHAT_ID}"
+fi
 
 if [ -z "$BOT_TOKEN" ] || [ "$BOT_TOKEN" = "null" ]; then
-  echo "Error: telegram_bot_token not set in egregore.json" >&2
+  echo "Error: TELEGRAM_BOT_TOKEN not set (env var or egregore.json)" >&2
   exit 1
 fi
 

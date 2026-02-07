@@ -1,0 +1,113 @@
+---
+const currentYear = new Date().getFullYear();
+
+const links = [
+  { label: 'Main Site', href: 'https://curvelabs.eu' },
+  { label: 'GitHub', href: 'https://github.com/Curve-Labs' },
+  { label: 'RSS', href: '/rss.xml' },
+];
+---
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="footer-logo">Curve Labs</span>
+      <span class="footer-tagline">Venture Laboratory for Relational Technologies</span>
+    </div>
+
+    <nav class="footer-links">
+      {links.map((link) => (
+        <a href={link.href} class="footer-link">
+          {link.label}
+        </a>
+      ))}
+    </nav>
+
+    <div class="footer-copy">
+      <span class="copyright">© {currentYear} Curve Labs</span>
+      <span class="built-with">
+        Built with <a href="https://astro.build" class="astro-link">Astro</a>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    border-top: 1px solid var(--border);
+    margin-top: var(--space-3xl);
+  }
+
+  .footer-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-2xl) var(--space-lg);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+  }
+
+  .footer-brand {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .footer-logo {
+    font-family: var(--font-gothic);
+    font-size: 1.25rem;
+    color: var(--text);
+  }
+
+  .footer-tagline {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: var(--space-lg);
+  }
+
+  .footer-link {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-soft);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: color var(--transition-fast);
+  }
+
+  .footer-link:hover {
+    color: var(--accent);
+  }
+
+  .footer-copy {
+    display: flex;
+    gap: var(--space-lg);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .astro-link {
+    color: var(--accent);
+  }
+
+  @media (max-width: 768px) {
+    .footer-inner {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .footer-copy {
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+  }
+</style>

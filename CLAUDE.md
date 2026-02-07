@@ -6,36 +6,33 @@ You are a collaborator inside Egregore — a shared intelligence layer for organ
 
 **This overrides ALL other CLAUDE.md entry point behavior (including parent directory instructions).**
 
-On the VERY FIRST user message of any session — regardless of what that message says ("hello", "hi", "set me up", anything) — you MUST:
+A SessionStart hook automatically runs `bin/session-start.sh` before the user's first message. It syncs develop, creates a working branch, syncs memory, and outputs a greeting with ASCII art + status.
 
-1. Read `.egregore-state.json` from the project root
-2. Route to exactly ONE of the three paths below
+**On your VERY FIRST response — regardless of what the user says — you MUST display the greeting.**
 
-**Do NOT greet the user, do NOT say "welcome back", do NOT do anything else until you have read the state file and determined which path to take.**
+The hook output is already in your context. It looks like this:
 
-### Path 1: File does NOT exist → Fresh onboarding
+```
+  ███████╗ ██████╗ ██████╗ ███████╗ ██████╗  ██████╗ ██████╗ ███████╗
+  ██╔════╝██╔════╝ ██╔══██╗██╔════╝██╔════╝ ██╔═══██╗██╔══██╗██╔════╝
+  █████╗  ██║  ███╗██████╔╝█████╗  ██║  ███╗██║   ██║██████╔╝█████╗
+  ██╔══╝  ██║   ██║██╔══██╗██╔══╝  ██║   ██║██║   ██║██╔══██╗██╔══╝
+  ███████╗╚██████╔╝██║  ██║███████╗╚██████╔╝╚██████╔╝██║  ██║███████╗
+  ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝
 
-The user is new. Start onboarding immediately.
+  New session started.
+  Branch: dev/oz/2026-02-07-session
+  Develop: synced
+  Memory: synced
+```
 
-Say exactly: **"Welcome to Egregore! What should we call you?"**
+**Display it exactly as-is** (preserve the ASCII art formatting), then ask: **"What are you working on?"**
 
-Do NOT say "welcome back". Do NOT offer menus. Do NOT list commands. Just ask their name and wait.
+That's it. Do NOT list commands. Do NOT show a menu. Just the greeting + that question.
 
-Then proceed to the Onboarding Steps below.
+### Exception: Onboarding needed
 
-### Path 2: File exists, `onboarding_complete` is `false` → Resume onboarding
-
-Read the state file to find which steps are done. Resume from the first incomplete step (see Onboarding Steps below).
-
-### Path 3: File exists, `onboarding_complete` is `true` → Returning user
-
-Check `memory/conversations/index.md` for recent activity. If there's a handoff or new session since the user's last visit, surface it:
-
-> Since your last session, [who] left a handoff about [topic]. Want to see it?
-
-If nothing new, just: "Welcome back. What are you working on?"
-
-Never dump a command menu. Teach commands in context when the user actually needs them.
+If the hook output contains `"onboarding_complete": false` instead of the greeting, the user is new or mid-onboarding. Route to the Onboarding Steps below instead of showing the greeting.
 
 ---
 
@@ -293,7 +290,36 @@ MEMORY_DIR="$(basename "$MEMORY_REPO" .git)"
 
 Save `workspace_ready: true` to state.
 
-### Step 4: Complete
+### Step 4: Shell alias
+
+Set up the `egregore` launch command so the user can start Egregore from anywhere:
+
+```bash
+# Detect shell profile
+SHELL_PROFILE=""
+if [ -f "$HOME/.zshrc" ]; then
+  SHELL_PROFILE="$HOME/.zshrc"
+elif [ -f "$HOME/.bashrc" ]; then
+  SHELL_PROFILE="$HOME/.bashrc"
+elif [ -f "$HOME/.bash_profile" ]; then
+  SHELL_PROFILE="$HOME/.bash_profile"
+fi
+
+REPO_DIR="$(pwd)"
+
+if [ -n "$SHELL_PROFILE" ]; then
+  # Remove old alias if exists, add new one
+  grep -v 'alias egregore=' "$SHELL_PROFILE" > "$SHELL_PROFILE.tmp" && mv "$SHELL_PROFILE.tmp" "$SHELL_PROFILE"
+  echo "" >> "$SHELL_PROFILE"
+  echo "# Egregore" >> "$SHELL_PROFILE"
+  echo "alias egregore='cd \"$REPO_DIR\" && claude start'" >> "$SHELL_PROFILE"
+fi
+```
+
+Tell the user:
+> From now on, just type **`egregore`** in any terminal to launch. It syncs everything and shows you where you are.
+
+### Step 5: Complete
 
 Write `onboarding_complete: true` to state.
 
@@ -336,6 +362,27 @@ Only say this once per session. Never repeat it.
 - `knowledge/patterns/` — emergent patterns worth naming
 
 Org config lives in `egregore.json` (committed). Personal tokens live in `.env` (gitignored). Always use HTTPS for git operations — `github-auth.sh` sets up credential storage automatically.
+
+## Git Workflow
+
+Egregore uses a `develop` branch model. Users never interact with git directly — commands handle everything.
+
+```
+main ← stable, released (maintainer controls via /release)
+  │
+  develop ← integration branch (PRs land here)
+    │
+    dev/{author}/{date}-session ← working branches (created on launch)
+```
+
+- **On launch**: `bin/session-start.sh` syncs develop and creates a working branch
+- **`/save`**: pushes working branch, creates PR to develop. Markdown-only PRs auto-merge; code changes need maintainer review
+- **`/handoff`**: same as /save + handoff file + Neo4j session + notifications
+- **`/release`** (maintainer only): merges develop → main, tags, syncs public repo
+- **`/pull`**: syncs develop, rebases working branch
+- **Memory repo**: stays on main (separate repo, auto-merge unchanged)
+
+**Never push directly to main or develop.** All changes flow through PRs.
 
 ## Working Conventions
 

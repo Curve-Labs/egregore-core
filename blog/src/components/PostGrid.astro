@@ -1,0 +1,28 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import GridCard from './GridCard.astro';
+
+interface Props {
+  posts: CollectionEntry<'posts'>[];
+}
+
+const { posts } = Astro.props;
+---
+
+<div class="post-grid" data-layout="grid">
+  {posts.map((post) => (
+    <GridCard post={post} />
+  ))}
+</div>
+
+<style>
+  .post-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-lg);
+  }
+
+  .post-grid[hidden] {
+    display: none;
+  }
+</style>

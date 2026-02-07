@@ -1,0 +1,52 @@
+/* Curve Labs Design System Tokens */
+
+:root {
+  /* Backgrounds */
+  --bg: #0a0a0c;
+  --bg-card: #0f1013;
+  --bg-card-hover: #141418;
+  --bg-elevated: #121215;
+
+  /* Borders */
+  --border: #1c1c24;
+  --border-hover: #2a2a36;
+  --border-accent: #2a4a46;
+
+  /* Text */
+  --text: #e0e0e8;
+  --text-soft: #9898a8;
+  --text-muted: #5a5a6a;
+  --text-dim: #333340;
+
+  /* Accent */
+  --accent: #5bbfb2;
+  --accent-soft: #3d8a80;
+  --accent-glow: rgba(91, 191, 178, 0.08);
+
+  /* Fonts */
+  --font-gothic: 'UnifrakturCook', cursive;
+  --font-mono: 'Space Mono', monospace;
+  --font-body: 'DM Sans', sans-serif;
+
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+
+  /* Shadows */
+  --shadow-glow: 0 0 20px var(--accent-glow);
+}

@@ -1,0 +1,141 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  post: CollectionEntry<'posts'>;
+}
+
+const { post } = Astro.props;
+const { title, subtitle, date, readTime, category, author } = post.data;
+---
+
+<article class="featured">
+  <a href={`/${post.slug}/`} class="featured-link">
+    <div class="featured-content">
+      <div class="featured-meta">
+        <span class="category">{category}</span>
+        <span class="divider">•</span>
+        <time datetime={date.toISOString()}>
+          {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </time>
+        <span class="divider">•</span>
+        <span class="read-time">{readTime}</span>
+      </div>
+
+      <h2 class="featured-title">{title}</h2>
+      <p class="featured-subtitle">{subtitle}</p>
+
+      <div class="featured-author">
+        <span class="author-label">by</span>
+        <span class="author-name">{author}</span>
+      </div>
+    </div>
+
+    <div class="featured-indicator">
+      <span class="indicator-text">Featured</span>
+      <span class="indicator-arrow">→</span>
+    </div>
+  </a>
+</article>
+
+<style>
+  .featured {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all var(--transition-base);
+  }
+
+  .featured:hover {
+    border-color: var(--border-accent);
+    box-shadow: var(--shadow-glow);
+  }
+
+  .featured-link {
+    display: block;
+    padding: var(--space-2xl);
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .featured-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: var(--space-lg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .category {
+    color: var(--accent);
+  }
+
+  .divider {
+    color: var(--text-dim);
+  }
+
+  .featured-title {
+    font-family: var(--font-gothic);
+    font-size: 2.5rem;
+    color: var(--text);
+    margin-bottom: var(--space-md);
+    line-height: 1.2;
+  }
+
+  .featured:hover .featured-title {
+    color: var(--accent);
+  }
+
+  .featured-subtitle {
+    font-size: 1.125rem;
+    color: var(--text-soft);
+    line-height: 1.6;
+    margin-bottom: var(--space-lg);
+    max-width: 65ch;
+  }
+
+  .featured-author {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--text-muted);
+  }
+
+  .author-name {
+    color: var(--text-soft);
+  }
+
+  .featured-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-xl);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+  }
+
+  .indicator-arrow {
+    transition: transform var(--transition-fast);
+  }
+
+  .featured:hover .indicator-arrow {
+    transform: translateX(4px);
+  }
+
+  @media (max-width: 768px) {
+    .featured-link {
+      padding: var(--space-lg);
+    }
+
+    .featured-title {
+      font-size: 1.75rem;
+    }
+  }
+</style>

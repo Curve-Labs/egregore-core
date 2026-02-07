@@ -1,0 +1,116 @@
+---
+const navItems = [
+  { label: 'Research', href: '/?category=Research#archive', num: '01' },
+  { label: 'Technical', href: '/?category=Technical#archive', num: '02' },
+  { label: 'Essays', href: '/?category=Essay#archive', num: '03' },
+  { label: 'Updates', href: '/?category=Update#archive', num: '04' },
+];
+---
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="logo">
+      <span class="logo-text">Curve Labs</span>
+    </a>
+
+    <ul class="nav-links">
+      {navItems.map((item) => (
+        <li>
+          <a href={item.href} class="nav-link">
+            <span class="nav-num">[{item.num}]</span>
+            <span class="nav-label">{item.label}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+
+    <a href="/rss.xml" class="rss-link" title="RSS Feed">
+      <span class="nav-num">[RSS]</span>
+    </a>
+  </div>
+</nav>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+
+  .nav-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-md) var(--space-lg);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-xl);
+  }
+
+  .logo {
+    text-decoration: none;
+  }
+
+  .logo-text {
+    font-family: var(--font-gothic);
+    font-size: 1.5rem;
+    color: var(--text);
+    transition: color var(--transition-fast);
+  }
+
+  .logo:hover .logo-text {
+    color: var(--accent);
+  }
+
+  .nav-links {
+    display: flex;
+    list-style: none;
+    gap: var(--space-lg);
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-soft);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
+
+  .nav-link:hover {
+    color: var(--accent);
+  }
+
+  .nav-num {
+    color: var(--text-muted);
+  }
+
+  .nav-link:hover .nav-num {
+    color: var(--accent-soft);
+  }
+
+  .rss-link {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
+
+  .rss-link:hover {
+    color: var(--accent);
+  }
+
+  @media (max-width: 768px) {
+    .nav-links {
+      display: none;
+    }
+  }
+</style>

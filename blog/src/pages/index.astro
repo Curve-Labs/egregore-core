@@ -1,0 +1,152 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Featured from '../components/Featured.astro';
+import PostRow from '../components/PostRow.astro';
+import PostGrid from '../components/PostGrid.astro';
+import Filters from '../components/Filters.astro';
+import ViewToggle from '../components/ViewToggle.astro';
+import Newsletter from '../components/Newsletter.astro';
+
+// Get all posts, filter out drafts, sort by date
+const allPosts = (await getCollection('posts', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+// Get featured post (first one marked as featured, or most recent)
+const featuredPost = allPosts.find(post => post.data.featured) || allPosts[0];
+
+// Get remaining posts for the archive
+const archivePosts = allPosts.filter(post => post !== featuredPost);
+---
+
+<Base title="Blog" description="Research notes, project updates, and dispatches from Curve Labs.">
+  <div class="container">
+    <!-- Header -->
+    <header class="page-header">
+      <h1 class="page-title">Dispatches</h1>
+      <p class="page-desc">Research notes, project updates, and essays from Curve Labs.</p>
+    </header>
+
+    <!-- Featured Post -->
+    {featuredPost && (
+      <section class="featured-section">
+        <Featured post={featuredPost} />
+      </section>
+    )}
+
+    <!-- Archive -->
+    {archivePosts.length > 0 && (
+      <section class="archive-section" id="archive">
+        <div class="archive-header">
+          <h2 class="archive-title">Archive</h2>
+          <div class="archive-controls">
+            <Filters />
+            <ViewToggle />
+          </div>
+        </div>
+
+        <!-- List View (default) -->
+        <div class="post-list" data-layout="list">
+          {archivePosts.map((post, index) => (
+            <PostRow post={post} index={index} />
+          ))}
+        </div>
+
+        <!-- Grid View (hidden by default) -->
+        <PostGrid posts={archivePosts} />
+      </section>
+    )}
+
+    <!-- Newsletter -->
+    <section class="newsletter-section">
+      <Newsletter />
+    </section>
+  </div>
+</Base>
+
+<script>
+  // Hide grid view by default
+  const gridView = document.querySelector('[data-layout="grid"]');
+  if (gridView) {
+    (gridView as HTMLElement).hidden = true;
+  }
+</script>
+
+<style>
+  .container {
+    max-width: 900px;
+  }
+
+  .page-header {
+    padding: var(--space-3xl) 0 var(--space-2xl);
+    text-align: center;
+  }
+
+  .page-title {
+    font-family: var(--font-gothic);
+    font-size: 3.5rem;
+    color: var(--text);
+    margin-bottom: var(--space-md);
+  }
+
+  .page-desc {
+    font-size: 1.125rem;
+    color: var(--text-soft);
+    margin: 0;
+  }
+
+  .featured-section {
+    margin-bottom: var(--space-3xl);
+  }
+
+  .archive-section {
+    margin-bottom: var(--space-3xl);
+  }
+
+  .archive-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-xl);
+    padding-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .archive-title {
+    font-family: var(--font-gothic);
+    font-size: 1.5rem;
+    color: var(--text);
+    margin: 0;
+  }
+
+  .archive-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+  }
+
+  .post-list[hidden] {
+    display: none;
+  }
+
+  .newsletter-section {
+    margin-bottom: var(--space-3xl);
+  }
+
+  @media (max-width: 768px) {
+    .page-title {
+      font-size: 2.5rem;
+    }
+
+    .archive-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .archive-controls {
+      justify-content: space-between;
+    }
+  }
+</style>

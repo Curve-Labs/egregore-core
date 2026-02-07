@@ -15,23 +15,25 @@ Topic: $ARGUMENTS
 ## Step 0: Smart sync (parallel with Step 2)
 
 ```bash
-# Fetch and check if behind (fast)
-git fetch origin main --quiet
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
-if [ "$LOCAL" != "$REMOTE" ]; then
-  git pull origin main --quiet
-  echo "synced"
+# Fetch and sync develop
+git fetch origin --quiet
+CURRENT=$(git branch --show-current)
+git checkout develop --quiet && git pull origin develop --quiet && git checkout "$CURRENT" --quiet 2>/dev/null
+# If on dev/* branch, rebase onto develop
+if [[ "$CURRENT" == dev/* ]]; then
+  git rebase develop --quiet 2>/dev/null || (git rebase --abort 2>/dev/null && git merge develop -m "Sync with develop" --quiet 2>/dev/null)
 fi
 
-# Same for memory
+# Memory
 git -C memory fetch origin main --quiet 2>/dev/null
 LOCAL=$(git -C memory rev-parse HEAD 2>/dev/null)
 REMOTE=$(git -C memory rev-parse origin/main 2>/dev/null)
 if [ "$LOCAL" != "$REMOTE" ]; then
   git -C memory pull origin main --quiet
-  echo "memory synced"
 fi
+
+# Open PRs to develop (show in activity)
+gh pr list --base develop --state open --json number,title,author 2>/dev/null
 ```
 
 Run this in parallel with Neo4j queries. Don't wait for it unless Neo4j fails.

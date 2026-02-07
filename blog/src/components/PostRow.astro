@@ -1,0 +1,144 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  post: CollectionEntry<'posts'>;
+  index: number;
+}
+
+const { post, index } = Astro.props;
+const { title, subtitle, date, readTime, category } = post.data;
+const num = String(index + 1).padStart(2, '0');
+---
+
+<article class="post-row" data-category={category}>
+  <a href={`/${post.slug}/`} class="post-link">
+    <span class="post-num">[{num}]</span>
+
+    <div class="post-content">
+      <div class="post-header">
+        <h3 class="post-title">{title}</h3>
+        <p class="post-subtitle">{subtitle}</p>
+      </div>
+
+      <div class="post-meta">
+        <span class="category">{category}</span>
+        <span class="divider">•</span>
+        <time datetime={date.toISOString()}>
+          {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </time>
+        <span class="divider">•</span>
+        <span class="read-time">{readTime}</span>
+      </div>
+    </div>
+
+    <span class="post-arrow">→</span>
+  </a>
+</article>
+
+<style>
+  .post-row {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .post-row:last-child {
+    border-bottom: none;
+  }
+
+  .post-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+    padding: var(--space-lg) 0;
+    text-decoration: none;
+    color: inherit;
+    transition: background var(--transition-fast);
+  }
+
+  .post-link:hover {
+    background: var(--bg-card);
+    margin: 0 calc(-1 * var(--space-lg));
+    padding: var(--space-lg);
+    border-radius: var(--radius-md);
+  }
+
+  .post-num {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    min-width: 2.5rem;
+  }
+
+  .post-link:hover .post-num {
+    color: var(--accent-soft);
+  }
+
+  .post-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .post-header {
+    margin-bottom: var(--space-sm);
+  }
+
+  .post-title {
+    font-family: var(--font-gothic);
+    font-size: 1.25rem;
+    color: var(--text);
+    margin-bottom: var(--space-xs);
+    transition: color var(--transition-fast);
+  }
+
+  .post-link:hover .post-title {
+    color: var(--accent);
+  }
+
+  .post-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .post-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .category {
+    color: var(--accent);
+  }
+
+  .divider {
+    color: var(--text-dim);
+  }
+
+  .post-arrow {
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+    transition: all var(--transition-fast);
+  }
+
+  .post-link:hover .post-arrow {
+    color: var(--accent);
+    transform: translateX(4px);
+  }
+
+  @media (max-width: 768px) {
+    .post-num {
+      display: none;
+    }
+
+    .post-subtitle {
+      white-space: normal;
+    }
+  }
+</style>

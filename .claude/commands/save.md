@@ -1,4 +1,4 @@
-Save your contributions to Egregore. Uses branch + PR + auto-merge for clean contribution history.
+Save your contributions to Egregore. Pushes working branch, creates PR to develop.
 
 ## What to do
 
@@ -17,8 +17,21 @@ Save your contributions to Egregore. Uses branch + PR + auto-merge for clean con
    - PR merges automatically
    - User sees: "Contribution merged"
 
-3. **For egregore** (commands, skills):
-   - Same branch + PR + auto-merge flow
+3. **For egregore** (commands, scripts, config):
+   - Ensure on a `dev/*` working branch. If not, create one from develop:
+     ```bash
+     git fetch origin develop --quiet
+     git checkout -b dev/$AUTHOR/$(date +%Y-%m-%d)-session origin/develop
+     ```
+   - Commit all changes to working branch
+   - Push working branch: `git push -u origin $BRANCH`
+   - Create PR to develop: `gh pr create --base develop --title "..." --body "..."`
+   - Detect if markdown-only or has code:
+     ```bash
+     NON_MD=$(git diff develop --name-only | grep -v '\.md$' | head -1)
+     ```
+     - **Markdown-only** (NON_MD is empty) → `gh pr merge --auto --merge` → auto-merges
+     - **Has code/config changes** → leave PR open, notify maintainer
 
 4. **For project repos** (tristero, lace):
    - Warn user: "You have code changes. Use /push and /pr for review."
@@ -54,45 +67,52 @@ This ensures files and graph stay in sync even if earlier commands skipped Neo4j
 Saving to Egregore...
 
 [sync] Checking Neo4j...
-  conversations/2026-01/27-ali-bot-upgrade-plan.md → missing Session
-  ✓ Created Session node for ali
+  conversations/2026-02/07-oz-infra-fix.md → missing Session
+  ✓ Created Session node for oz
   Synced: 1 session
 
 [memory]
   Changes:
-    artifacts/2026-01-26-oz-helm-review.md (new)
-    artifacts/2026-01-26-oz-temporal-thought.md (new)
-    quests/benchmark-eval.md (updated)
+    conversations/2026-02/07-oz-infra-fix.md (new)
+    conversations/index.md (modified)
 
   Creating contribution...
-    git checkout -b contrib/2026-01-26-oz-benchmark-artifacts
-    git commit -m "Add: 2 artifacts for benchmark-eval quest"
-    gh pr create --title "Add: 2 artifacts for benchmark-eval"
+    git checkout -b contrib/2026-02-07-oz-infra-fix
+    git commit -m "Add: handoff for infra fix"
+    gh pr create --title "Add: handoff for infra fix"
     gh pr merge --auto --merge
 
   ✓ Contribution merged
 
 [egregore]
-  No changes
+  On branch: dev/oz/2026-02-07-session
+  Changes:
+    .claude/commands/save.md (modified)
+    bin/session-start.sh (new)
 
-[tristero]
-  ⚠ Code changes detected. Use /push and /pr for review.
+  Pushing and creating PR...
+    git push -u origin dev/oz/2026-02-07-session
+    gh pr create --base develop --title "Update save command and add session-start"
+
+  Has code changes — PR #15 created for review.
+  ✓ Notified oz
 
 Done. Team sees your contribution on /activity.
 ```
 
-## If on a contribution branch already
+## Markdown-only PR (auto-merges)
 
 ```
-> /save
+[egregore]
+  On branch: dev/cem/2026-02-08-session
+  Changes:
+    .claude/commands/onboarding.md (modified)
 
-Saving to Egregore...
+  Pushing and creating PR...
+    gh pr create --base develop
+    gh pr merge --auto --merge
 
-[memory]
-  On branch: contrib/2026-01-26-oz-benchmark-artifacts
-  Adding to existing contribution...
-
-  ✓ Contribution updated and merged
+  ✓ Markdown-only — auto-merged to develop
 ```
 
 ## If no changes
@@ -106,9 +126,11 @@ No uncommitted changes.
 ## Why this flow?
 
 - Non-technical users never see git complexity
+- Markdown changes flow freely (auto-merge to develop)
+- Code/config changes get reviewed before merging to develop
 - Each contribution is a discrete, revertable unit
 - `/activity` shows contributions clearly
-- Code changes still get proper review
+- `/release` controls what reaches main
 
 ## Next
 

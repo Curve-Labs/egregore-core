@@ -1,0 +1,142 @@
+---
+title: "Async Handoffs Replace Standups"
+subtitle: "How small technical teams are eliminating context-sync meetings by making handoffs a first-class workflow."
+date: 2026-01-25
+readTime: "5 min read"
+category: "Essay"
+tags: ["async", "handoffs", "small-teams", "workflows"]
+author: "cem"
+featured: false
+---
+
+The standup meeting exists for one reason: context sync. "What did you work on? What are you working on? What's blocking you?"
+
+For small technical teams — early-stage startups, indie hacker duos, distributed dev shops — this ritual often feels like overhead. The meeting exists separate from where work happens. You stop working to talk about working.
+
+What if context could flow between collaborators without the meeting?
+
+---
+
+## The Pain Points
+
+Small technical teams share common frustrations:
+
+**Context gets lost between collaborators.** "What did you try?" "Where did you leave off?" Every handoff requires verbal reconstruction of state.
+
+**Project management feels like overhead.** Notion, Linear, Asana — all valuable tools, but they're separate from where work happens. Tab-switching is friction.
+
+**AI conversations are siloed.** You have a great exploration with Claude. Your cofounder has their own. The learning doesn't compound.
+
+**Standups exist just to sync context.** The meeting is a workaround for infrastructure that doesn't exist.
+
+---
+
+## The Trigger Moment
+
+The moment teams realize they need something different:
+
+> "I spent 30 minutes explaining to my cofounder what I already tried. If only they could see my conversation history."
+
+This is the handoff problem. The context exists — in your head, in your terminal history, in your AI conversation. But there's no path from where it lives to where it's needed.
+
+---
+
+## The Handoff Loop
+
+Egregore makes handoffs a first-class workflow:
+
+```
+Alice works on authentication
+       │
+       ▼
+/handoff to Bob "Auth working, need rate limiting next"
+       │
+       ├──> Session saved with full context
+       ├──> Handoff message attached
+       └──> Bob notified via Telegram
+              │
+              ▼
+Bob runs /activity
+       │
+       ▼
+Sees Alice's handoff with:
+- What she tried
+- What worked
+- What didn't
+- Exact next steps
+       │
+       ▼
+Picks up exactly where Alice left off
+```
+
+**What changes:** Bob doesn't need to ask "what did you try?" The exploration is preserved. The reasoning is preserved. The context transfers with the work.
+
+---
+
+## Why Terminal-Native Matters
+
+Small technical teams already live in terminal. Git, npm, docker, claude — the work happens there.
+
+A handoff tool that lives in terminal means:
+
+- **Zero context switch** — You don't leave your workflow to document it
+- **Capture as byproduct** — The AI conversation *is* the context
+- **No new tools to learn** — It's just another command
+
+The insight: context should accumulate automatically during work, not require a separate capture step.
+
+---
+
+## The Conversion Path
+
+We see teams adopt Egregore in a predictable pattern:
+
+1. **Start with 2 people** — Free tier. Handoffs feel like a nice-to-have.
+
+2. **Add a 3rd collaborator** — Handoffs become essential. Context sync meetings start feeling redundant.
+
+3. **Hit the value of shared context** — "Wait, I can see what everyone is working on without asking?"
+
+4. **4th person joins** — Team tier. The org has institutional memory now.
+
+The handoff sells the workflow. Once you've done it, going back feels like regression.
+
+---
+
+## What We're Hearing
+
+From teams using Egregore for async collaboration:
+
+> "We dropped our daily standup. The `/activity` command shows me everything I need."
+
+> "My cofounder is in a different timezone. Before, we'd lose a day to context sync. Now I hand off at EOD and he picks up immediately."
+
+> "The AI remembers what we've tried. It's like having a team member with perfect memory."
+
+---
+
+## The Broader Pattern
+
+Standups are a symptom, not the disease. The disease is infrastructure that doesn't support context flow.
+
+When context flows naturally — as a byproduct of work, not a separate documentation step — the meetings that existed to compensate become optional.
+
+Not every team will drop standups entirely. Some value the social function. But when the *functional* purpose (context sync) is handled by infrastructure, the meeting can serve its *social* purpose without the overhead.
+
+---
+
+## Getting Started
+
+If you're a small technical team frustrated by context loss:
+
+1. **Try one handoff.** End your work session with `/handoff` instead of just closing the terminal.
+
+2. **Have your collaborator pick it up.** See if they can continue without asking clarifying questions.
+
+3. **Notice what changes.** Is the standup still necessary? What would you do with that time?
+
+The bet: teams that master async handoffs will move faster than teams that don't. Context is a competitive advantage.
+
+---
+
+*Egregore is free for teams up to 3 people. Terminal-native, AI-native, no switching costs.*

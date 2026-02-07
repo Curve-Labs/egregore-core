@@ -1,0 +1,86 @@
+---
+---
+
+<div class="view-toggle">
+  <button data-view="list" class="toggle-btn active" title="List view">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </button>
+  <button data-view="grid" class="toggle-btn" title="Grid view">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="11" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="2" y="11" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="11" y="11" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+    </svg>
+  </button>
+</div>
+
+<script>
+  function initViewToggle() {
+    const toggleBtns = document.querySelectorAll('[data-view]');
+    const listView = document.querySelector('[data-layout="list"]');
+    const gridView = document.querySelector('[data-layout="grid"]');
+
+    toggleBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const view = btn.getAttribute('data-view');
+
+        // Update active state
+        toggleBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Toggle views
+        if (view === 'list') {
+          if (listView) (listView as HTMLElement).hidden = false;
+          if (gridView) (gridView as HTMLElement).hidden = true;
+        } else {
+          if (listView) (listView as HTMLElement).hidden = true;
+          if (gridView) (gridView as HTMLElement).hidden = false;
+        }
+      });
+    });
+  }
+
+  // Run on initial load
+  initViewToggle();
+
+  // Re-run on Astro page navigation
+  document.addEventListener('astro:after-swap', initViewToggle);
+</script>
+
+<style>
+  .view-toggle {
+    display: flex;
+    gap: var(--space-xs);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs);
+  }
+
+  .toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .toggle-btn:hover {
+    color: var(--text-soft);
+    background: var(--bg-elevated);
+  }
+
+  .toggle-btn.active {
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+</style>

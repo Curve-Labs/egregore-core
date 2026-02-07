@@ -1,6 +1,9 @@
 # Memory symlink (each user creates their own)
 memory
 
+# Local MCP config (merged from mcp.shared.json + personal)
+.mcp.json
+
 # OS files
 .DS_Store
 *.swp
