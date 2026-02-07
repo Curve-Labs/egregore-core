@@ -40,14 +40,14 @@ If the hook output contains `"onboarding_complete": false` instead of the greeti
 
 Two config files, different purposes:
 
-- **`egregore.json`** — committed to git. Ships with shared infra creds (`neo4j_*`, `telegram_*`). Founder fills in org-specific fields (`org_name`, `github_org`, `memory_repo`) during onboarding, then pushes to the fork. Joiners inherit the full config via clone.
+- **`egregore.json`** — committed to git. Ships with `api_url` (the Egregore API gateway). Founder fills in `org_name`, `github_org`, `memory_repo`, and `api_key` during onboarding, then pushes to the fork. Joiners inherit the full config via clone. **No secrets** — API key grants scoped access; all credentials stay server-side.
 - **`.env`** — gitignored. Personal secrets only: `GITHUB_TOKEN`. Each user creates their own.
 
 **Reading values:**
 ```bash
 # From egregore.json (use jq)
 jq -r '.memory_repo' egregore.json
-jq -r '.neo4j_host' egregore.json
+jq -r '.api_url' egregore.json
 
 # From .env (never use source — breaks on spaces)
 grep '^GITHUB_TOKEN=' .env | cut -d'=' -f2-
@@ -55,7 +55,7 @@ grep '^GITHUB_TOKEN=' .env | cut -d'=' -f2-
 
 ## Knowledge Graph
 
-Neo4j is the query layer over the shared memory. `bin/graph.sh` connects to it via HTTP — no drivers, no MCP, just curl.
+Neo4j is the query layer over the shared memory. `bin/graph.sh` connects via the Egregore API gateway — no direct database credentials needed.
 
 ```bash
 # Test connection
@@ -71,13 +71,13 @@ bash bin/graph.sh query "MATCH (p:Person {name: \$name}) RETURN p" '{"name":"oz"
 bash bin/graph.sh schema
 ```
 
-**Always use `bin/graph.sh`** for Neo4j queries — never construct curl calls to Neo4j directly. The script reads credentials from `egregore.json` and handles auth, errors, and response parsing.
+**Always use `bin/graph.sh`** for Neo4j queries — never construct curl calls directly. The script reads `api_url` and `api_key` from `egregore.json` and handles auth, errors, and response parsing. Data is automatically scoped to your org.
 
 Current schema: Person, Session, Artifact, Quest, Project, Spirit. Relationships: BY, CONTRIBUTED_BY, HANDED_TO, INVOKED_BY, INVOLVES, PART_OF, RELATES_TO, STARTED_BY.
 
 ## Notifications
 
-Telegram notifications via `bin/notify.sh`. Reads `telegram_bot_token` and `telegram_chat_id` from `egregore.json`.
+Telegram notifications via `bin/notify.sh`. Routes through the Egregore API gateway — no bot tokens needed locally.
 
 ```bash
 # Send to a person (DMs if they have telegramId in Neo4j, falls back to group)
@@ -177,16 +177,32 @@ Run these steps in order. Write `.egregore-state.json` after each step to checkp
    ```
    If `../$GITHUB_ORG-memory` already exists, `cd` into it and `git pull` instead of cloning.
 
-8. Update `egregore.json` with org-specific fields (infra creds are already there from the zip):
+8. Register with the Egregore API to get an API key:
+   ```bash
+   TOKEN=$(grep '^GITHUB_TOKEN=' .env | cut -d'=' -f2-)
+   API_URL=$(jq -r '.api_url' egregore.json)
+
+   RESPONSE=$(curl -s -X POST "$API_URL/api/org/register" \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d "$(jq -n --arg org_name "$ORG_NAME" --arg github_org "$GITHUB_ORG" \
+       '{org_name: $org_name, github_org: $github_org}')")
+
+   API_KEY=$(echo "$RESPONSE" | jq -r '.api_key')
+   ```
+   If registration fails, show the error. The API verifies the GitHub token and creates an org-scoped space in the shared database.
+
+9. Update `egregore.json` with org-specific fields and API key:
    ```bash
    jq --arg org_name "$ORG_NAME" \
       --arg github_org "$GITHUB_ORG" \
       --arg memory_repo "https://github.com/$GITHUB_ORG/$GITHUB_ORG-memory.git" \
-      '.org_name = $org_name | .github_org = $github_org | .memory_repo = $memory_repo' \
+      --arg api_key "$API_KEY" \
+      '.org_name = $org_name | .github_org = $github_org | .memory_repo = $memory_repo | .api_key = $api_key' \
       egregore.json > tmp.$$.json && mv tmp.$$.json egregore.json
    ```
 
-9. Initialize git and connect to the fork. The zip has no `.git` — we create one now:
+10. Initialize git and connect to the fork. The zip has no `.git` — we create one now:
    ```bash
    git init
    git remote add origin "https://github.com/$GITHUB_ORG/egregore-core.git"
@@ -200,13 +216,13 @@ Run these steps in order. Write `.egregore-state.json` after each step to checkp
    git push -u origin main
    ```
 
-10. Test the graph connection:
+11. Test the graph connection:
     ```bash
     bash bin/graph.sh test
     ```
-    If it fails, check network connectivity. The Neo4j instance is shared — no setup needed.
+    If it fails, check network connectivity. The API handles all database access — no direct credentials needed.
 
-11. Save `org_setup: true` to `.egregore-state.json`. Continue to Step 1.
+12. Save `org_setup: true` to `.egregore-state.json`. Continue to Step 1.
 
 #### Path B: Joiner — joining an existing organization
 
@@ -361,7 +377,7 @@ Only say this once per session. Never repeat it.
 - `knowledge/decisions/` — decisions that affect the org
 - `knowledge/patterns/` — emergent patterns worth naming
 
-Org config lives in `egregore.json` (committed). Personal tokens live in `.env` (gitignored). Always use HTTPS for git operations — `github-auth.sh` sets up credential storage automatically.
+Org config lives in `egregore.json` (committed — contains API key, not secrets). Personal tokens live in `.env` (gitignored). Always use HTTPS for git operations — `github-auth.sh` sets up credential storage automatically.
 
 ## Git Workflow
 
