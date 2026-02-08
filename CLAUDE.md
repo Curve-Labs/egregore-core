@@ -40,18 +40,21 @@ If the hook output contains `"onboarding_complete": false` instead of the greeti
 
 Two config files, different purposes:
 
-- **`egregore.json`** — committed to git. Ships with shared infra creds (`neo4j_*`, `telegram_*`). Founder fills in org-specific fields (`org_name`, `github_org`, `memory_repo`) during onboarding, then pushes to the fork. Joiners inherit the full config via clone.
-- **`.env`** — gitignored. Personal secrets only: `GITHUB_TOKEN`. Each user creates their own.
+- **`egregore.json`** — committed to git. Non-secret org config only: `org_name`, `github_org`, `memory_repo`, `api_url`. Founder fills these during onboarding, pushes to the fork. Joiners inherit via clone. **Never put secrets here.**
+- **`.env`** — gitignored. Personal secrets: `GITHUB_TOKEN` + `EGREGORE_API_KEY`. Created during onboarding. See `.env.example` for the template.
 
 **Reading values:**
 ```bash
-# From egregore.json (use jq)
+# From egregore.json (non-secret config, use jq)
 jq -r '.memory_repo' egregore.json
-jq -r '.neo4j_host' egregore.json
+jq -r '.api_url' egregore.json
 
-# From .env (never use source — breaks on spaces)
+# From .env (secrets — never use source, breaks on spaces)
 grep '^GITHUB_TOKEN=' .env | cut -d'=' -f2-
+grep '^EGREGORE_API_KEY=' .env | cut -d'=' -f2-
 ```
+
+**Important:** All infrastructure credentials (Neo4j, Telegram) live on the API server only. Users never need them locally — `bin/graph.sh` and `bin/notify.sh` route through the API gateway using `EGREGORE_API_KEY`.
 
 ## Knowledge Graph
 
@@ -71,13 +74,13 @@ bash bin/graph.sh query "MATCH (p:Person {name: \$name}) RETURN p" '{"name":"oz"
 bash bin/graph.sh schema
 ```
 
-**Always use `bin/graph.sh`** for Neo4j queries — never construct curl calls to Neo4j directly. The script reads credentials from `egregore.json` and handles auth, errors, and response parsing.
+**Always use `bin/graph.sh`** for Neo4j queries — never construct curl calls to Neo4j directly. The script reads `api_url` from `egregore.json` and `EGREGORE_API_KEY` from `.env`, then routes queries through the API gateway.
 
 Current schema: Person, Session, Artifact, Quest, Project, Spirit. Relationships: BY, CONTRIBUTED_BY, HANDED_TO, INVOKED_BY, INVOLVES, PART_OF, RELATES_TO, STARTED_BY.
 
 ## Notifications
 
-Telegram notifications via `bin/notify.sh`. Reads `telegram_bot_token` and `telegram_chat_id` from `egregore.json`.
+Telegram notifications via `bin/notify.sh`. Routes through the API gateway using `EGREGORE_API_KEY` from `.env`.
 
 ```bash
 # Send to a person (DMs if they have telegramId in Neo4j, falls back to group)
@@ -170,14 +173,14 @@ Run these steps in order. Write `.egregore-state.json` after each step to checkp
    ```bash
    git clone "https://github.com/$GITHUB_ORG/$GITHUB_ORG-memory.git" "../$GITHUB_ORG-memory"
    cd "../$GITHUB_ORG-memory"
-   mkdir -p people conversations knowledge/decisions knowledge/patterns
-   touch people/.gitkeep conversations/.gitkeep knowledge/decisions/.gitkeep knowledge/patterns/.gitkeep
+   mkdir -p people handoffs knowledge/decisions knowledge/patterns
+   touch people/.gitkeep handoffs/.gitkeep knowledge/decisions/.gitkeep knowledge/patterns/.gitkeep
    git add -A && git commit -m "Initialize memory structure" && git push
    cd -
    ```
    If `../$GITHUB_ORG-memory` already exists, `cd` into it and `git pull` instead of cloning.
 
-8. Update `egregore.json` with org-specific fields (infra creds are already there from the zip):
+8. Update `egregore.json` with org-specific fields (non-secret config only):
    ```bash
    jq --arg org_name "$ORG_NAME" \
       --arg github_org "$GITHUB_ORG" \
@@ -185,6 +188,7 @@ Run these steps in order. Write `.egregore-state.json` after each step to checkp
       '.org_name = $org_name | .github_org = $github_org | .memory_repo = $memory_repo' \
       egregore.json > tmp.$$.json && mv tmp.$$.json egregore.json
    ```
+   **Note:** `api_url` is already set. `api_key` goes in `.env` (gitignored), NOT in `egregore.json`.
 
 9. Initialize git and connect to the fork. The zip has no `.git` — we create one now:
    ```bash
@@ -210,7 +214,9 @@ Run these steps in order. Write `.egregore-state.json` after each step to checkp
 
 #### Path B: Joiner — joining an existing organization
 
-`egregore.json` has `org_name` set (inherited from the fork/clone) but `.env` is missing or has no token. This user is joining a team that already set up Egregore.
+`egregore.json` has `org_name` set (inherited from the fork/clone) but `.env` is missing or incomplete. This user is joining a team that already set up Egregore.
+
+**Note:** If the joiner used `npx create-egregore` or the install script, `.env` already has `GITHUB_TOKEN` and `EGREGORE_API_KEY`. In that case, verify and skip to Step 1.
 
 1. Read the org config and greet them:
    ```bash
@@ -218,29 +224,43 @@ Run these steps in order. Write `.egregore-state.json` after each step to checkp
    ```
    > **"Welcome to Egregore for {org_name}! Let's get you set up."**
 
-2. Authenticate with GitHub. Say: **"I'm opening your browser — authorize Egregore and I'll handle the rest."** Then run:
+2. Authenticate with GitHub (if `GITHUB_TOKEN` not in `.env`). Say: **"I'm opening your browser — authorize Egregore and I'll handle the rest."** Then run:
    ```bash
    bash bin/github-auth.sh
    ```
    Wait for it to exit 0. If it fails, show the error and stop.
 
-3. Test access to the memory repo:
+3. Check for `EGREGORE_API_KEY` in `.env`. If missing, tell the user to ask their team admin for the API key, then add it:
    ```bash
-   git ls-remote "$(jq -r '.memory_repo' egregore.json)" HEAD 2>&1
+   echo "EGREGORE_API_KEY=ek_..." >> .env
    ```
 
-4. **Works** → test graph connection:
+4. Test access to the memory repo:
+   ```bash
+   MEMORY_REPO="$(jq -r '.memory_repo' egregore.json)"
+   GITHUB_ORG="$(jq -r '.github_org' egregore.json)"
+   # Handle both bare name and full URL formats
+   if echo "$MEMORY_REPO" | grep -q '^http'; then
+     MEMORY_URL="$MEMORY_REPO"
+   else
+     MEMORY_URL="https://github.com/$GITHUB_ORG/$MEMORY_REPO.git"
+   fi
+   git ls-remote "$MEMORY_URL" HEAD 2>&1
+   ```
+
+5. **Works** → test graph connection:
    ```bash
    bash bin/graph.sh test
    ```
    Then continue to Step 1.
 
-5. **Fails** → help debug. Common causes:
+6. **Fails** → help debug. Common causes:
    - Not a collaborator on the repo → tell them to ask their team for access
    - Token expired → re-run `bash bin/github-auth.sh`
+   - Missing API key → ask team admin
    Do NOT try to create SSH keys. Do NOT loop more than twice. If still failing, say what's wrong and let the user fix it.
 
-6. Save `org_setup: true` to `.egregore-state.json`. Continue to Step 1.
+7. Save `org_setup: true` to `.egregore-state.json`. Continue to Step 1.
 
 ### Step 1: Name
 
@@ -290,18 +310,34 @@ MEMORY_DIR="$(basename "$MEMORY_REPO" .git)"
 
 Save `workspace_ready: true` to state.
 
-### Step 4: Shell command
+### Step 4: Shell alias
 
-The `egregore` shell command is automatically installed by `bin/session-start.sh` (runs on every launch). It registers the current instance in `~/.egregore/instances.json` and writes a shell function to the user's profile if not already present.
+Set up the `egregore` launch command so the user can start Egregore from anywhere:
 
-**No manual setup needed.** The session-start hook handles everything.
+```bash
+# Detect shell profile
+SHELL_PROFILE=""
+if [ -f "$HOME/.zshrc" ]; then
+  SHELL_PROFILE="$HOME/.zshrc"
+elif [ -f "$HOME/.bashrc" ]; then
+  SHELL_PROFILE="$HOME/.bashrc"
+elif [ -f "$HOME/.bash_profile" ]; then
+  SHELL_PROFILE="$HOME/.bash_profile"
+fi
 
-The shell function supports multiple Egregore instances:
-- 1 instance → launches directly
-- 2+ instances → shows a numbered picker
+REPO_DIR="$(pwd)"
+
+if [ -n "$SHELL_PROFILE" ]; then
+  # Remove old alias if exists, add new one
+  grep -v 'alias egregore=' "$SHELL_PROFILE" > "$SHELL_PROFILE.tmp" && mv "$SHELL_PROFILE.tmp" "$SHELL_PROFILE"
+  echo "" >> "$SHELL_PROFILE"
+  echo "# Egregore" >> "$SHELL_PROFILE"
+  echo "alias egregore='cd \"$REPO_DIR\" && claude start'" >> "$SHELL_PROFILE"
+fi
+```
 
 Tell the user:
-> From now on, just type **`egregore`** in any terminal to launch. If you have multiple orgs, it'll ask which one.
+> From now on, just type **`egregore`** in any terminal to launch. It syncs everything and shows you where you are.
 
 ### Step 5: Complete
 
@@ -341,37 +377,38 @@ Only say this once per session. Never repeat it.
 `memory/` is a symlink to the memory repo defined in `egregore.json`. It contains:
 
 - `people/` — who's involved, their interests and roles
-- `conversations/` — session logs and `index.md` for recent activity
+- `handoffs/` — session handoffs and `index.md` for recent activity
 - `knowledge/decisions/` — decisions that affect the org
 - `knowledge/patterns/` — emergent patterns worth naming
 
-Org config lives in `egregore.json` (committed). Personal tokens live in `.env` (gitignored). Always use HTTPS for git operations — `github-auth.sh` sets up credential storage automatically.
+Org config lives in `egregore.json` (committed, non-secret). Personal tokens (`GITHUB_TOKEN`, `EGREGORE_API_KEY`) live in `.env` (gitignored). Always use HTTPS for git operations — `github-auth.sh` sets up credential storage automatically.
 
 ## Git Workflow
 
-Users work directly on `develop`. No manual branch management — `/save` handles everything.
+Egregore uses a `develop` branch model. Users never interact with git directly — commands handle everything.
 
 ```
 main ← stable, released (maintainer controls via /release)
   │
-  develop ← where everyone works
+  develop ← integration branch (PRs land here)
     │
-    save/{author}/{date}-{summary} ← created by /save, deleted after merge
+    dev/{author}/{date}-session ← working branches (created on launch)
 ```
 
-- **On launch**: `bin/session-start.sh` syncs develop, stays on develop
-- **Working**: commit freely on develop (local only)
-- **`/save`**: creates a branch from your commits, pushes, creates PR to develop, resets develop to clean. Markdown-only PRs auto-merge; code changes need review
+- **On launch**: `bin/session-start.sh` syncs develop and creates a working branch
+- **`/save`**: pushes working branch, creates PR to develop. Markdown-only PRs auto-merge; code changes need maintainer review
 - **`/handoff`**: same as /save + handoff file + Neo4j session + notifications
 - **`/release`** (maintainer only): merges develop → main, tags, syncs public repo
-- **`/pull`**: pulls latest develop
-- **Memory repo**: stays on main (separate repo, auto-merge)
+- **`/pull`**: syncs develop, rebases working branch
+- **Memory repo**: stays on main (separate repo, auto-merge unchanged)
+
+**Never push directly to main or develop.** All changes flow through PRs.
 
 ## Working Conventions
 
 - Check `memory/knowledge/` before starting unfamiliar work
 - Document significant decisions in `memory/knowledge/decisions/`
-- After substantial sessions, log to `memory/conversations/` and update `index.md`
+- After substantial sessions, log to `memory/handoffs/` and update `index.md`
 - Use `/handoff` when leaving work for others to pick up
 - Use `/save` to commit and push contributions
 

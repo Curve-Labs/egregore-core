@@ -10,14 +10,7 @@ DATE=$(date +%Y-%m-%d)
 
 # --- Determine author short name ---
 FULLNAME=$(git config user.name 2>/dev/null || echo "")
-case "$FULLNAME" in
-  *Oguzhan*|*ozzi*) AUTHOR="oz" ;;
-  *Cem*)            AUTHOR="cem" ;;
-  *Ali*)            AUTHOR="ali" ;;
-  *Pali*)           AUTHOR="pali" ;;
-  *Damla*)          AUTHOR="damla" ;;
-  *)                AUTHOR=$(echo "$FULLNAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1) ;;
-esac
+AUTHOR=$(echo "$FULLNAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1)
 
 if [ -z "$AUTHOR" ]; then
   echo '{"error": "git user.name not set. Run: git config user.name \"Your Name\""}'
@@ -37,6 +30,54 @@ if [ "$ONBOARDING_COMPLETE" != "true" ]; then
   exit 0
 fi
 
+# --- Auto-provision EGREGORE_API_KEY if missing ---
+ENV_FILE="$SCRIPT_DIR/.env"
+CONFIG="$SCRIPT_DIR/egregore.json"
+
+if [ -f "$ENV_FILE" ] && ! grep -q '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null; then
+  GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2-)
+  API_URL=$(jq -r '.api_url // empty' "$CONFIG" 2>/dev/null)
+  GITHUB_ORG=$(jq -r '.github_org // empty' "$CONFIG" 2>/dev/null)
+
+  if [ -n "$GITHUB_TOKEN" ] && [ -n "$API_URL" ] && [ -n "$GITHUB_ORG" ]; then
+    SLUG=$(echo "$GITHUB_ORG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
+    KEY_RESPONSE=$(curl -s -X GET "${API_URL}/api/org/${SLUG}/key" \
+      -H "Authorization: Bearer $GITHUB_TOKEN" \
+      --max-time 10 2>/dev/null || echo "")
+
+    if [ -n "$KEY_RESPONSE" ]; then
+      FETCHED_KEY=$(echo "$KEY_RESPONSE" | jq -r '.api_key // empty' 2>/dev/null)
+      if [ -n "$FETCHED_KEY" ] && [ "$FETCHED_KEY" != "null" ]; then
+        echo "EGREGORE_API_KEY=$FETCHED_KEY" >> "$ENV_FILE"
+      fi
+    fi
+  fi
+fi
+
+# --- Self-register in instance registry (for pre-registry installs) ---
+# Wrapped in subshell — registration is optional, must not block session start
+if command -v jq &>/dev/null && [ -f "$CONFIG" ]; then
+  (
+    REGISTRY_DIR="$HOME/.egregore"
+    REGISTRY="$REGISTRY_DIR/instances.json"
+    INST_SLUG=$(jq -r '.github_org // empty' "$CONFIG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
+    INST_NAME=$(jq -r '.org_name // empty' "$CONFIG")
+
+    if [ -n "$INST_SLUG" ] && [ -n "$INST_NAME" ]; then
+      mkdir -p "$REGISTRY_DIR"
+      if [ ! -f "$REGISTRY" ]; then echo "[]" > "$REGISTRY"; fi
+
+      ALREADY=$(jq --arg p "$SCRIPT_DIR" '[.[] | select(.path == $p)] | length' "$REGISTRY")
+      if [ "$ALREADY" = "0" ]; then
+        ENTRY=$(jq -n --arg s "$INST_SLUG" --arg n "$INST_NAME" --arg p "$SCRIPT_DIR" \
+          '{slug: $s, name: $n, path: $p}')
+        jq --argjson e "$ENTRY" '. + [$e]' "$REGISTRY" > "$REGISTRY.tmp" \
+          && mv "$REGISTRY.tmp" "$REGISTRY"
+      fi
+    fi
+  ) 2>/dev/null || true
+fi
+
 # --- Fetch all remotes in parallel ---
 git fetch origin --quiet 2>/dev/null &
 FETCH_PID=$!
@@ -50,19 +91,11 @@ else
   MEM_FETCH_PID=""
 fi
 
-# Ensure upstream remote exists (for update checks)
-if ! git remote get-url upstream >/dev/null 2>&1; then
-  git remote add upstream https://github.com/Curve-Labs/egregore-core.git 2>/dev/null || true
-fi
-git fetch upstream --quiet 2>/dev/null &
-UPSTREAM_FETCH_PID=$!
-
 # Wait for fetches
 wait $FETCH_PID 2>/dev/null || true
 if [ -n "$MEM_FETCH_PID" ]; then
   wait $MEM_FETCH_PID 2>/dev/null || true
 fi
-wait $UPSTREAM_FETCH_PID 2>/dev/null || true
 
 # --- Ensure develop branch exists locally ---
 if ! git show-ref --verify --quiet refs/heads/develop 2>/dev/null; then
@@ -75,7 +108,8 @@ if ! git show-ref --verify --quiet refs/heads/develop 2>/dev/null; then
   fi
 fi
 
-# --- Sync develop (users work directly on develop) ---
+# --- Sync develop ---
+CURRENT_BRANCH=$(git branch --show-current)
 
 # Save current state if dirty
 STASHED="false"
@@ -92,6 +126,43 @@ DEVELOP_SYNCED="true"
 COMMITS_AHEAD=0
 if git show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; then
   COMMITS_AHEAD=$(git rev-list origin/main..origin/develop --count 2>/dev/null || echo "0")
+fi
+
+# --- Create or resume working branch ---
+ACTION="created"
+BRANCH=""
+
+if [[ "$CURRENT_BRANCH" == dev/* ]]; then
+  # Resume existing session branch
+  BRANCH="$CURRENT_BRANCH"
+  git checkout "$BRANCH" --quiet 2>/dev/null
+
+  # Rebase onto develop
+  if git rebase develop --quiet 2>/dev/null; then
+    ACTION="rebased"
+  else
+    git rebase --abort 2>/dev/null || true
+    git merge develop --quiet -m "Sync with develop" 2>/dev/null || true
+    ACTION="merged"
+  fi
+else
+  # Create new session branch from develop
+  BRANCH="dev/$AUTHOR/$DATE-session"
+
+  # If branch already exists (same person, same day), use it
+  if git show-ref --verify --quiet "refs/heads/$BRANCH" 2>/dev/null; then
+    git checkout "$BRANCH" --quiet 2>/dev/null
+    if git rebase develop --quiet 2>/dev/null; then
+      ACTION="resumed"
+    else
+      git rebase --abort 2>/dev/null || true
+      git merge develop --quiet -m "Sync with develop" 2>/dev/null || true
+      ACTION="resumed"
+    fi
+  else
+    git checkout -b "$BRANCH" --quiet 2>/dev/null
+    ACTION="created"
+  fi
 fi
 
 # Restore stashed changes
@@ -122,103 +193,15 @@ cat << 'GREETING'
 GREETING
 
 # Status line
-echo "  Ready."
-echo "  Develop: synced"
-[ "$MEMORY_SYNCED" = "true" ] && echo "  Memory: synced"
-[ "$COMMITS_AHEAD" -gt 0 ] && echo "  $COMMITS_AHEAD changes on develop since last release."
-
-# --- Check for upstream updates (already fetched above) ---
-UPSTREAM_NOTICE=""
-if git show-ref --verify --quiet refs/remotes/upstream/main 2>/dev/null; then
-  UPSTREAM_NEW=$(git rev-list HEAD..upstream/main --count 2>/dev/null || echo "0")
-  if [ "$UPSTREAM_NEW" -gt 0 ]; then
-    UPSTREAM_NOTICE="  ⬆ $UPSTREAM_NEW upstream updates available. Run /update-egregore to get them."
-  fi
+if [ "$ACTION" = "created" ]; then
+  echo "  New session started."
+elif [ "$ACTION" = "resumed" ] || [ "$ACTION" = "rebased" ]; then
+  echo "  Session resumed."
 fi
-[ -n "$UPSTREAM_NOTICE" ] && echo "$UPSTREAM_NOTICE"
 
+echo "  Branch: $BRANCH"
+echo "  Develop: synced"
+if [ "$MEMORY_SYNCED" = "true" ]; then echo "  Memory: synced"; fi
+if [ "$COMMITS_AHEAD" -gt 0 ] 2>/dev/null; then echo "  $COMMITS_AHEAD changes on develop since last release."; fi
 echo ""
 echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting) on their first message. Then ask: What are you working on?"
-
-# --- Register instance in ~/.egregore/instances.json ---
-REGISTRY_DIR="$HOME/.egregore"
-REGISTRY_FILE="$REGISTRY_DIR/instances.json"
-ORG_NAME=$(jq -r '.org_name // "Egregore"' "$SCRIPT_DIR/egregore.json" 2>/dev/null)
-ORG_SLUG=$(jq -r '.github_org // "default"' "$SCRIPT_DIR/egregore.json" 2>/dev/null | tr '[:upper:]' '[:lower:]')
-
-mkdir -p "$REGISTRY_DIR"
-if [ ! -f "$REGISTRY_FILE" ]; then
-  echo '[]' > "$REGISTRY_FILE"
-fi
-
-jq --arg slug "$ORG_SLUG" --arg name "$ORG_NAME" --arg path "$SCRIPT_DIR" \
-  'if any(.[]; .slug == $slug)
-   then map(if .slug == $slug then {slug: $slug, name: $name, path: $path} else . end)
-   else . + [{slug: $slug, name: $name, path: $path}]
-   end' "$REGISTRY_FILE" > "$REGISTRY_FILE.tmp" && mv "$REGISTRY_FILE.tmp" "$REGISTRY_FILE"
-
-# --- Install egregore shell function if needed ---
-SHELL_PROFILE=""
-if [ -f "$HOME/.zshrc" ]; then
-  SHELL_PROFILE="$HOME/.zshrc"
-elif [ -f "$HOME/.bashrc" ]; then
-  SHELL_PROFILE="$HOME/.bashrc"
-elif [ -f "$HOME/.bash_profile" ]; then
-  SHELL_PROFILE="$HOME/.bash_profile"
-fi
-
-if [ -n "$SHELL_PROFILE" ]; then
-  if ! grep -q 'egregore()' "$SHELL_PROFILE" 2>/dev/null; then
-    # Remove old alias if present (migration)
-    if grep -q 'alias egregore=' "$SHELL_PROFILE" 2>/dev/null; then
-      grep -v 'alias egregore=' "$SHELL_PROFILE" | grep -v '^# Egregore$' > "$SHELL_PROFILE.tmp"
-      mv "$SHELL_PROFILE.tmp" "$SHELL_PROFILE"
-    fi
-
-    cat >> "$SHELL_PROFILE" << 'SHELL_FUNC'
-
-# Egregore
-egregore() {
-  local registry="$HOME/.egregore/instances.json"
-  if [ ! -f "$registry" ] || [ ! -s "$registry" ]; then
-    echo "No Egregore instances found. Run: npx create-egregore"
-    return 1
-  fi
-  local -a names paths
-  local i=0
-  while IFS=$'\t' read -r slug name epath; do
-    if [ -d "$epath" ]; then
-      names[$i]="$name"
-      paths[$i]="$epath"
-      i=$((i + 1))
-    fi
-  done < <(jq -r '.[] | [.slug, .name, .path] | @tsv' "$registry" 2>/dev/null)
-  local count=$i
-  if [ "$count" -eq 0 ]; then
-    echo "No Egregore instances found. Run: npx create-egregore"
-    return 1
-  fi
-  if [ "$count" -eq 1 ]; then
-    cd "${paths[0]}" && claude start
-    return
-  fi
-  echo ""
-  echo "  Which Egregore?"
-  echo ""
-  for ((j=0; j<count; j++)); do
-    echo "  $((j + 1)). ${names[$j]}"
-  done
-  echo ""
-  local choice
-  printf "  Pick [1-%d]: " "$count"
-  read -r choice
-  if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$count" ]; then
-    echo "  Invalid choice."
-    return 1
-  fi
-  cd "${paths[$((choice - 1))]}" && claude start
-}
-SHELL_FUNC
-    echo "  [Installed 'egregore' command — type it from any terminal next time]"
-  fi
-fi

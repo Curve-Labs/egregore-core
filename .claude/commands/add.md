@@ -59,7 +59,8 @@ CREATE (a:Artifact {
   type: $type,
   created: date(),
   filePath: $filePath,
-  origin: $origin
+  origin: $origin,
+  topics: $topics
 })
 CREATE (a)-[:CONTRIBUTED_BY]->(p)
 WITH a
@@ -73,6 +74,7 @@ Where:
 - `$artifactId` = filename without extension (e.g., `2026-01-26-oz-temporal-thought`)
 - `$type` = source | thought | finding | decision
 - `$origin` = URL for external sources, null for thoughts
+- `$topics` = array of topic strings from frontmatter (e.g., `["evaluation", "benchmarks", "llm"]`)
 
 ## Example (external source)
 

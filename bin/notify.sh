@@ -15,8 +15,10 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
 fi
 
 # Check if API mode or direct mode
+# api_url comes from egregore.json (committed, non-secret)
+# api_key comes from .env only (EGREGORE_API_KEY) — never from egregore.json
 API_URL="${EGREGORE_API_URL:-$(jq -r '.api_url // empty' "$CONFIG")}"
-API_KEY="${EGREGORE_API_KEY:-$(jq -r '.api_key // empty' "$CONFIG")}"
+API_KEY="${EGREGORE_API_KEY:-}"
 
 if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
   # === API MODE: Call Egregore API gateway ===
@@ -99,6 +101,7 @@ if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
       echo "Commands:"
       echo "  send <name> <message>   Send to a person (DM or group fallback)"
       echo "  group <message>         Send to the group chat"
+      echo "  file <path> [caption]   Send a file to the group chat"
       echo "  test                    Test connection"
       ;;
   esac
@@ -121,7 +124,7 @@ else
     curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
       -H "Content-Type: application/json" \
       -d "$(jq -n --arg chat_id "$chat_id" --arg text "$text" \
-        '{chat_id: $chat_id, text: $text, parse_mode: "Markdown"}')" \
+        '{chat_id: $chat_id, text: $text}')" \
       | jq -r 'if .ok then "Sent" else "Failed: " + .description end'
   }
 
@@ -171,7 +174,7 @@ else
         -F "chat_id=$CHAT_ID" \
         -F "document=@$filepath" \
         -F "caption=$caption" \
-        -F "parse_mode=Markdown" \
+        \
         | jq -r 'if .ok then "Sent" else "Failed: " + .description end'
       ;;
     test)
