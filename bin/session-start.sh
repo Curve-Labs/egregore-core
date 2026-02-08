@@ -165,7 +165,24 @@ echo "  Develop: synced"
 echo ""
 echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting) on their first message. Then ask: What are you working on?"
 
-# --- Ensure 'egregore' shell alias exists ---
+# --- Register instance in ~/.egregore/instances.json ---
+REGISTRY_DIR="$HOME/.egregore"
+REGISTRY_FILE="$REGISTRY_DIR/instances.json"
+ORG_NAME=$(jq -r '.org_name // "Egregore"' "$SCRIPT_DIR/egregore.json" 2>/dev/null)
+ORG_SLUG=$(jq -r '.github_org // "default"' "$SCRIPT_DIR/egregore.json" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+
+mkdir -p "$REGISTRY_DIR"
+if [ ! -f "$REGISTRY_FILE" ]; then
+  echo '[]' > "$REGISTRY_FILE"
+fi
+
+jq --arg slug "$ORG_SLUG" --arg name "$ORG_NAME" --arg path "$SCRIPT_DIR" \
+  'if any(.[]; .slug == $slug)
+   then map(if .slug == $slug then {slug: $slug, name: $name, path: $path} else . end)
+   else . + [{slug: $slug, name: $name, path: $path}]
+   end' "$REGISTRY_FILE" > "$REGISTRY_FILE.tmp" && mv "$REGISTRY_FILE.tmp" "$REGISTRY_FILE"
+
+# --- Install egregore shell function if needed ---
 SHELL_PROFILE=""
 if [ -f "$HOME/.zshrc" ]; then
   SHELL_PROFILE="$HOME/.zshrc"
@@ -176,10 +193,57 @@ elif [ -f "$HOME/.bash_profile" ]; then
 fi
 
 if [ -n "$SHELL_PROFILE" ]; then
-  if ! grep -q 'alias egregore=' "$SHELL_PROFILE" 2>/dev/null; then
-    echo "" >> "$SHELL_PROFILE"
-    echo "# Egregore" >> "$SHELL_PROFILE"
-    echo "alias egregore='cd \"$SCRIPT_DIR\" && claude start'" >> "$SHELL_PROFILE"
+  if ! grep -q 'egregore()' "$SHELL_PROFILE" 2>/dev/null; then
+    # Remove old alias if present (migration)
+    if grep -q 'alias egregore=' "$SHELL_PROFILE" 2>/dev/null; then
+      grep -v 'alias egregore=' "$SHELL_PROFILE" | grep -v '^# Egregore$' > "$SHELL_PROFILE.tmp"
+      mv "$SHELL_PROFILE.tmp" "$SHELL_PROFILE"
+    fi
+
+    cat >> "$SHELL_PROFILE" << 'SHELL_FUNC'
+
+# Egregore
+egregore() {
+  local registry="$HOME/.egregore/instances.json"
+  if [ ! -f "$registry" ] || [ ! -s "$registry" ]; then
+    echo "No Egregore instances found. Run: npx create-egregore"
+    return 1
+  fi
+  local -a names paths
+  local i=0
+  while IFS=$'\t' read -r slug name epath; do
+    if [ -d "$epath" ]; then
+      names[$i]="$name"
+      paths[$i]="$epath"
+      i=$((i + 1))
+    fi
+  done < <(jq -r '.[] | [.slug, .name, .path] | @tsv' "$registry" 2>/dev/null)
+  local count=$i
+  if [ "$count" -eq 0 ]; then
+    echo "No Egregore instances found. Run: npx create-egregore"
+    return 1
+  fi
+  if [ "$count" -eq 1 ]; then
+    cd "${paths[0]}" && claude start
+    return
+  fi
+  echo ""
+  echo "  Which Egregore?"
+  echo ""
+  for ((j=0; j<count; j++)); do
+    echo "  $((j + 1)). ${names[$j]}"
+  done
+  echo ""
+  local choice
+  printf "  Pick [1-%d]: " "$count"
+  read -r choice
+  if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "$count" ]; then
+    echo "  Invalid choice."
+    return 1
+  fi
+  cd "${paths[$((choice - 1))]}" && claude start
+}
+SHELL_FUNC
     echo "  [Installed 'egregore' command — type it from any terminal next time]"
   fi
 fi

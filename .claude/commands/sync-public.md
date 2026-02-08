@@ -45,6 +45,15 @@ rsync -av --delete \
   --exclude='node_modules' \
   --exclude='__pycache__' \
   --exclude='.claude/settings.local.json' \
+  --exclude='api' \
+  --exclude='ascii-oracle' \
+  --exclude='blog' \
+  --exclude='telegram-bot' \
+  --exclude='tests' \
+  --exclude='data' \
+  --exclude='packages' \
+  --exclude='Dockerfile' \
+  --exclude='TELEGRAM_BOT_PLAN.md' \
   "$(git rev-parse --show-toplevel)/" \
   "$CORE_DIR/"
 ```

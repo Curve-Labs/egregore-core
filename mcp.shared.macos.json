@@ -1,0 +1,23 @@
+  {
+    "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/schemas/mcp.json",
+    "mcpServers": {
+      "telegram": {
+        "command": "npx",
+        "args": ["-y", "@iqai/mcp-telegram"],
+        "env": {
+          "TELEGRAM_BOT_TOKEN": "${TELEGRAM_BOT_TOKEN}",
+          "SAMPLING_ENABLED": "false"
+        }
+      },
+      "neo4j": {
+        "command": "uvx",
+        "args": [
+          "mcp-neo4j-cypher",
+          "--db-url", "neo4j+s://c02bbdac.databases.neo4j.io",
+          "--username", "neo4j",
+          "--password", "${NEO4J_PASSWORD}",
+          "--database", "neo4j"
+        ]
+      }
+    }
+  }
