@@ -1,4 +1,4 @@
-Save your contributions to Egregore. Pushes working branch, creates PR to develop.
+Save your contributions to Egregore. Creates a branch from your work, opens a PR to develop, and resets you to clean.
 
 ## What to do
 
@@ -18,20 +18,42 @@ Save your contributions to Egregore. Pushes working branch, creates PR to develo
    - User sees: "Contribution merged"
 
 3. **For egregore** (commands, scripts, config):
-   - Ensure on a `dev/*` working branch. If not, create one from develop:
+   - You should be on `develop`. If not, warn and stop.
+   - Check for uncommitted changes — commit them first (generate a clear commit message)
+   - Count commits ahead of origin/develop:
      ```bash
      git fetch origin develop --quiet
-     git checkout -b dev/$AUTHOR/$(date +%Y-%m-%d)-session origin/develop
+     AHEAD=$(git rev-list origin/develop..HEAD --count)
      ```
-   - Commit all changes to working branch
-   - Push working branch: `git push -u origin $BRANCH`
-   - Create PR to develop: `gh pr create --base develop --title "..." --body "..."`
+   - If 0 → "Nothing to save" and stop
+   - Generate a short summary from the commit messages:
+     ```bash
+     SUMMARY=$(git log origin/develop..HEAD --format=%s | head -1 | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | cut -c1-40)
+     ```
+   - Create branch at current HEAD:
+     ```bash
+     SAVE_BRANCH="save/$AUTHOR/$(date +%Y-%m-%d)-$SUMMARY"
+     git branch "$SAVE_BRANCH"
+     ```
+   - Push the branch:
+     ```bash
+     git push -u origin "$SAVE_BRANCH"
+     ```
+   - Create PR to develop:
+     ```bash
+     gh pr create --base develop --head "$SAVE_BRANCH" --title "..." --body "..."
+     ```
    - Detect if markdown-only or has code:
      ```bash
-     NON_MD=$(git diff develop --name-only | grep -v '\.md$' | head -1)
+     NON_MD=$(git diff origin/develop --name-only | grep -v '\.md$' | head -1)
      ```
      - **Markdown-only** (NON_MD is empty) → `gh pr merge --auto --merge` → auto-merges
      - **Has code/config changes** → leave PR open, notify maintainer
+   - Reset develop to clean:
+     ```bash
+     git reset --hard origin/develop
+     ```
+   - User is back on clean develop, ready for more work
 
 4. **For project repos** (tristero, lace):
    - Warn user: "You have code changes. Use /push and /pr for review."
@@ -85,17 +107,18 @@ Saving to Egregore...
   ✓ Contribution merged
 
 [egregore]
-  On branch: dev/oz/2026-02-07-session
+  3 commits ahead of develop
   Changes:
     .claude/commands/save.md (modified)
-    bin/session-start.sh (new)
+    bin/session-start.sh (modified)
 
-  Pushing and creating PR...
-    git push -u origin dev/oz/2026-02-07-session
-    gh pr create --base develop --title "Update save command and add session-start"
+  Creating save branch...
+    git branch save/oz/2026-02-08-simplify-git-workflow
+    git push -u origin save/oz/2026-02-08-simplify-git-workflow
+    gh pr create --base develop
 
   Has code changes — PR #15 created for review.
-  ✓ Notified oz
+  ✓ Reset develop to clean
 
 Done. Team sees your contribution on /activity.
 ```
@@ -104,15 +127,17 @@ Done. Team sees your contribution on /activity.
 
 ```
 [egregore]
-  On branch: dev/cem/2026-02-08-session
+  1 commit ahead of develop
   Changes:
     .claude/commands/onboarding.md (modified)
 
-  Pushing and creating PR...
-    gh pr create --base develop
+  Creating save branch...
+    git branch save/cem/2026-02-08-update-onboarding
+    git push -u origin save/cem/2026-02-08-update-onboarding
     gh pr merge --auto --merge
 
   ✓ Markdown-only — auto-merged to develop
+  ✓ Reset develop to clean
 ```
 
 ## If no changes
@@ -120,15 +145,16 @@ Done. Team sees your contribution on /activity.
 ```
 > /save
 
-No uncommitted changes.
+No changes to save.
 ```
 
 ## Why this flow?
 
-- Non-technical users never see git complexity
-- Markdown changes flow freely (auto-merge to develop)
-- Code/config changes get reviewed before merging to develop
-- Each contribution is a discrete, revertable unit
+- Users work on develop — no branch management
+- `/save` creates a branch, PR, and resets develop to clean
+- Markdown changes auto-merge (flow freely)
+- Code/config changes get reviewed before merging
+- Each save is a discrete, revertable unit
 - `/activity` shows contributions clearly
 - `/release` controls what reaches main
 

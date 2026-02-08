@@ -76,9 +76,9 @@ bash bin/notify.sh group "New release on main: [summary of changes]. Run /pull t
 
 ## Step 8: Clean up
 
-Delete merged `dev/*` remote branches:
+Delete merged `save/*` remote branches:
 ```bash
-git branch -r --merged origin/main | grep 'origin/dev/' | sed 's|origin/||' | xargs -I{} git push origin --delete {}
+git branch -r --merged origin/main | grep 'origin/save/' | sed 's|origin/||' | xargs -I{} git push origin --delete {}
 ```
 
 Return to develop:
@@ -121,7 +121,7 @@ Release to main? (y/n)
     ✓ Sent to Egregore channel
 
   Cleaning up...
-    ✓ Deleted 2 merged dev/* branches
+    ✓ Deleted 2 merged save/* branches
 
 Done. Main is updated. Team notified.
 ```

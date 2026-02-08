@@ -349,24 +349,23 @@ Org config lives in `egregore.json` (committed). Personal tokens live in `.env` 
 
 ## Git Workflow
 
-Egregore uses a `develop` branch model. Users never interact with git directly — commands handle everything.
+Users work directly on `develop`. No manual branch management — `/save` handles everything.
 
 ```
 main ← stable, released (maintainer controls via /release)
   │
-  develop ← integration branch (PRs land here)
+  develop ← where everyone works
     │
-    dev/{author}/{date}-session ← working branches (created on launch)
+    save/{author}/{date}-{summary} ← created by /save, deleted after merge
 ```
 
-- **On launch**: `bin/session-start.sh` syncs develop and creates a working branch
-- **`/save`**: pushes working branch, creates PR to develop. Markdown-only PRs auto-merge; code changes need maintainer review
+- **On launch**: `bin/session-start.sh` syncs develop, stays on develop
+- **Working**: commit freely on develop (local only)
+- **`/save`**: creates a branch from your commits, pushes, creates PR to develop, resets develop to clean. Markdown-only PRs auto-merge; code changes need review
 - **`/handoff`**: same as /save + handoff file + Neo4j session + notifications
 - **`/release`** (maintainer only): merges develop → main, tags, syncs public repo
-- **`/pull`**: syncs develop, rebases working branch
-- **Memory repo**: stays on main (separate repo, auto-merge unchanged)
-
-**Never push directly to main or develop.** All changes flow through PRs.
+- **`/pull`**: pulls latest develop
+- **Memory repo**: stays on main (separate repo, auto-merge)
 
 ## Working Conventions
 

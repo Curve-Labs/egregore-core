@@ -75,8 +75,7 @@ if ! git show-ref --verify --quiet refs/heads/develop 2>/dev/null; then
   fi
 fi
 
-# --- Sync develop ---
-CURRENT_BRANCH=$(git branch --show-current)
+# --- Sync develop (users work directly on develop) ---
 
 # Save current state if dirty
 STASHED="false"
@@ -93,43 +92,6 @@ DEVELOP_SYNCED="true"
 COMMITS_AHEAD=0
 if git show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; then
   COMMITS_AHEAD=$(git rev-list origin/main..origin/develop --count 2>/dev/null || echo "0")
-fi
-
-# --- Create or resume working branch ---
-ACTION="created"
-BRANCH=""
-
-if [[ "$CURRENT_BRANCH" == dev/* ]]; then
-  # Resume existing session branch
-  BRANCH="$CURRENT_BRANCH"
-  git checkout "$BRANCH" --quiet 2>/dev/null
-
-  # Rebase onto develop
-  if git rebase develop --quiet 2>/dev/null; then
-    ACTION="rebased"
-  else
-    git rebase --abort 2>/dev/null || true
-    git merge develop --quiet -m "Sync with develop" 2>/dev/null || true
-    ACTION="merged"
-  fi
-else
-  # Create new session branch from develop
-  BRANCH="dev/$AUTHOR/$DATE-session"
-
-  # If branch already exists (same person, same day), use it
-  if git show-ref --verify --quiet "refs/heads/$BRANCH" 2>/dev/null; then
-    git checkout "$BRANCH" --quiet 2>/dev/null
-    if git rebase develop --quiet 2>/dev/null; then
-      ACTION="resumed"
-    else
-      git rebase --abort 2>/dev/null || true
-      git merge develop --quiet -m "Sync with develop" 2>/dev/null || true
-      ACTION="resumed"
-    fi
-  else
-    git checkout -b "$BRANCH" --quiet 2>/dev/null
-    ACTION="created"
-  fi
 fi
 
 # Restore stashed changes
@@ -160,21 +122,14 @@ cat << 'GREETING'
 GREETING
 
 # Status line
-if [ "$ACTION" = "created" ]; then
-  echo "  New session started."
-elif [ "$ACTION" = "resumed" ] || [ "$ACTION" = "rebased" ]; then
-  echo "  Session resumed."
-fi
-
-echo "  Branch: $BRANCH"
+echo "  Ready."
 echo "  Develop: synced"
 [ "$MEMORY_SYNCED" = "true" ] && echo "  Memory: synced"
 [ "$COMMITS_AHEAD" -gt 0 ] && echo "  $COMMITS_AHEAD changes on develop since last release."
 
-# --- Check for upstream updates (non-blocking) ---
+# --- Check for upstream updates (already fetched above) ---
 UPSTREAM_NOTICE=""
-if git remote get-url upstream >/dev/null 2>&1; then
-  git fetch upstream --quiet 2>/dev/null || true
+if git show-ref --verify --quiet refs/remotes/upstream/main 2>/dev/null; then
   UPSTREAM_NEW=$(git rev-list HEAD..upstream/main --count 2>/dev/null || echo "0")
   if [ "$UPSTREAM_NEW" -gt 0 ]; then
     UPSTREAM_NOTICE="  ⬆ $UPSTREAM_NEW upstream updates available. Run /update-egregore to get them."
