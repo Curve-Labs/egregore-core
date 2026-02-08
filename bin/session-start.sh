@@ -50,11 +50,19 @@ else
   MEM_FETCH_PID=""
 fi
 
+# Ensure upstream remote exists (for update checks)
+if ! git remote get-url upstream >/dev/null 2>&1; then
+  git remote add upstream https://github.com/Curve-Labs/egregore-core.git 2>/dev/null || true
+fi
+git fetch upstream --quiet 2>/dev/null &
+UPSTREAM_FETCH_PID=$!
+
 # Wait for fetches
 wait $FETCH_PID 2>/dev/null || true
 if [ -n "$MEM_FETCH_PID" ]; then
   wait $MEM_FETCH_PID 2>/dev/null || true
 fi
+wait $UPSTREAM_FETCH_PID 2>/dev/null || true
 
 # --- Ensure develop branch exists locally ---
 if ! git show-ref --verify --quiet refs/heads/develop 2>/dev/null; then
@@ -162,6 +170,18 @@ echo "  Branch: $BRANCH"
 echo "  Develop: synced"
 [ "$MEMORY_SYNCED" = "true" ] && echo "  Memory: synced"
 [ "$COMMITS_AHEAD" -gt 0 ] && echo "  $COMMITS_AHEAD changes on develop since last release."
+
+# --- Check for upstream updates (non-blocking) ---
+UPSTREAM_NOTICE=""
+if git remote get-url upstream >/dev/null 2>&1; then
+  git fetch upstream --quiet 2>/dev/null || true
+  UPSTREAM_NEW=$(git rev-list HEAD..upstream/main --count 2>/dev/null || echo "0")
+  if [ "$UPSTREAM_NEW" -gt 0 ]; then
+    UPSTREAM_NOTICE="  ⬆ $UPSTREAM_NEW upstream updates available. Run /update-egregore to get them."
+  fi
+fi
+[ -n "$UPSTREAM_NOTICE" ] && echo "$UPSTREAM_NOTICE"
+
 echo ""
 echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting) on their first message. Then ask: What are you working on?"
 

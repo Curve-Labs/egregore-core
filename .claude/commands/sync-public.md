@@ -42,6 +42,8 @@ rsync -av --delete \
   --exclude='.egregore-state.json' \
   --exclude='egregore.json' \
   --exclude='.mcp.json' \
+  --exclude='mcp.json' \
+  --exclude='mcp.shared.*.json' \
   --exclude='node_modules' \
   --exclude='__pycache__' \
   --exclude='.claude/settings.local.json' \
@@ -130,7 +132,7 @@ Current diff between repos:
 
 ## Rules
 
-- **Never sync**: `.git/`, `memory/`, `.env`, `.egregore-state.json`, `egregore.json`, `.mcp.json`, `node_modules/`, `__pycache__/`, `.claude/settings.local.json`
+- **Never sync**: `.git/`, `memory/`, `.env`, `.egregore-state.json`, `egregore.json`, `.mcp.json`, `mcp.json`, `mcp.shared.*.json`, `node_modules/`, `__pycache__/`, `.claude/settings.local.json`
 - **Always sync everything else** — commands, bin scripts, CLAUDE.md, README.md, settings.json, egregore.json, start scripts, application code, etc.
 - The `--delete` flag ensures files removed from curve-labs-core are also removed from egregore-core
 - Always show the diff before committing
