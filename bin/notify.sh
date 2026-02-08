@@ -124,7 +124,7 @@ else
     curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
       -H "Content-Type: application/json" \
       -d "$(jq -n --arg chat_id "$chat_id" --arg text "$text" \
-        '{chat_id: $chat_id, text: $text, parse_mode: "Markdown"}')" \
+        '{chat_id: $chat_id, text: $text}')" \
       | jq -r 'if .ok then "Sent" else "Failed: " + .description end'
   }
 
@@ -174,7 +174,7 @@ else
         -F "chat_id=$CHAT_ID" \
         -F "document=@$filepath" \
         -F "caption=$caption" \
-        -F "parse_mode=Markdown" \
+        \
         | jq -r 'if .ok then "Sent" else "Failed: " + .description end'
       ;;
     test)

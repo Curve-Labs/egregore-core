@@ -10,14 +10,7 @@ DATE=$(date +%Y-%m-%d)
 
 # --- Determine author short name ---
 FULLNAME=$(git config user.name 2>/dev/null || echo "")
-case "$FULLNAME" in
-  *Oguzhan*|*ozzi*) AUTHOR="oz" ;;
-  *Cem*)            AUTHOR="cem" ;;
-  *Ali*)            AUTHOR="ali" ;;
-  *Pali*)           AUTHOR="pali" ;;
-  *Damla*)          AUTHOR="damla" ;;
-  *)                AUTHOR=$(echo "$FULLNAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1) ;;
-esac
+AUTHOR=$(echo "$FULLNAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1)
 
 if [ -z "$AUTHOR" ]; then
   echo '{"error": "git user.name not set. Run: git config user.name \"Your Name\""}'
@@ -47,7 +40,7 @@ if [ -f "$ENV_FILE" ] && ! grep -q '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null;
   GITHUB_ORG=$(jq -r '.github_org // empty' "$CONFIG" 2>/dev/null)
 
   if [ -n "$GITHUB_TOKEN" ] && [ -n "$API_URL" ] && [ -n "$GITHUB_ORG" ]; then
-    SLUG=$(echo "$GITHUB_ORG" | tr '[:upper:]' '[:lower:]' | tr -d '- ')
+    SLUG=$(echo "$GITHUB_ORG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
     KEY_RESPONSE=$(curl -s -X GET "${API_URL}/api/org/${SLUG}/key" \
       -H "Authorization: Bearer $GITHUB_TOKEN" \
       --max-time 10 2>/dev/null || echo "")
@@ -59,6 +52,30 @@ if [ -f "$ENV_FILE" ] && ! grep -q '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null;
       fi
     fi
   fi
+fi
+
+# --- Self-register in instance registry (for pre-registry installs) ---
+# Wrapped in subshell — registration is optional, must not block session start
+if command -v jq &>/dev/null && [ -f "$CONFIG" ]; then
+  (
+    REGISTRY_DIR="$HOME/.egregore"
+    REGISTRY="$REGISTRY_DIR/instances.json"
+    INST_SLUG=$(jq -r '.github_org // empty' "$CONFIG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
+    INST_NAME=$(jq -r '.org_name // empty' "$CONFIG")
+
+    if [ -n "$INST_SLUG" ] && [ -n "$INST_NAME" ]; then
+      mkdir -p "$REGISTRY_DIR"
+      if [ ! -f "$REGISTRY" ]; then echo "[]" > "$REGISTRY"; fi
+
+      ALREADY=$(jq --arg p "$SCRIPT_DIR" '[.[] | select(.path == $p)] | length' "$REGISTRY")
+      if [ "$ALREADY" = "0" ]; then
+        ENTRY=$(jq -n --arg s "$INST_SLUG" --arg n "$INST_NAME" --arg p "$SCRIPT_DIR" \
+          '{slug: $s, name: $n, path: $p}')
+        jq --argjson e "$ENTRY" '. + [$e]' "$REGISTRY" > "$REGISTRY.tmp" \
+          && mv "$REGISTRY.tmp" "$REGISTRY"
+      fi
+    fi
+  ) 2>/dev/null || true
 fi
 
 # --- Fetch all remotes in parallel ---
@@ -184,26 +201,7 @@ fi
 
 echo "  Branch: $BRANCH"
 echo "  Develop: synced"
-[ "$MEMORY_SYNCED" = "true" ] && echo "  Memory: synced"
-[ "$COMMITS_AHEAD" -gt 0 ] && echo "  $COMMITS_AHEAD changes on develop since last release."
+if [ "$MEMORY_SYNCED" = "true" ]; then echo "  Memory: synced"; fi
+if [ "$COMMITS_AHEAD" -gt 0 ] 2>/dev/null; then echo "  $COMMITS_AHEAD changes on develop since last release."; fi
 echo ""
 echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting) on their first message. Then ask: What are you working on?"
-
-# --- Ensure 'egregore' shell alias exists ---
-SHELL_PROFILE=""
-if [ -f "$HOME/.zshrc" ]; then
-  SHELL_PROFILE="$HOME/.zshrc"
-elif [ -f "$HOME/.bashrc" ]; then
-  SHELL_PROFILE="$HOME/.bashrc"
-elif [ -f "$HOME/.bash_profile" ]; then
-  SHELL_PROFILE="$HOME/.bash_profile"
-fi
-
-if [ -n "$SHELL_PROFILE" ]; then
-  if ! grep -q 'alias egregore=' "$SHELL_PROFILE" 2>/dev/null; then
-    echo "" >> "$SHELL_PROFILE"
-    echo "# Egregore" >> "$SHELL_PROFILE"
-    echo "alias egregore='cd \"$SCRIPT_DIR\" && claude start'" >> "$SHELL_PROFILE"
-    echo "  [Installed 'egregore' command — type it from any terminal next time]"
-  fi
-fi

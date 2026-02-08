@@ -27,6 +27,18 @@ Save your contributions to Egregore. Pushes working branch, creates PR to develo
      git checkout -b dev/$AUTHOR/$(date +%Y-%m-%d)-session origin/develop
      ```
    - Commit all changes to working branch
+   - **Rebase onto latest develop before pushing** (prevents stale overwrites):
+     ```bash
+     git fetch origin develop --quiet
+     git rebase origin/develop --quiet
+     ```
+     If rebase conflicts: abort, try merge instead:
+     ```bash
+     git rebase --abort
+     git merge origin/develop --quiet -m "Sync with develop"
+     ```
+     If merge also conflicts: stop and tell the user:
+     > Your branch conflicts with develop. Run `git status` to see conflicts, resolve them, then `/save` again.
    - Push working branch:
      ```bash
      git push -u origin $BRANCH
