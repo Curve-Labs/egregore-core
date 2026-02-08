@@ -1,17 +1,29 @@
 # Memory symlink (each user creates their own)
 memory
 
-# Local MCP config (merged from mcp.shared.json + personal)
+# MCP configs (may contain credentials)
 .mcp.json
+mcp.json
 
 # OS files
 .DS_Store
 *.swp
 *~
 
-# Personal secrets
+# Personal secrets — never commit these
 .env
 .env.local
+.neo4j-creds
+
+# Local Claude Code overrides (may contain tokens in permission rules)
+.claude/settings.local.json
 
 # User state
 .egregore-state.json
+
+# Build artifacts
+__pycache__/
+node_modules/
+
+# Playwright MCP
+.playwright-mcp/

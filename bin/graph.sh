@@ -15,8 +15,10 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
 fi
 
 # Check if API mode (api_url + api_key set) or direct mode (neo4j_host set)
+# api_url comes from egregore.json (committed, non-secret)
+# api_key comes from .env only (EGREGORE_API_KEY) — never from egregore.json
 API_URL="${EGREGORE_API_URL:-$(jq -r '.api_url // empty' "$CONFIG")}"
-API_KEY="${EGREGORE_API_KEY:-$(jq -r '.api_key // empty' "$CONFIG")}"
+API_KEY="${EGREGORE_API_KEY:-}"
 
 if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
   # === API MODE: Call Egregore API gateway ===
@@ -75,14 +77,16 @@ if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
   }
 
 else
-  # === DIRECT MODE: Call Neo4j directly (legacy / dev) ===
+  # === DIRECT MODE: Call Neo4j directly (dev / legacy) ===
+  # Reads from .env or egregore.json (for backwards compat)
 
-  NEO4J_HOST="${NEO4J_HOST:-$(jq -r '.neo4j_host' "$CONFIG")}"
+  NEO4J_HOST="${NEO4J_HOST:-$(jq -r '.neo4j_host // empty' "$CONFIG")}"
   NEO4J_USER="${NEO4J_USER:-$(jq -r '.neo4j_user // "neo4j"' "$CONFIG")}"
-  NEO4J_PASSWORD="${NEO4J_PASSWORD:-$(jq -r '.neo4j_password' "$CONFIG")}"
+  NEO4J_PASSWORD="${NEO4J_PASSWORD:-$(jq -r '.neo4j_password // empty' "$CONFIG")}"
 
   if [ -z "$NEO4J_HOST" ] || [ "$NEO4J_HOST" = "null" ]; then
-    echo "Error: Neither api_url nor neo4j_host set in egregore.json" >&2
+    echo "Error: Neither EGREGORE_API_KEY (for API mode) nor NEO4J_HOST (for direct mode) is set." >&2
+    echo "Set EGREGORE_API_KEY in .env for API mode, or NEO4J_HOST + NEO4J_PASSWORD for direct mode." >&2
     exit 1
   fi
 

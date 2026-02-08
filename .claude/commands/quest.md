@@ -8,6 +8,7 @@ Arguments: $ARGUMENTS (Optional: quest name, or subcommand)
 - `/quest [name]` — Show quest details and linked artifacts
 - `/quest new` — Create a new quest interactively
 - `/quest contribute [name]` — Add a contribution entry
+- `/quest prioritize [name] [high|medium|low|none]` — Set quest priority
 - `/quest pause [name]` — Pause a quest
 - `/quest complete [name]` — Complete with outcome
 
@@ -25,8 +26,12 @@ status: active | paused | completed
 projects: [tristero]
 started: 2026-01-26
 started_by: Oz
+priority: 0
+completed: null
 ---
 ```
+
+Priority values: `0` (none/default), `1` (low), `2` (medium), `3` (high). Used by `/activity` scoring.
 
 ## Neo4j Quest creation (via bin/graph.sh, on `/quest new`)
 
@@ -40,7 +45,8 @@ CREATE (q:Quest {
   status: 'active',
   started: date(),
   question: $question,
-  filePath: $filePath
+  filePath: $filePath,
+  priority: 0
 })
 CREATE (q)-[:STARTED_BY]->(p)
 WITH q
@@ -56,6 +62,25 @@ RETURN q.id
 MATCH (q:Quest {id: $slug})
 SET q.status = $status, q.completed = CASE WHEN $status = 'completed' THEN date() ELSE null END
 RETURN q.id, q.status
+```
+
+## Neo4j priority update (via bin/graph.sh, on `/quest prioritize`)
+
+Maps: high=3, medium=2, low=1, none=0.
+
+```cypher
+MATCH (q:Quest {id: $slug})
+SET q.priority = $priority
+RETURN q.id, q.priority
+```
+
+Also update the quest markdown file — add or replace `priority:` in frontmatter.
+
+```
+> /quest prioritize grants high
+
+✓ grants priority set to high (3)
+  Updated Neo4j and memory/quests/grants.md
 ```
 
 ## Example (list)

@@ -1,156 +1,131 @@
-Invite someone to your Egregore organization.
+Invite someone to this Egregore. Handles GitHub org invitation + Egregore setup link.
 
-Arguments: $ARGUMENTS (GitHub username)
+Arguments: $ARGUMENTS (Required: GitHub username of the person to invite)
 
 ## What to do
 
-1. Parse the GitHub username from `$ARGUMENTS`
-2. Read org config from `egregore.json`
-3. Read token from `.env`
-4. Add them as collaborator on both repos
-5. Create a zip of the configured egregore-core
-6. Send the zip to the group chat via Telegram
-7. Create Person node in Neo4j
+1. **Validate input**: `$ARGUMENTS` must be a GitHub username
+2. **Get inviter's token**: Read `GITHUB_TOKEN` from `.env`
+3. **Get org info**: Read `github_org` from `egregore.json`
+4. **Call the invite API**
+5. **Share the invite link** (via Telegram if possible, otherwise show it)
 
 ## Step 1: Validate
 
+If `$ARGUMENTS` is empty:
+```
+Usage: /invite <github-username>
+
+Example: /invite rencburra
+```
+Stop here.
+
+## Step 2: Get credentials
+
 ```bash
-GITHUB_USER="$ARGUMENTS"  # e.g. "cemdag"
-GITHUB_ORG=$(jq -r '.github_org' egregore.json)
 TOKEN=$(grep '^GITHUB_TOKEN=' .env | cut -d'=' -f2-)
-```
-
-If no username provided, ask: "Who do you want to invite? Give me their GitHub username."
-
-## Step 2: Add collaborator on both repos
-
-```bash
-# Add to egregore-core fork
-curl -s -H "Authorization: token $TOKEN" \
-  -X PUT "https://api.github.com/repos/$GITHUB_ORG/egregore-core/collaborators/$GITHUB_USER" \
-  -d '{"permission":"push"}'
-
-# Add to memory repo
-MEMORY_REPO_NAME=$(basename "$(jq -r '.memory_repo' egregore.json)" .git)
-curl -s -H "Authorization: token $TOKEN" \
-  -X PUT "https://api.github.com/repos/$GITHUB_ORG/$MEMORY_REPO_NAME/collaborators/$GITHUB_USER" \
-  -d '{"permission":"push"}'
-```
-
-Check responses: 201 = invited, 204 = already collaborator. If 403/404, the current user may not have admin access — tell them to add the person manually on GitHub.
-
-## Step 3: Create installer zip
-
-Create a zip of the current egregore-core directory with the configured `egregore.json` (org fields filled in), excluding personal/generated files:
-
-```bash
-ZIPFILE="/tmp/egregore-core.zip"
-rm -f "$ZIPFILE"
-cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-zip -r "$ZIPFILE" . \
-  -x ".git/*" \
-  -x ".DS_Store" \
-  -x ".env" \
-  -x ".egregore-state.json" \
-  -x "memory" \
-  -x "memory/*" \
-  -x ".claude/settings.local.json"
-```
-
-## Step 4: Send via Telegram
-
-```bash
-INVITER=$(git config user.name || echo "Someone")
+GITHUB_ORG=$(jq -r '.github_org' egregore.json)
+API_URL=$(jq -r '.api_url' egregore.json)
 ORG_NAME=$(jq -r '.org_name' egregore.json)
-bash bin/notify.sh file "$ZIPFILE" "Hey @$GITHUB_USER — $INVITER invited you to *${ORG_NAME}* on Egregore.
-
-Unzip, open Terminal, and paste:
-\`cd ~/Downloads/egregore-core && bash start.sh\`"
+USERNAME="$ARGUMENTS"
 ```
 
-Clean up:
+If TOKEN is empty: **"No GitHub token found. Run `bash bin/github-auth.sh` first."** Stop.
+
+## Step 3: Call invite API
+
 ```bash
-rm -f "$ZIPFILE"
+curl -s -X POST "$API_URL/api/org/invite" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"github_org\": \"$GITHUB_ORG\", \"github_username\": \"$USERNAME\"}"
 ```
 
-## Step 5: Create Person node in Neo4j
+## Step 4: Handle response
 
-Run with `bash bin/graph.sh query "..." '{"param": "value"}'`
+**Success** (has `invite_url`):
+```
+Inviting {username} to {org_name}...
 
-```cypher
-MERGE (p:Person {github: $github})
-ON CREATE SET p.name = $github, p.invited = date(), p.invitedBy = $inviter
-RETURN p.name
+  GitHub org invitation: sent
+  Memory repo access:    added
+  Invite link:           created
+
+Share this link with {username}:
+
+  {invite_url}
+
+They'll authenticate with GitHub, accept the org invite, and get a one-line install command.
 ```
 
-Where:
-- `$github` = the GitHub username
-- `$inviter` = short name of the person running `/invite`
+**GitHub invite failed** (e.g., not an admin):
+```
+Inviting {username} to {org_name}...
 
-## Step 6: Ask for their name
+  GitHub org invitation: {reason}
+  Invite link:           created
 
-After creating the node, ask: "What's their first name? (So we don't just call them by their GitHub handle.)"
+You'll need to invite {username} to the GitHub org manually:
+  https://github.com/orgs/{github_org}/people
 
-If provided, update:
-```cypher
-MATCH (p:Person {github: $github})
-SET p.name = $name
-RETURN p.name
+Then share this link:
+
+  {invite_url}
 ```
 
-## Output
+## Step 5: Notify (optional)
 
-```
-> /invite cemdag
-
-Inviting cemdag to Curve-Labs...
-
-  Adding to Curve-Labs/egregore-core...
-    ✓ Collaborator invited
-
-  Adding to Curve-Labs/curve-labs-memory...
-    ✓ Collaborator invited
-
-  Creating installer zip...
-    ✓ 22 files, 68KB
-
-  Sending to Telegram group...
-    ✓ Sent
-
-  Creating Person node...
-    ✓ cemdag added to knowledge graph
-
-What's their first name?
-> Cem
-
-  ✓ Updated: cemdag → Cem
-
-Done. cemdag will get a GitHub invite email + the zip in Telegram.
-They just unzip, double-click start.command, and they're in.
+Check if the invitee has a Telegram ID in Neo4j:
+```bash
+bash bin/graph.sh query "MATCH (p:Person {name: \$name}) RETURN p.telegramId" '{"name": "USERNAME"}'
 ```
 
-## Error Handling
-
-**No admin access:**
-```
-I can't add collaborators — you may not have admin rights on Curve-Labs/egregore-core.
-
-Add them manually:
-  https://github.com/Curve-Labs/egregore-core/settings/access
-  https://github.com/Curve-Labs/curve-labs-memory/settings/access
-
-I'll still send them the zip.
+If they have a telegramId, send the invite link via Telegram:
+```bash
+bash bin/notify.sh send "USERNAME" "You've been invited to $ORG_NAME on Egregore! Join here: $INVITE_URL"
 ```
 
-**No Telegram configured:**
+If not, just show the link for the inviter to share manually.
+
+## Step 6: Create Person node in Neo4j
+
+```bash
+bash bin/graph.sh query "MERGE (p:Person {name: \$name}) ON CREATE SET p.invited = date(), p.invitedBy = \$inviter RETURN p.name" '{"name": "USERNAME", "inviter": "INVITER"}'
 ```
-Zip created at /tmp/egregore-core.zip but Telegram isn't configured.
-Send it to them manually.
+
+## Example
+
+```
+> /invite rencburra
+
+Inviting rencburra to Curve Labs...
+
+  GitHub org invitation: sent
+  Memory repo access:    added
+  Invite link:           created
+
+Share this link with rencburra:
+
+  https://egregore.xyz/join?invite=inv_a1b2c3d4e5f6
+
+They'll authenticate with GitHub, accept the org invite,
+and get a one-line install command.
+```
+
+## If already a member
+
+```
+> /invite rencburra
+
+rencburra is already a member of Curve-Labs.
+They can join Egregore directly at: https://egregore.xyz/setup
 ```
 
 ## Rules
 
+- **Only org admins can invite** — the API verifies this
+- **GitHub invitation + Egregore invite are bundled** — one command does both
+- **Invite links expire in 7 days** — if expired, just run `/invite` again
+- **Memory repo access is granted automatically** — invitee gets push access
 - Always use `bin/graph.sh` for Neo4j — never MCP
 - Always use `bin/notify.sh` for Telegram — never construct API calls directly
-- The zip must include `egregore.json` with filled org fields
-- The zip must NOT include `.git/`, `.env`, `.egregore-state.json`, `memory/`

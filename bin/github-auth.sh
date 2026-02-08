@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CLIENT_ID="Ov23lizB4nYEeIRsHTdb"
-SCOPE="repo,read:org"
+SCOPE="repo,admin:org"
 TIMEOUT=300
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
@@ -77,8 +77,8 @@ while [ "$elapsed" -lt "$TIMEOUT" ]; do
       echo "GITHUB_TOKEN=$access_token" >> "$ENV_FILE"
     fi
 
-    # Configure git credential helper
-    git config --global credential.helper store
+    # Configure git credential helper (local to this repo, not global)
+    git config credential.helper store
     # Write credential for github.com
     protocol_line="protocol=https
 host=github.com

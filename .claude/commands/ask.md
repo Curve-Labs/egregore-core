@@ -1,32 +1,37 @@
-Ask questions — AI-generated, context-aware, routed to self or others.
+Ask questions — AI-generated, context-aware, routed to self or others. Harvest-first for person-targeted: check the graph before bothering people.
 
-Arguments: $ARGUMENTS (Optional: [@person] about [topic], or empty to answer pending)
+Arguments: $ARGUMENTS (Optional: [person] about [topic], or empty to answer pending)
 
 ## Usage
 
 - `/ask` — Answer pending questions (if any), or start reflection
 - `/ask me about [topic]` — Self-reflection with AI-generated questions
-- `/ask @person about [topic]` — Queue questions for another person
+- `/ask [person] about [topic]` — Harvest context first, then queue questions if needed
 - `/ask about [topic]` — Exploratory questions about a topic/project
 
 ## How It Works
 
-The AI analyzes context to dynamically generate AskUserQuestion-formatted questions. No hardcoded templates — questions are generated based on:
+The AI analyzes context to dynamically generate questions. No hardcoded templates — questions are generated based on:
 
 1. **The topic** — What are we asking about?
 2. **The target** — Self, specific person, or broad exploration?
-3. **Available context** — Neo4j data via `bin/graph.sh` about sessions, quests, artifacts
+3. **Available context** — Neo4j data about sessions, quests, artifacts
 4. **Question scope** — Narrow (decision-focused) vs wide (exploratory)
+
+**Key principle for person-targeted:** Don't immediately generate questions for the target. First harvest the graph to see if existing context already answers the sender's question. Only queue async questions when the graph can't answer.
 
 ## Step 1: Parse Arguments
 
 Parse `$ARGUMENTS` to extract:
-- **target**: `@person` name, `me`, or none (broad)
+- **target**: person name, `me`, or none (broad)
 - **topic**: Everything after "about" (if present)
+
+Both `@person` and `person` work — strip the `@` if present.
 
 Examples:
 - `/ask` → target: none, topic: none (answer pending or start fresh)
 - `/ask me about priorities` → target: self, topic: "priorities"
+- `/ask oz about evaluation criteria` → target: "oz", topic: "evaluation criteria"
 - `/ask @oz about evaluation criteria` → target: "oz", topic: "evaluation criteria"
 - `/ask about tristero` → target: none, topic: "tristero"
 - `/ask about where egregore is heading` → target: none, topic: "where egregore is heading"
@@ -39,15 +44,29 @@ git config user.name
 
 Map to short name: "Oguzhan Yayla" → oz, "Cem Dagdelen" → cem, "Ali" → ali
 
-## Step 3: Check for Pending Questions (if no args)
+## Step 3: Detect Target Type
 
-If `/ask` called with no arguments, first check for pending questions via `bash bin/graph.sh query "..."`:
+**First, get all person names from Neo4j:**
 
-```cypher
-MATCH (qs:QuestionSet {status: 'pending'})-[:ASKED_TO]->(p:Person {name: $me})
-MATCH (qs)-[:ASKED_BY]->(asker:Person)
-RETURN qs.id AS setId, qs.topic AS topic, qs.created AS created, asker.name AS from
-ORDER BY qs.created DESC
+```bash
+bash bin/graph.sh query "MATCH (p:Person) RETURN p.name AS name"
+```
+
+**Then determine target type:**
+
+1. If no arguments → check for pending questions (Step 4)
+2. If first word is "me" or "myself" → **SELF** target
+3. If first word (with `@` stripped) matches a person name (case-insensitive) → **PERSON** target
+4. Otherwise → **EXPLORATORY** (no specific target)
+
+---
+
+## Step 4: Check for Pending Questions (if no args)
+
+If `/ask` called with no arguments, first check for pending questions:
+
+```bash
+bash bin/graph.sh query "MATCH (qs:QuestionSet {status: 'pending'})-[:ASKED_TO]->(p:Person {name: '$me'}) MATCH (qs)-[:ASKED_BY]->(asker:Person) RETURN qs.id AS setId, qs.topic AS topic, qs.created AS created, asker.name AS from ORDER BY qs.created DESC"
 ```
 
 **If pending questions exist:**
@@ -57,74 +76,90 @@ You have 2 pending question sets:
 1. From cem about "evaluation criteria" (12 hours ago)
 2. From ali about "MCP transport" (2 days ago)
 
-Which would you like to answer first?
+Which would you like to respond to?
 ```
 
-Use AskUserQuestion to let them select which set, then load and present those questions (see Step 7).
+Use AskUserQuestion to let them select which set, then load and present those questions (see Step 9).
 
 **If no pending questions:** Proceed with self-reflection about general priorities (or ask what they want to explore).
 
-## Step 4: Gather Context from Neo4j
+---
 
-Run queries in parallel via `bash bin/graph.sh query "..."` based on target:
+## Step 5: Gather Context from Neo4j
 
-**For self (`me`) or no target:**
-```cypher
-// My recent sessions
-MATCH (s:Session)-[:BY]->(p:Person {name: $me})
-RETURN s.topic AS topic, s.summary AS summary, s.date AS date
-ORDER BY s.date DESC LIMIT 5
+Run queries via `bash bin/graph.sh query "..."` based on target type.
 
-// My active quests
-MATCH (q:Quest {status: 'active'})-[:STARTED_BY|:CONTRIBUTED_BY*]->(p:Person {name: $me})
-RETURN q.id AS quest, q.title AS title
+### For SELF or EXPLORATORY:
 
-// Recent artifacts I contributed
-MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p:Person {name: $me})
-RETURN a.title AS title, a.type AS type
-ORDER BY a.created DESC LIMIT 5
+```bash
+# My recent sessions
+bash bin/graph.sh query "MATCH (s:Session)-[:BY]->(p:Person {name: '$me'}) RETURN s.topic AS topic, s.summary AS summary, s.date AS date ORDER BY s.date DESC LIMIT 5"
+
+# My active quests
+bash bin/graph.sh query "MATCH (q:Quest {status: 'active'})-[:STARTED_BY|:CONTRIBUTED_BY*]->(p:Person {name: '$me'}) RETURN q.id AS quest, q.title AS title"
+
+# Recent artifacts I contributed
+bash bin/graph.sh query "MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p:Person {name: '$me'}) RETURN a.title AS title, a.type AS type ORDER BY a.created DESC LIMIT 5"
 ```
 
-**For person target (`@person`):**
-```cypher
-// Their recent sessions
-MATCH (s:Session)-[:BY]->(p:Person {name: $target})
-RETURN s.topic AS topic, s.summary AS summary, s.date AS date
-ORDER BY s.date DESC LIMIT 5
+For EXPLORATORY with a topic, also query:
+```bash
+# Project context if topic matches a project
+bash bin/graph.sh query "MATCH (proj:Project) WHERE toLower(proj.name) CONTAINS toLower('$topic') OPTIONAL MATCH (q:Quest)-[:RELATES_TO]->(proj) RETURN proj.name AS project, collect(q.id) AS quests"
 
-// Their contributions
-MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p:Person {name: $target})
-RETURN a.title AS title, a.type AS type
-ORDER BY a.created DESC LIMIT 5
+# Recent org-wide activity
+bash bin/graph.sh query "MATCH (s:Session)-[:BY]->(p:Person) WHERE s.date >= date() - duration('P7D') RETURN s.topic AS topic, p.name AS by, s.date AS date ORDER BY s.date DESC LIMIT 5"
 
-// Quests they work on
-MATCH (q:Quest {status: 'active'})-[:STARTED_BY|:CONTRIBUTED_BY*]->(p:Person {name: $target})
-RETURN q.id AS quest, q.title AS title
+# Active quests across org
+bash bin/graph.sh query "MATCH (q:Quest {status: 'active'}) RETURN q.id AS quest, q.title AS title, q.question AS question"
 ```
 
-**For broad topic (no target):**
-```cypher
-// Project context if topic matches a project
-MATCH (proj:Project {name: $topic})
-OPTIONAL MATCH (q:Quest)-[:RELATES_TO]->(proj)
-RETURN proj.name AS project, collect(q.id) AS quests
+### For PERSON target — harvest broadly:
 
-// Recent org-wide activity
-MATCH (s:Session)-[:BY]->(p:Person)
-WHERE s.date >= date() - duration('P7D')
-RETURN s.topic AS topic, p.name AS by, s.date AS date
-ORDER BY s.date DESC LIMIT 5
+Gather context about the **topic**, not just the target person. The goal is to see if the graph already has the answer.
 
-// Active quests across org
-MATCH (q:Quest {status: 'active'})
-RETURN q.id AS quest, q.title AS title, q.question AS question
+```bash
+# Everything the graph knows about this topic (sessions mentioning it)
+bash bin/graph.sh query "MATCH (s:Session) WHERE toLower(s.topic) CONTAINS toLower('$topic') OR toLower(s.summary) CONTAINS toLower('$topic') MATCH (s)-[:BY]->(p:Person) RETURN s.topic AS topic, s.summary AS summary, s.date AS date, p.name AS by ORDER BY s.date DESC LIMIT 10"
+
+# Artifacts related to the topic
+bash bin/graph.sh query "MATCH (a:Artifact) WHERE toLower(a.title) CONTAINS toLower('$topic') OR toLower(a.type) CONTAINS toLower('$topic') OPTIONAL MATCH (a)-[:CONTRIBUTED_BY]->(p:Person) RETURN a.title AS title, a.type AS type, p.name AS by ORDER BY a.created DESC LIMIT 5"
+
+# Quests related to the topic
+bash bin/graph.sh query "MATCH (q:Quest) WHERE toLower(q.title) CONTAINS toLower('$topic') OR toLower(q.id) CONTAINS toLower('$topic') RETURN q.id AS quest, q.title AS title, q.question AS question, q.status AS status"
+
+# The target person's recent sessions (for question context later)
+bash bin/graph.sh query "MATCH (s:Session)-[:BY]->(p:Person {name: '$target'}) RETURN s.topic AS topic, s.summary AS summary, s.date AS date ORDER BY s.date DESC LIMIT 5"
+
+# The target person's contributions
+bash bin/graph.sh query "MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p:Person {name: '$target'}) RETURN a.title AS title, a.type AS type ORDER BY a.created DESC LIMIT 5"
 ```
 
-## Step 5: Generate Questions with AskUserQuestion
+---
 
-Based on context, generate 1-4 questions using AskUserQuestion tool.
+## Step 6: Route Based on Target Type
 
-### Determining Question Scope
+### If SELF or EXPLORATORY → go to Step 7
+### If PERSON → go to Step 8
+
+---
+
+## Step 7: Self / Exploratory Mode
+
+Use AskUserQuestion to present questions to the CURRENT user.
+
+### Show context summary first:
+
+```
+Analyzing your context...
+- Active quests: benchmark-eval (3 artifacts), research-agent (1 artifact)
+- Recent sessions: MCP transport decision, Neo4j setup
+- Open threads: evaluation framework design
+```
+
+### Generate 1-4 questions using AskUserQuestion
+
+**Determining scope:**
 
 **Narrow scope** (1-2 questions, single-select):
 - Topic is a specific decision point
@@ -136,7 +171,7 @@ Based on context, generate 1-4 questions using AskUserQuestion tool.
 - No clear decision point
 - Example: "about where egregore is heading"
 
-### Question Generation Guidelines
+### Question generation guidelines
 
 **Headers** (max 12 chars):
 - "Focus" — What to prioritize
@@ -157,248 +192,177 @@ Based on context, generate 1-4 questions using AskUserQuestion tool.
 - `true` for brainstorming, scoping, or non-exclusive options
 - `false` for decisions, priorities, single-choice
 
-### Example: Self-Reflection Questions
+### After answers: offer /reflect
 
-For `/ask me about priorities`:
+After the user answers self/exploratory questions:
 
 ```
-Analyzing your context...
-- Active quests: benchmark-eval (3 artifacts), research-agent (1 artifact)
-- Recent sessions: MCP transport decision, Neo4j setup
-- Open threads: evaluation framework design
+Your responses captured.
+
+Save as a reflection? I'll store it in the knowledge graph via /reflect.
 ```
 
-Then use AskUserQuestion:
+If yes, route to `/reflect` flow (thought type, linked to relevant quests).
 
-Question 1:
-- question: "Which quest needs your attention most urgently?"
+---
+
+## Step 8: Person-Targeted Mode (Harvest-First)
+
+This is the core design change. Do NOT immediately generate questions for the target. Follow this sequence:
+
+### Step 8a: Present harvested context to the SENDER
+
+Analyze what the graph returned in Step 5. Synthesize it into a useful summary for the sender.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  ? ASK                                                                │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  Topic: evaluation criteria                                            │
+│  Target: Oz                                                            │
+│                                                                        │
+│  ┌────────────────────────────────────────────────────────────────┐    │
+│  │ WHAT THE GRAPH KNOWS                                           │    │
+│  │                                                                │    │
+│  │ ◦ Feb 07  oz: Discussed HELM benchmarks in session             │    │
+│  │ ◦ Feb 06  cem: Benchmark-eval quest has 3 artifacts            │    │
+│  │ ◦ Artifact: "temporal evaluation thought" by oz                │    │
+│  │ ◦ Quest: benchmark-eval (active, 2 contributors)              │    │
+│  └────────────────────────────────────────────────────────────────┘    │
+│                                                                        │
+│  Does this answer your question, or should I ask Oz directly?          │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+If the graph has NO relevant context, skip straight to Step 8c with a note:
+
+```
+The graph doesn't have much about "{topic}". Let me ask {target} directly.
+```
+
+### Step 8b: Let sender decide
+
+Use AskUserQuestion for the SENDER (current user):
+
+- question: "Does this answer your question, or should I ask {target} directly?"
+- header: "Next"
+- options:
+  - label: "This is enough"
+    description: "The graph context answers my question"
+  - label: "Ask {target} directly"
+    description: "I need their specific input"
+- multiSelect: false
+
+**If "This is enough"** → end. Optionally offer to save as reflection.
+
+**If "Ask directly"** → proceed to Step 8c.
+
+### Step 8c: Clarify what specifically to ask
+
+Use AskUserQuestion for the SENDER to sharpen the question. Generate options based on the gap analysis — what does the graph NOT know about this topic?
+
+- question: "What specifically should I ask {target}?"
 - header: "Focus"
-- options:
-  - label: "benchmark-eval"
-    description: "3 artifacts, evaluation framework in progress"
-  - label: "research-agent"
-    description: "1 artifact, early exploration stage"
-  - label: "Something new"
-    description: "A direction not yet tracked"
-- multiSelect: false
+- options: (generated from gap analysis)
+  - Things the graph is silent on
+  - Opinions/preferences that only the person would know
+  - Decisions that haven't been recorded
+- multiSelect: true (sender might want to ask about multiple gaps)
 
-Question 2:
-- question: "What's your biggest blocker right now?"
-- header: "Blocker"
-- options:
-  - label: "Technical uncertainty"
-    description: "Need to figure out how to implement something"
-  - label: "Waiting on others"
-    description: "Blocked by someone else's input"
-  - label: "Too many threads"
-    description: "Need to focus, context-switching too much"
-- multiSelect: false
+### Step 8d: Generate targeted questions for the target
 
-### Example: Person-Targeted Questions
+Based on the sender's clarified intent from Step 8c, generate 1-4 focused questions. These should be much higher quality than generic questions because:
+- We know what the graph already has (no redundant questions)
+- We know what the sender specifically wants to learn
+- We can reference actual context in the question framing
 
-For `/ask @oz about evaluation criteria`:
+### Step 8e: Store in Neo4j
 
-```
-Analyzing Oz's context...
-- Recent work: benchmark-eval quest, HELM framework review
-- Contributions: temporal evaluation thought, HELM findings
-- Projects: tristero
-```
-
-Generate questions that probe Oz's thinking on evaluation:
-
-Question 1:
-- question: "What criteria matter most for evaluating dynamic ontologies?"
-- header: "Focus"
-- options:
-  - label: "Accuracy"
-    description: "How correct are the classifications?"
-  - label: "Coherence"
-    description: "How well does the structure hold together?"
-  - label: "Usefulness"
-    description: "Does it help users find what they need?"
-  - label: "Efficiency"
-    description: "Computational and storage costs"
-- multiSelect: true
-
-Question 2:
-- question: "How should we weight temporal vs structural metrics?"
-- header: "Tradeoff"
-- options:
-  - label: "Temporal primary"
-    description: "How ontology changes over time is most important"
-  - label: "Structural primary"
-    description: "Current snapshot quality matters most"
-  - label: "Equal weight"
-    description: "Both dimensions equally important"
-  - label: "Context-dependent"
-    description: "Depends on use case"
-- multiSelect: false
-
-### Example: Wide Exploration Questions
-
-For `/ask about where egregore is heading`:
-
-```
-Analyzing organizational context...
-- Active projects: Tristero, LACE, egregore
-- Recent decisions: MCP transport, Neo4j adoption
-- Active quests: benchmark-eval, research-agent, nlnet-commons
-```
-
-Generate exploratory questions:
-
-Question 1:
-- question: "What aspects of Egregore's direction interest you?"
-- header: "Scope"
-- options:
-  - label: "Technical architecture"
-    description: "How the systems fit together"
-  - label: "Product strategy"
-    description: "What we're building and for whom"
-  - label: "Team coordination"
-    description: "How we work together"
-  - label: "External positioning"
-    description: "Grants, partnerships, public presence"
-- multiSelect: true
-
-Question 2:
-- question: "What feels unclear or unresolved?"
-- header: "Gap"
-- options:
-  - label: "Long-term direction"
-    description: "Where are we heading in 6-12 months?"
-  - label: "Project connections"
-    description: "How Tristero, LACE, and egregore relate"
-  - label: "Decision authority"
-    description: "Who decides what?"
-  - label: "Resource allocation"
-    description: "Where to invest time and energy"
-- multiSelect: true
-
-## Step 6: Store Person-Targeted Questions in Neo4j
-
-If targeting another person (`@person`), store the questions for async delivery:
-
-```cypher
-MATCH (asker:Person {name: $me})
-MATCH (target:Person {name: $targetPerson})
-CREATE (qs:QuestionSet {
-  id: $setId,
-  topic: $topic,
-  contextSummary: $contextSummary,
-  created: datetime(),
-  status: 'pending'
-})
-CREATE (qs)-[:ASKED_BY]->(asker)
-CREATE (qs)-[:ASKED_TO]->(target)
-WITH qs
-UNWIND $questions AS q
-CREATE (question:Question {
-  id: q.id,
-  text: q.text,
-  header: q.header,
-  options: q.optionsJson,
-  multiSelect: q.multiSelect,
-  answer: null
-})
-CREATE (question)-[:PART_OF]->(qs)
-RETURN qs.id
+```bash
+bash bin/graph.sh query "MATCH (asker:Person {name: '$me'}) MATCH (target:Person {name: '$target'}) CREATE (qs:QuestionSet {id: '$setId', topic: '$topic', contextSummary: '$contextSummary', created: datetime(), status: 'pending'}) CREATE (qs)-[:ASKED_BY]->(asker) CREATE (qs)-[:ASKED_TO]->(target) WITH qs UNWIND \$questions AS q CREATE (question:Question {id: q.id, text: q.text, header: q.header, options: q.optionsJson, multiSelect: q.multiSelect, answer: null}) CREATE (question)-[:PART_OF]->(qs) RETURN qs.id"
 ```
 
 Where:
 - `$setId` = `YYYY-MM-DD-asker-to-target-topic-slug`
 - `$questions` = array of question objects with id, text, header, options, multiSelect
 
-Then notify via Telegram:
+For the UNWIND with parameters, use `bash bin/graph.sh query "..." '{"questions": [...]}'` format.
+
+### Step 8f: Notify via Telegram
 
 ```bash
-bash bin/notify.sh send "oz" "Hey Oz, cem has questions about \"evaluation criteria\"\n\n3 questions waiting for you. Run /ask in Claude to answer."
+bash bin/notify.sh send "$target" "Hey $Target, $me has questions about \"$topic\"\n\n$n questions waiting for you. Run /ask in Claude to answer."
 ```
 
-**Message format:**
-```
-Hey Oz, cem has questions about "evaluation criteria"
+### Step 8g: Show confirmation TUI
 
-3 questions waiting for you. Run /ask in Claude to answer.
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  ? QUESTIONS QUEUED                                                    │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  To: Oz                                                                │
+│  Topic: benchmark evaluation approach                                  │
+│                                                                        │
+│  ┌────────────────────────────────────────────────────────────────┐    │
+│  │ 1. "What criteria matter most?" [Focus]                        │    │
+│  │ 2. "How should we weight temporal?" [Tradeoff]                 │    │
+│  └────────────────────────────────────────────────────────────────┘    │
+│                                                                        │
+│  ✓ Stored in knowledge graph                                           │
+│  ✓ Oz notified via Telegram                                            │
+│                                                                        │
+│  You'll be notified when Oz responds.                                  │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Output:**
-```
-Questions queued for Oz:
-1. "What criteria matter most for evaluating dynamic ontologies?" [Focus]
-2. "How should we weight temporal vs structural metrics?" [Tradeoff]
+**Exit. Do NOT call AskUserQuestion after this point.**
 
-Oz will be notified and can answer in their next Claude session.
-You'll be notified when they respond.
-```
+---
 
-## Step 7: Present Pending Questions
+## Step 9: Present Pending Questions
 
 When a user runs `/ask` and has pending questions:
 
 1. Load the QuestionSet from Neo4j
 2. Convert stored questions to AskUserQuestion format
-3. Present via AskUserQuestion UI
+3. **Present via AskUserQuestion UI** (this is where the target answers)
 4. Store answers back to Neo4j
 
-```cypher
-// Load questions for a set
-MATCH (q:Question)-[:PART_OF]->(qs:QuestionSet {id: $setId})
-RETURN q.id AS id, q.text AS text, q.header AS header, q.options AS options, q.multiSelect AS multiSelect
-ORDER BY q.id
+```bash
+# Load questions for a set
+bash bin/graph.sh query "MATCH (q:Question)-[:PART_OF]->(qs:QuestionSet {id: '$setId'}) RETURN q.id AS id, q.text AS text, q.header AS header, q.options AS options, q.multiSelect AS multiSelect ORDER BY q.id"
 ```
 
 After user answers via AskUserQuestion:
 
-```cypher
-// Store answers
-MATCH (q:Question {id: $questionId})
-SET q.answer = $answer, q.answeredAt = datetime()
+```bash
+# Store each answer
+bash bin/graph.sh query "MATCH (q:Question {id: '$questionId'}) SET q.answer = '$answer', q.answeredAt = datetime()"
 
-// Check if all questions answered
-MATCH (qs:QuestionSet {id: $setId})
-OPTIONAL MATCH (q:Question)-[:PART_OF]->(qs) WHERE q.answer IS NULL
-WITH qs, count(q) AS unanswered
-SET qs.status = CASE WHEN unanswered = 0 THEN 'answered' ELSE 'partial' END
-RETURN qs.status
+# Check if all questions answered
+bash bin/graph.sh query "MATCH (qs:QuestionSet {id: '$setId'}) OPTIONAL MATCH (q:Question)-[:PART_OF]->(qs) WHERE q.answer IS NULL WITH qs, count(q) AS unanswered SET qs.status = CASE WHEN unanswered = 0 THEN 'answered' ELSE 'partial' END RETURN qs.status"
 ```
 
 Then notify the asker:
 
 ```bash
-bash bin/notify.sh send "cem" "Hey Cem, oz answered your questions about \"evaluation criteria\"\n\nRun /activity to see their answers."
+bash bin/notify.sh send "$asker" "Hey $Asker, $target answered your questions about \"$topic\"\n\nRun /activity to see their answers."
 ```
 
-**Message format:**
-```
-Hey Cem, oz answered your questions about "evaluation criteria"
-
-Run /activity to see their answers.
-```
-
-## Step 8: Self-Reflection Capture
-
-For self-targeted questions, answers can optionally be saved as artifacts:
-
-After answering self-reflection questions:
-```
-Your responses captured.
-
-Would you like to save this as an artifact?
-```
-
-If yes, create artifact via `/add` flow (thought type, linked to relevant quests).
+---
 
 ## Error Handling
 
 **Person not found:**
 ```
-I don't have @{name} in the knowledge graph.
+I don't recognize "{name}" as a person in Egregore.
 
 Known people: oz, ali, cem
 
-Check the name, or add them first with a handoff or session.
+Check the spelling, or they might need to be added via a session or handoff first.
 ```
 
 **Neo4j unavailable:**
@@ -409,15 +373,17 @@ Knowledge graph unavailable. Generating questions without context...
 ```
 
 **No context available for person:**
-```
-I don't have much context about @{name}'s work on "{topic}".
 
-Generating exploratory questions instead...
+For person-targeted, this just means skip Step 8a/8b and go straight to 8c:
 ```
+The graph doesn't have much about "{topic}". Let me ask {target} directly.
+```
+
+---
 
 ## Output Examples
 
-### Self-reflection
+### Self-reflection (uses AskUserQuestion)
 ```
 > /ask me about my priorities
 
@@ -427,26 +393,78 @@ Analyzing your context...
 - Open: 1 handoff pending
 
 [AskUserQuestion appears with context-aware questions]
+
+[After answers]
+
+Your responses captured.
+
+Save as a reflection? I'll store it in the knowledge graph via /reflect.
 ```
 
-### Person-targeted
+### Person-targeted with graph context (harvest-first)
 ```
-> /ask @oz about the benchmark evaluation approach
+> /ask oz about the benchmark evaluation approach
 
-Analyzing Oz's context...
-- Recent work: benchmark-eval quest, HELM review
-- Contributions: temporal evaluation thought
+┌────────────────────────────────────────────────────────────────────────┐
+│  ? ASK                                                                │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  Topic: benchmark evaluation approach                                  │
+│  Target: Oz                                                            │
+│                                                                        │
+│  ┌────────────────────────────────────────────────────────────────┐    │
+│  │ WHAT THE GRAPH KNOWS                                           │    │
+│  │                                                                │    │
+│  │ ◦ Feb 07  oz: Discussed HELM benchmarks in session             │    │
+│  │ ◦ Artifact: "temporal evaluation thought" by oz                │    │
+│  │ ◦ Quest: benchmark-eval (active)                               │    │
+│  └────────────────────────────────────────────────────────────────┘    │
+│                                                                        │
+│  Does this answer your question, or should I ask Oz directly?          │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
 
-Generating questions for Oz...
+[AskUserQuestion: Does this answer your question?]
 
-Questions queued:
-1. "What criteria matter most for evaluating dynamic ontologies?" [Focus]
-2. "How should we weight temporal vs structural metrics?" [Tradeoff]
+> Ask Oz directly
 
-Oz will be notified. Answers will appear in /activity.
+[AskUserQuestion: What specifically should I ask Oz?]
+
+> His opinion on our benchmark choice, Whether he's seen alternatives
+
+Generating targeted questions for Oz...
+
+┌────────────────────────────────────────────────────────────────────────┐
+│  ? QUESTIONS QUEUED                                                    │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  To: Oz                                                                │
+│  Topic: benchmark evaluation approach                                  │
+│                                                                        │
+│  ┌────────────────────────────────────────────────────────────────┐    │
+│  │ 1. "What's your take on HELM as our primary benchmark?"        │    │
+│  │    [Approach]                                                  │    │
+│  │ 2. "Are there alternatives to HELM we should consider?"        │    │
+│  │    [Gap]                                                       │    │
+│  └────────────────────────────────────────────────────────────────┘    │
+│                                                                        │
+│  ✓ Stored in knowledge graph                                           │
+│  ✓ Oz notified via Telegram                                            │
+│                                                                        │
+│  You'll be notified when Oz responds.                                  │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Answering pending
+### Person-targeted without graph context (skip to clarify)
+```
+> /ask oz about hiring plans
+
+The graph doesn't have much about "hiring plans". Let me ask Oz directly.
+
+[AskUserQuestion: What specifically should I ask Oz?]
+```
+
+### Answering pending (target sees AskUserQuestion)
 ```
 > /ask
 
@@ -455,14 +473,14 @@ You have 2 pending question sets:
 1. From cem about "evaluation criteria" (12 hours ago)
 2. From ali about "MCP transport" (2 days ago)
 
-[AskUserQuestion: Which would you like to answer first?]
+[AskUserQuestion: Which would you like to respond to?]
 
 > evaluation criteria
 
-[AskUserQuestion: Questions from cem appear]
+[AskUserQuestion: Questions from cem appear for YOU to answer]
 ```
 
-### Wide exploration
+### Wide exploration (uses AskUserQuestion)
 ```
 > /ask about egregore
 
@@ -471,14 +489,27 @@ Analyzing organizational context...
 - Recent decisions: MCP transport, Neo4j
 
 [AskUserQuestion with exploratory questions, multiSelect enabled]
+
+[After answers]
+
+Your responses captured.
+
+Save as a reflection? I'll store it in the knowledge graph via /reflect.
 ```
+
+---
 
 ## Rules
 
 - **Generate questions dynamically** — Never use hardcoded templates
 - **Reference actual context** — Questions should mention real quests, projects, recent work
 - **Appropriate scope** — Narrow for decisions, wide for exploration
-- **Always use AskUserQuestion** — Both for self and when surfacing pending questions
-- **Notify on async** — Telegram for person-targeted questions and answers
-- **Link to knowledge graph** — All questions/answers stored in Neo4j via `bin/graph.sh`
-- **Never use MCP** — Always use `bash bin/graph.sh query "..."` for Neo4j
+- **Harvest-first for person-targeted** — Always check the graph before generating async questions
+- **AskUserQuestion for sender clarification** — In person-targeted mode, use AskUserQuestion to help the sender clarify (Steps 8b, 8c), never to present questions for the target
+- **AskUserQuestion for self/exploratory** — Present generated questions directly to the current user
+- **AskUserQuestion for pending answers** — When a target runs `/ask` and has pending questions, present them via AskUserQuestion
+- **Person-targeted = async** — Store in Neo4j, notify via Telegram, exit without presenting target's questions
+- **All Neo4j via bin/graph.sh** — Never use MCP, never construct curl calls to Neo4j directly
+- **All notifications via bin/notify.sh** — Never curl to APIs directly
+- **No @ required** — Both `oz` and `@oz` work for person names
+- **Offer /reflect after self/exploratory** — Answers are valuable, help the user crystallize them
