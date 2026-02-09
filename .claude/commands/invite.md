@@ -106,7 +106,7 @@ Inviting rencburra to Curve Labs...
 
 Share this link with rencburra:
 
-  https://egregore.xyz/join?invite=inv_a1b2c3d4e5f6
+  https://egregore-core.netlify.app/join?invite=inv_a1b2c3d4e5f6
 
 They'll authenticate with GitHub, accept the org invite,
 and get a one-line install command.
@@ -118,7 +118,7 @@ and get a one-line install command.
 > /invite rencburra
 
 rencburra is already a member of Curve-Labs.
-They can join Egregore directly at: https://egregore.xyz/setup
+They can join Egregore directly at: https://egregore-core.netlify.app/setup
 ```
 
 ## Rules

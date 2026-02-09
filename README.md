@@ -18,7 +18,7 @@ A shared intelligence layer for organizations using Claude Code. Persistent memo
 
 ### From the website (recommended)
 
-Visit [egregore.xyz](https://egregore.xyz), sign in with GitHub, pick your org and repos, then run the one-liner it gives you:
+Visit [egregore-core.netlify.app](https://egregore-core.netlify.app), sign in with GitHub, pick your org and repos, then run the one-liner it gives you:
 
 ```bash
 npx create-egregore --token st_xxx
@@ -27,7 +27,7 @@ npx create-egregore --token st_xxx
 Or without Node.js:
 
 ```bash
-curl -fsSL https://egregore.xyz/api/org/install/st_xxx | bash
+curl -fsSL https://egregore-core.netlify.app/api/org/install/st_xxx | bash
 ```
 
 ### From an invite
