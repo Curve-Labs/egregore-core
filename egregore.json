@@ -1,8 +1,8 @@
 {
-  "org_name": "Egregore",
+  "org_name": "Egregore Demo",
   "github_org": "Curve-Labs",
   "memory_repo": "https://github.com/Curve-Labs/curve-labs-memory.git",
   "api_url": "https://egregore-production-55f2.up.railway.app",
-  "slug": "egregore",
+  "slug": "egregore-demo",
   "repos": []
 }
