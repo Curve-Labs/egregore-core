@@ -376,6 +376,24 @@ In `/activity` action items, handoffs directed at the current user appear as:
 
 When the user selects that numbered item, display the receiver view above by reading the handoff file from the path in the Session node's `filePath` property.
 
+## Step 9: Reflection prompt
+
+After displaying the TUI confirmation, check if today's sessions produced no artifacts. Query:
+
+```cypher
+MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p:Person {name: $me})
+WHERE a.created >= datetime({year: $year, month: $month, day: $day})
+RETURN count(a) AS artifactCount
+```
+
+If `artifactCount = 0`, show a one-line suggestion (not a blocker — no AskUserQuestion):
+
+```
+This session had insights worth capturing. Quick /reflect?
+```
+
+If artifacts exist, skip this step silently.
+
 ## Edge cases
 
 | Scenario | Handling |

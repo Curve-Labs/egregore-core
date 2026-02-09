@@ -24,20 +24,45 @@ Map git username → short name: "Oguzhan Yayla" → oz, "Cem Dagdelen" → cem,
 
 **Calls 2–8 — Neo4j queries via `bash bin/graph.sh query "..."`:**
 
-Q1 — My sessions:
+Q1 — My sessions (with tiebreaker for same-day ordering):
 ```
-MATCH (s:Session)-[:BY]->(p:Person {name: '$me'}) RETURN s.date AS date, s.topic AS topic ORDER BY s.date DESC LIMIT 5
+MATCH (s:Session)-[:BY]->(p:Person {name: '$me'})
+OPTIONAL MATCH (s)-[:HANDED_TO]->(target:Person)
+RETURN s.date AS date, s.topic AS topic, s.id AS id, s.filePath AS filePath,
+       target.name AS handedTo
+ORDER BY s.date DESC, s.id DESC LIMIT 10
 ```
+Note: Returns 10 (not 5) so orientation can pick from more context. Display still shows top 5. The `s.id DESC` tiebreaker ensures most recently created sessions within the same day sort first. `filePath` and `handedTo` are used by the session orientation logic.
 
 Q2 — Team (7 days):
 ```
 MATCH (s:Session)-[:BY]->(p:Person) WHERE p.name <> '$me' AND s.date >= date() - duration('P7D') RETURN s.date AS date, s.topic AS topic, p.name AS by ORDER BY s.date DESC LIMIT 5
 ```
 
-Q3 — Active quests (scored by recency + priority + contributors + artifacts):
+Q3 — Active quests (scored with personal relevance):
 ```
-MATCH (q:Quest {status: 'active'}) OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q) OPTIONAL MATCH (a)-[:CONTRIBUTED_BY]->(p:Person) WHERE p.name IS NOT NULL AND p.name <> 'external' WITH q, count(DISTINCT a) AS artifacts, count(DISTINCT p) AS contributors, CASE WHEN count(a) > 0 THEN duration.inDays(max(a.created), date()).days ELSE duration.inDays(q.started, date()).days END AS daysSince, coalesce(q.priority, 0) AS priority RETURN q.id AS quest, artifacts, daysSince, round((toFloat(artifacts) + toFloat(contributors)*1.5 + toFloat(priority)*5.0 + 30.0/(1.0+toFloat(daysSince)*0.5)) * 100)/100 AS score ORDER BY score DESC
+MATCH (q:Quest {status: 'active'})
+OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q)
+OPTIONAL MATCH (a)-[:CONTRIBUTED_BY]->(p:Person) WHERE p.name IS NOT NULL AND p.name <> 'external'
+OPTIONAL MATCH (q)-[:STARTED_BY]->(starter:Person {name: '$me'})
+OPTIONAL MATCH (myArt:Artifact)-[:PART_OF]->(q) WHERE (myArt)-[:CONTRIBUTED_BY]->(:Person {name: '$me'})
+WITH q, count(DISTINCT a) AS artifacts, count(DISTINCT p) AS contributors,
+     CASE WHEN count(a) > 0 THEN duration.inDays(max(a.created), date()).days
+          ELSE duration.inDays(q.started, date()).days END AS daysSince,
+     coalesce(q.priority, 0) AS priority,
+     CASE WHEN starter IS NOT NULL THEN 1 ELSE 0 END AS iStarted,
+     count(DISTINCT myArt) AS myArtifacts
+RETURN q.id AS quest, q.title AS title, artifacts, daysSince, iStarted, myArtifacts,
+       starter IS NOT NULL AS iStarted,
+       round((toFloat(artifacts) + toFloat(contributors)*1.5
+         + toFloat(priority)*5.0
+         + 30.0/(1.0+toFloat(daysSince)*0.5)
+         + CASE WHEN starter IS NOT NULL THEN 15.0 ELSE 0.0 END
+         + toFloat(myArtifacts)*3.0
+       ) * 100)/100 AS score
+ORDER BY score DESC
 ```
+Personal relevance: +15 if I started the quest, +3 per artifact I contributed. This ensures quests I own always rank above quests where I have zero involvement.
 
 Q4 — Pending questions for me:
 ```
@@ -73,6 +98,23 @@ Q10 — Quest topic coverage (only if Q8 orphanRatio > 0.4):
 ```
 MATCH (q:Quest {status: 'active'}) WHERE q.topics IS NOT NULL RETURN q.id AS quest, q.topics AS topics
 ```
+
+**Call 9 — Disk cross-reference (run in parallel with Neo4j calls):**
+```bash
+# Recent handoff files on disk — catches work not yet synced to graph
+ls -1 memory/handoffs/$(date +%Y-%m)/ 2>/dev/null | grep "$(date +%d)-\|$(date -v-1d +%d 2>/dev/null || date -d 'yesterday' +%d)-" | head -10
+echo "---KNOWLEDGE---"
+ls -1t memory/knowledge/decisions/ 2>/dev/null | head -5
+```
+This catches today's and yesterday's handoff files + recent knowledge artifacts on disk. Used by the orientation logic to detect graph-vs-disk freshness gaps.
+
+## Data freshness check
+
+After all queries return, compare Q1 session count for today/yesterday against Call 9 disk files. If disk has more handoff files for today than Q1 has sessions for today, the graph is stale. In that case:
+
+1. **For the dashboard display**: Use graph data as-is (it's what we have)
+2. **For the orientation options**: Supplement with disk data. Read the titles from the most recent handoff files on disk (parse the `# Handoff: [topic]` header line) to generate "Continue" options even when the graph is behind.
+3. **Show a sync hint in the footer**: `{N} sessions on disk not in graph — /save to sync`
 
 ## Boundary handling (CRITICAL)
 
@@ -142,7 +184,7 @@ Output the box directly — nothing before it.
 ├──────────────────────────────────────────────────────────────────────┤
 │  8 artifacts unlinked to quests — /quest suggest                     │
 │  /ask a question · /quest to see more · /reflect for insights        │
-│  Type a number to act, or keep working.                              │
+│  What's your focus?                                                  │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -172,8 +214,23 @@ Separated by a blank line between the two sub-sections. Omit either if empty.
 
 **Footer** (always shown, separated by `├────┤`)
 - If Q8 orphanCount > 0: `N artifacts unlinked to quests — /quest suggest` (shown before command hints)
-- Command hints: `/ask a question · /quest to see more · /reflect for insights`
-- If numbered items exist: `Type a number to act, or keep working.`
+- Command hints: `/ask a question · /quest to see more · /reflect for insights` — BUT if Q4 (knowledge gaps from reflect's schema) shows sessions without artifacts, replace the generic `/reflect for insights` with a specific CTA: `N sessions without captured insights — /reflect to extract` (where N = number of gap sessions from Q4-equivalent query below)
+
+**Knowledge gap query** (run in parallel with other queries, only used for footer):
+```cypher
+MATCH (s:Session)-[:BY]->(p:Person {name: '$me'})
+WHERE s.date >= date() - duration('P14D')
+OPTIONAL MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p)
+WHERE a.created >= datetime({year: s.date.year, month: s.date.month, day: s.date.day})
+  AND a.created < datetime({year: s.date.year, month: s.date.month, day: s.date.day}) + duration('P1D')
+WITH s, count(a) AS artifactCount
+WHERE artifactCount = 0
+RETURN count(s) AS gapCount
+```
+
+If `gapCount > 0`, the footer line becomes: `{gapCount} sessions without captured insights — /reflect to extract`
+If `gapCount = 0`, use the default: `/ask a question · /quest to see more · /reflect for insights`
+- Always end with: `What's your focus?`
 
 ## Date formatting
 
@@ -187,19 +244,127 @@ Separated by a blank line between the two sub-sections. Omit either if empty.
 
 <1h `Nm ago` · 1-23h `Nh ago` · 1d `yesterday` · 2-6d `Nd ago` · 7d+ `Mon DD`
 
-## Interactive follow-up
+## Session orientation (always runs after dashboard)
 
-If numbered items exist, use AskUserQuestion after the box. One option per numbered item plus "Skip — just looking".
+**Always fire AskUserQuestion after the dashboard.** This is the session bootstrapper — it turns /activity from a read surface into an active orientation primitive.
 
-- Handoff → read s.filePath and display
-- Pending questions → load QuestionSet, start /ask answer flow
-- Answered questions → load QuestionSet and display answers
+### Option generation
 
-Zero numbered items → no AskUserQuestion.
+Generate 2-4 options from the data already collected (Q1–Q8 + Call 9 + PRs). Rank by priority — the first option should be the highest-signal action. Cap at 4 options total (AskUserQuestion limit). "Other" is provided automatically by the tool.
 
-## Quest sensemaking (after dashboard)
+**Priority ranking** (take the first 2-4 that apply):
 
-After displaying the dashboard and handling any numbered action items, check if quest structure has drifted. This runs **once per day** — check the cooldown first.
+| Priority | Source | When it fires | Label | Description |
+|----------|--------|---------------|-------|-------------|
+| 1 | Q6 (handoffs to me) | Someone directed work at you | `Read {author}'s handoff` | `{topic} — {time_ago}` |
+| 2 | Q4 (pending questions) | Someone is waiting for answers | `Answer {asker}'s questions` | `About "{topic}" — {time_ago}` |
+| 3–4 | Q1 + Call 9 (work streams) | You have recent work | `{work_stream_name}` | `{specific actionable hint}` |
+| 5 | PRs (from Call 1) | Open PRs not by you | `Review PR #{number}` | `{title} by {author}` |
+| 6 | — (fallback) | Nothing above applies | `Start something new` | `Begin a fresh work stream` |
+
+**Minimum options**: Always show at least 2. If only 1 real option exists, add "Start something new" as the second.
+
+### Work stream detection (Priority 3–4) — the core logic
+
+This is the most important part of the orientation. The goal is to surface 1-2 **specific, actionable work streams** the user could start right now — not vague themes, not random quests.
+
+**Step A: Gather recent session topics.** Merge Q1 sessions (last 3 days only) with Call 9 handoff files on disk. If a file appears on disk but not in Q1, read its `# Handoff: [topic]` line. Deduplicate by session ID or filename slug.
+
+**Step B: Cluster into work streams.** Group sessions by shared themes in their topics. Look for recurring keywords and concepts. For example:
+- "Individual tier strategy", "Individual tier agent prompts", "Pricing strategy" → **Pricing & business model**
+- "Slash command rewrites", "Terminal UX experiments", "TUI design" → **Slash command improvements**
+- "Memory directory consolidation", "Quest sensemaking" → **Infrastructure**
+
+A work stream needs 2+ sessions to qualify. Single-topic sessions get folded into the closest cluster or dropped.
+
+**Step C: Name each work stream.** The label should be specific and actionable — not a session topic, but a recognizable work stream name. Good: "Individual tier pricing" · "Slash command polish". Bad: "Weekend sprint" · "Continue session" · "Terminal UX experiments".
+
+**Step D: Write the description.** The description should hint at what's next, not what's done. Draw from:
+- The most recent session's topic in that cluster (what was last touched)
+- If a handoff file is available, scan its "Next Steps" or "Open Threads" for specifics
+- Keep it under 60 chars
+
+**Step E: Rank work streams.** Prefer:
+1. Streams with more sessions (more momentum)
+2. Streams with handoffs to others (implies active collaboration / urgency)
+3. Streams with matching knowledge artifacts (decisions/findings)
+
+**Step F: Take top 2.** Offer at most 2 work stream options in the AskUserQuestion. This leaves room for handoff/questions (P1-P2) and still fits in the 4-option limit.
+
+### Handling edge cases
+
+**No recent sessions (last 3 days):** Skip work streams entirely. The user starts fresh — offer "Start something new" directly.
+
+**Only 1 session in last 3 days:** Offer it as a single "Continue: {topic}" option. No clustering needed.
+
+**Graph is stale (disk has files not in Neo4j):** Use disk files as primary source. Read the handoff `# Handoff: [topic]` header for topics. Show a sync hint in the footer: `{N} sessions on disk not in graph — /save to sync`
+
+**Work stream overlaps with a handoff already in P1:** Deduplicate — don't offer "Individual tier strategy" as a work stream if the handoff directed at you is about that topic.
+
+### AskUserQuestion format
+
+```
+header: "Focus"
+question: "What would you like to focus on?"
+multiSelect: false
+options: [generated from priority ranking]
+```
+
+### After selection — session setup
+
+Each option routes to a setup action that loads context for the chosen work stream:
+
+| Selection | System does |
+|-----------|------------|
+| **Read handoff** | Read `s.filePath` from Q6 data. Display the handoff receiver TUI (see /handoff spec). Show entry points from the handoff file. |
+| **Answer questions** | Load the QuestionSet from Neo4j. Present questions via AskUserQuestion (same as `/ask` Step 9). Store answers, notify asker. |
+| **Work stream** | Read the most recent handoff file from that work stream's cluster. Display its "Open Threads" and "Next Steps" sections. If knowledge artifacts (decisions/findings) exist for the topic, mention them as context. If entry points reference files, offer to open them. This bootstraps the session with full context for the chosen work stream. |
+| **Review PR** | Run `gh pr view #N --json title,body,additions,deletions,files` and display a summary. Offer to check out the branch. |
+| **Start something new** | Ask: "What are you working on?" (free text, mirrors session-start greeting). |
+| **Other** (user typed) | Treat as the session topic. Proceed with whatever they typed. |
+
+### Example flows
+
+**Sprint day (8 sessions yesterday):**
+```
+What would you like to focus on?
+
+> 1. Read Oz's handoff
+     New Egregore setup flow — yesterday
+  2. Individual tier & pricing
+     Phase 1.5 execution — 4 agent prompts pending
+  3. Slash command polish
+     Activity dashboard, /summon PoC, command testing
+  4. Type something.
+```
+
+**Quiet day (1 session yesterday):**
+```
+What would you like to focus on?
+
+> 1. Continue: Defensibility architecture
+     Open threads — API proxy, Person node schema
+  2. Start something new
+     Begin a fresh work stream
+  3. Type something.
+```
+
+**Handoff + questions waiting:**
+```
+What would you like to focus on?
+
+> 1. Read Oz's handoff
+     New setup flow — yesterday
+  2. Answer Ali's questions
+     About "blog layout" — 3h ago
+  3. Individual tier & pricing
+     Phase 1.5 execution — pricing doc needs update
+  4. Type something.
+```
+
+## Quest sensemaking (after orientation)
+
+After the orientation question is answered and the session is set up, check if quest structure has drifted. This runs **once per day** — check the cooldown first.
 
 ### Cooldown check
 
