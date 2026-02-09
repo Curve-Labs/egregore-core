@@ -80,6 +80,12 @@ RETURN p.name AS name, p.joined AS joined
 
 ## Adding a specific project later
 
+When `/setup [repo]` is used to add a repo, also update `egregore.json` repos array:
+```bash
+# After cloning, add to managed repos list
+jq --arg repo "$REPO" '.repos += [$repo] | .repos |= unique' egregore.json > tmp.$$.json && mv tmp.$$.json egregore.json
+```
+
 ```
 > /setup tristero
 

@@ -21,6 +21,12 @@ mcp.json
 # User state
 .egregore-state.json
 
+# Database files (user-specific state)
+data/*.db
+
+# Test artifacts
+.pytest_cache/
+
 # Build artifacts
 __pycache__/
 node_modules/

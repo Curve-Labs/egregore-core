@@ -312,32 +312,16 @@ Save `workspace_ready: true` to state.
 
 ### Step 4: Shell alias
 
-Set up the `egregore` launch command so the user can start Egregore from anywhere:
+Set up the launch command so the user can start Egregore from anywhere:
 
 ```bash
-# Detect shell profile
-SHELL_PROFILE=""
-if [ -f "$HOME/.zshrc" ]; then
-  SHELL_PROFILE="$HOME/.zshrc"
-elif [ -f "$HOME/.bashrc" ]; then
-  SHELL_PROFILE="$HOME/.bashrc"
-elif [ -f "$HOME/.bash_profile" ]; then
-  SHELL_PROFILE="$HOME/.bash_profile"
-fi
-
-REPO_DIR="$(pwd)"
-
-if [ -n "$SHELL_PROFILE" ]; then
-  # Remove old alias if exists, add new one
-  grep -v 'alias egregore=' "$SHELL_PROFILE" > "$SHELL_PROFILE.tmp" && mv "$SHELL_PROFILE.tmp" "$SHELL_PROFILE"
-  echo "" >> "$SHELL_PROFILE"
-  echo "# Egregore" >> "$SHELL_PROFILE"
-  echo "alias egregore='cd \"$REPO_DIR\" && claude start'" >> "$SHELL_PROFILE"
-fi
+ALIAS_NAME=$(bash bin/ensure-shell-function.sh)
 ```
 
-Tell the user:
-> From now on, just type **`egregore`** in any terminal to launch. It syncs everything and shows you where you are.
+The script detects the user's shell (`$SHELL`), writes to the right profile (`.zshrc`, `.bash_profile`, `.bashrc`, or fish `config.fish`), and outputs the alias name. First install gets `egregore`, subsequent installs get `egregore-{slug}`.
+
+Tell the user (using the actual alias name returned):
+> From now on, just type **`{ALIAS_NAME}`** in any terminal to launch. It syncs everything and shows you where you are.
 
 ### Step 5: Complete
 

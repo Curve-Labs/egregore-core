@@ -2,10 +2,18 @@ Smart sync of all Egregore repos. Fetches first, only pulls if behind.
 
 ## Repos to sync
 
-- `../curve-labs-memory` — shared knowledge
-- `../tristero` — if exists
-- `../lace` — if exists
+- `../curve-labs-memory` — shared knowledge (derived from `memory_repo` in `egregore.json`)
+- Any repos listed in the `repos` array in `egregore.json` (as sibling directories `../{repo}`)
 - Current repo (curve-labs-core)
+
+**Read `egregore.json` first** to get the dynamic list:
+```bash
+# Memory repo directory
+MEMORY_DIR=$(basename "$(jq -r '.memory_repo' egregore.json)" .git)
+
+# Managed repos
+REPOS=$(jq -r '.repos[]? // empty' egregore.json)
+```
 
 ## Execution
 
@@ -50,8 +58,6 @@ Syncing Egregore repos...
   tristero           ✓ up to date
   lace               ✓ up to date
   curve-labs-core    ↓ 1 commit → pulled
-
-Synced. Run /activity to see what's new.
 ```
 
 ## Rules
