@@ -108,24 +108,17 @@ if ! git show-ref --verify --quiet refs/heads/develop 2>/dev/null; then
   fi
 fi
 
-# --- Sync develop ---
+# --- Sync develop (without checkout — safe for concurrent sessions) ---
 CURRENT_BRANCH=$(git branch --show-current)
 
-# Save current state if dirty
-STASHED="false"
-if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-  git stash push -m "session-start auto-stash" --quiet 2>/dev/null
-  STASHED="true"
-fi
-
-git checkout develop --quiet 2>/dev/null
-git pull origin develop --quiet 2>/dev/null || true
+# Update local develop ref from remote without switching branches
+git fetch origin develop:develop --quiet 2>/dev/null || true
 DEVELOP_SYNCED="true"
 
 # Count commits on develop ahead of main
 COMMITS_AHEAD=0
 if git show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; then
-  COMMITS_AHEAD=$(git rev-list origin/main..origin/develop --count 2>/dev/null || echo "0")
+  COMMITS_AHEAD=$(git rev-list origin/main..develop --count 2>/dev/null || echo "0")
 fi
 
 # --- Create or resume working branch ---
@@ -133,11 +126,8 @@ ACTION="created"
 BRANCH=""
 
 if [[ "$CURRENT_BRANCH" == dev/* ]]; then
-  # Resume existing session branch
+  # Resume existing session branch — rebase onto develop
   BRANCH="$CURRENT_BRANCH"
-  git checkout "$BRANCH" --quiet 2>/dev/null
-
-  # Rebase onto develop
   if git rebase develop --quiet 2>/dev/null; then
     ACTION="rebased"
   else
@@ -160,14 +150,9 @@ else
       ACTION="resumed"
     fi
   else
-    git checkout -b "$BRANCH" --quiet 2>/dev/null
+    git checkout -b "$BRANCH" develop --quiet 2>/dev/null
     ACTION="created"
   fi
-fi
-
-# Restore stashed changes
-if [ "$STASHED" = "true" ]; then
-  git stash pop --quiet 2>/dev/null || true
 fi
 
 # --- Sync memory ---

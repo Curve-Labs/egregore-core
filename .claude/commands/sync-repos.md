@@ -37,9 +37,8 @@ fi
 
 **For the current repo (egregore-core)**: sync the `develop` branch instead of main:
 ```bash
-# Sync develop (not main)
-git fetch origin --quiet
-git checkout develop --quiet && git pull origin develop --quiet && git checkout - --quiet
+# Update local develop ref without switching branches (safe for concurrent sessions)
+git fetch origin develop:develop --quiet
 # If on dev/* branch, rebase onto develop
 BRANCH=$(git branch --show-current)
 if [[ "$BRANCH" == dev/* ]]; then

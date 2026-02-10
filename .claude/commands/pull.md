@@ -14,12 +14,11 @@ Pull latest for current repo and shared memory.
 ## Execution
 
 ```bash
-# 1. Fetch and sync develop
-git fetch origin --quiet
-CURRENT=$(git branch --show-current)
-git checkout develop --quiet && git pull origin develop --quiet && git checkout "$CURRENT" --quiet
+# 1. Update local develop ref without switching branches (safe for concurrent sessions)
+git fetch origin develop:develop --quiet
 
 # 2. If on a working branch, rebase onto develop
+CURRENT=$(git branch --show-current)
 if [[ "$CURRENT" == dev/* ]]; then
   git rebase develop --quiet || (git rebase --abort && git merge develop -m "Sync with develop")
 fi
