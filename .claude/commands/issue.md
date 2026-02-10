@@ -2,12 +2,156 @@ Report an issue. Captures context automatically, routes to memory/graph/GitHub.
 
 Topic: $ARGUMENTS
 
-**Auto-saves.** No need to run `/save` after.
+**Auto-saves.** No need to run `/save` after (create mode only).
 
 ## Execution rules
 
 **Neo4j-first.** All queries via `bash bin/graph.sh query "..."`. No MCP. No direct curl to Neo4j.
 **Notifications via `bash bin/notify.sh`**. No direct curl to Telegram.
+
+## Argument routing
+
+Parse `$ARGUMENTS` to determine mode:
+
+- **Empty** or `list` → List mode (show open issues)
+- `list open` → List mode (open only)
+- `list closed` → List mode (closed only)
+- `list all` → List mode (all statuses)
+- `close [id-or-title]` → Close mode
+- `search [term]` → Search mode
+- **Anything else** → Create mode (existing Steps 0–7 below)
+
+---
+
+## List mode
+
+### Query
+
+```cypher
+MATCH (i:Issue)
+OPTIONAL MATCH (i)-[:REPORTED_BY]->(p:Person)
+RETURN i.id AS id, i.title AS title, i.status AS status,
+       i.recipient AS recipient, i.created AS created,
+       i.topics AS topics, p.name AS reportedBy,
+       i.github_url AS githubUrl
+ORDER BY i.created DESC
+```
+
+If `list open` or `list closed` was specified, add `WHERE i.status = 'open'` or `WHERE i.status = 'closed'` to the query.
+
+### Display
+
+TUI box — same boundary rules as all commands (72 chars, no sub-boxes).
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  ✱ ISSUES                                            oz · Feb 10    │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  OPEN                                                                │
+│    memory-symlink-breaks-after-pull                                  │
+│    Memory symlink breaks after pull (cem, Feb 09)                    │
+│                                                                      │
+│    save-fails-silently                                               │
+│    /save fails silently when graph offline (oz, Feb 08) · #42        │
+│                                                                      │
+│  CLOSED                                                              │
+│    im-hungry                                                         │
+│    Im hungry (cem, Feb 09)                                           │
+│                                                                      │
+├──────────────────────────────────────────────────────────────────────┤
+│  /issue [description] to create · /issue close [id] to resolve       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Format per issue**: Two lines per issue:
+- Line 1: `{id}` (dimmed/secondary — the slug identifier)
+- Line 2: `{title} ({reportedBy}, {date})` + `· #{number}` if github_url exists
+
+Group by status: OPEN first, then CLOSED. Separate groups with a blank line.
+
+If no issues exist: show `No issues found.` in the box body.
+
+If only listing one status (e.g., `list open`), omit the status headers and show a flat list.
+
+---
+
+## Close mode
+
+### Step 1: Resolve target
+
+If `$ARGUMENTS` contains an ID or title after `close`:
+```cypher
+MATCH (i:Issue {status: 'open'})
+WHERE i.id CONTAINS toLower($term) OR toLower(i.title) CONTAINS toLower($term)
+OPTIONAL MATCH (i)-[:REPORTED_BY]->(p:Person)
+RETURN i.id AS id, i.title AS title, p.name AS reportedBy
+```
+
+- **1 match** → proceed to close
+- **Multiple matches** → present AskUserQuestion picker with matched issues
+- **0 matches** → "No open issue matching '{term}'."
+
+If no term provided after `close`, list all open issues as AskUserQuestion picker.
+
+### Step 2: Close the issue
+
+```cypher
+MATCH (i:Issue {id: $id})
+SET i.status = 'closed', i.closedAt = datetime()
+RETURN i.id, i.title, i.status, i.github_url
+```
+
+### Step 3: Close GitHub issue (if linked)
+
+If `github_url` is set:
+```bash
+gh issue close "{github_url}" 2>/dev/null
+```
+
+Show warning if this fails — don't block the close.
+
+### Step 4: Update memory file
+
+If `memory/knowledge/issues/{id}.md` exists, update the frontmatter `status: closed` field.
+
+### Step 5: Confirmation
+
+```
+✓ Closed: {title}
+```
+
+If GitHub issue was also closed: `✓ Closed: {title} · GitHub #{number} closed`
+
+No auto-save for close operations (lightweight).
+
+---
+
+## Search mode
+
+### Query
+
+```cypher
+MATCH (i:Issue)
+WHERE toLower(i.title) CONTAINS toLower($term)
+   OR toLower(i.id) CONTAINS toLower($term)
+   OR ANY(t IN i.topics WHERE toLower(t) CONTAINS toLower($term))
+OPTIONAL MATCH (i)-[:REPORTED_BY]->(p:Person)
+RETURN i.id AS id, i.title AS title, i.status AS status,
+       p.name AS reportedBy, i.created AS created,
+       i.github_url AS githubUrl
+ORDER BY i.created DESC LIMIT 10
+```
+
+### Display
+
+Same TUI format as list mode, but no grouping by status — results are relevance-ordered. Show status inline: `{title} ({reportedBy}, {date}) [open]` or `[closed]`.
+
+If no results: `No issues matching '{term}'.`
+
+---
+
+## Create mode (existing flow)
 
 ## Step 0: Context Capture (silent, parallel)
 
@@ -345,8 +489,8 @@ The separator lines are ALWAYS identical — copy-paste the same 72-char string.
 Who's this for?
   1. Just memory — tracked in knowledge graph, visible on /activity
   2. egregore — (coming soon — Phase B)
-  3. Curve-Labs/egregore-core — filed on the org's fork
-  4. Curve-Labs/lace — filed on lace
+  3. {github_org}/egregore-core — filed on the org's fork
+  4. {github_org}/lace — filed on lace
 
 > 1
 
@@ -376,9 +520,9 @@ Who's this for?
 Who's this for?
   ...
 
-> Curve-Labs/egregore-core
+> {github_org}/egregore-core
 
-  [2/4] ✓ Filed on Curve-Labs/egregore-core · #42
+  [2/4] ✓ Filed on {github_org}/egregore-core · #42
   [3/4] ✓ Team notified
   [4/4] ✓ Auto-saved
 
@@ -387,7 +531,7 @@ Who's this for?
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Title: Memory symlink breaks after pull                             │
-│  For: Curve-Labs/egregore-core · issue #42                           │
+│  For: {github_org}/egregore-core · issue #42                           │
 │                                                                      │
 │  ✓ Saved to memory · graphed · team notified                         │
 │  → memory/knowledge/issues/2026-02-09-memory-symlink.md              │

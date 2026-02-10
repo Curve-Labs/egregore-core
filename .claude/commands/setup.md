@@ -11,12 +11,21 @@ Arguments: $ARGUMENTS
 
 Repos are private. Always use SSH:
 ```bash
-git clone git@github.com:Curve-Labs/[repo].git
+git clone git@github.com:{github_org}/[repo].git
 ```
 
 **If clone fails:**
 ```
 Can't access repo. Check your SSH keys: ssh -T git@github.com
+```
+
+## Dynamic config
+
+**Always read org config from `egregore.json` first** — never hardcode org names, repos, or memory paths:
+```bash
+GITHUB_ORG=$(jq -r '.github_org' egregore.json)
+MEMORY_REPO=$(jq -r '.memory_repo' egregore.json)
+MEMORY_DIR=$(basename "$MEMORY_REPO" .git)
 ```
 
 ## Full setup flow (no arguments)
@@ -27,18 +36,23 @@ Setting up Egregore...
 [1/3] Setting up shared memory repo...
       This stores handoffs, decisions, and research notes across the team.
 
-      Checking for curve-labs-memory...
+      # Read from egregore.json — NEVER hardcode
+      MEMORY_REPO=$(jq -r '.memory_repo' egregore.json)
+      MEMORY_DIR=$(basename "$MEMORY_REPO" .git)
+      GITHUB_ORG=$(jq -r '.github_org' egregore.json)
 
-      IF not exists (as sibling ../curve-labs-memory):
-        git clone git@github.com:Curve-Labs/curve-labs-memory.git ../curve-labs-memory
+      Checking for $MEMORY_DIR...
+
+      IF not exists (as sibling ../$MEMORY_DIR):
+        git clone git@github.com:$GITHUB_ORG/$MEMORY_DIR.git ../$MEMORY_DIR
         ✓ Cloned
 
       IF already exists:
-        cd ../curve-labs-memory && git pull
+        cd ../$MEMORY_DIR && git pull
         ✓ Already have it, pulled latest
 
       Creating symlink so Claude can access it from here...
-      ln -s ../curve-labs-memory ./memory
+      ln -s ../$MEMORY_DIR ./memory
       ✓ Linked as ./memory
 
 [2/3] Registering you in the knowledge graph...
@@ -95,7 +109,7 @@ Setting up Tristero...
       Checking for ../tristero...
 
       IF not exists:
-        git clone git@github.com:Curve-Labs/tristero.git ../tristero
+        git clone git@github.com:$GITHUB_ORG/tristero.git ../tristero
         ✓ Cloned to ../tristero
 
       IF already exists:
@@ -110,7 +124,7 @@ Setting up Tristero...
       Checking if memory symlink exists...
 
       IF not linked:
-        ln -s ../curve-labs-memory ../tristero/memory
+        ln -s ../$MEMORY_DIR ../tristero/memory
         ✓ Linked as ./memory
 
       IF already linked:

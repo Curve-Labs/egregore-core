@@ -47,17 +47,16 @@ OPTIONAL MATCH (a)-[:CONTRIBUTED_BY]->(p:Person) WHERE p.name IS NOT NULL AND p.
 OPTIONAL MATCH (q)-[:STARTED_BY]->(starter:Person {name: '$me'})
 OPTIONAL MATCH (myArt:Artifact)-[:PART_OF]->(q) WHERE (myArt)-[:CONTRIBUTED_BY]->(:Person {name: '$me'})
 WITH q, count(DISTINCT a) AS artifacts, count(DISTINCT p) AS contributors,
-     CASE WHEN count(a) > 0 THEN duration.inDays(max(a.created), date()).days
-          ELSE duration.inDays(q.started, date()).days END AS daysSince,
+     CASE WHEN count(a) > 0 THEN duration.inDays(date(max(a.created)), date()).days
+          ELSE duration.inDays(date(q.started), date()).days END AS daysSince,
      coalesce(q.priority, 0) AS priority,
-     CASE WHEN starter IS NOT NULL THEN 1 ELSE 0 END AS iStarted,
+     starter IS NOT NULL AS iStarted,
      count(DISTINCT myArt) AS myArtifacts
 RETURN q.id AS quest, q.title AS title, artifacts, daysSince, iStarted, myArtifacts,
-       starter IS NOT NULL AS iStarted,
        round((toFloat(artifacts) + toFloat(contributors)*1.5
          + toFloat(priority)*5.0
          + 30.0/(1.0+toFloat(daysSince)*0.5)
-         + CASE WHEN starter IS NOT NULL THEN 15.0 ELSE 0.0 END
+         + CASE WHEN iStarted THEN 15.0 ELSE 0.0 END
          + toFloat(myArtifacts)*3.0
        ) * 100)/100 AS score
 ORDER BY score DESC
@@ -91,7 +90,7 @@ MATCH (a:Artifact) WHERE a.created >= date() - duration('P14D') WITH count(a) AS
 
 Q9 — Stale high-priority quests (only if Q8 orphanRatio > 0.4):
 ```
-MATCH (q:Quest {status: 'active'}) WHERE q.priority >= 2 OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q) WITH q, CASE WHEN count(a) > 0 THEN duration.inDays(max(a.created), date()).days ELSE duration.inDays(q.started, date()).days END AS daysSince WHERE daysSince >= 10 RETURN q.id AS quest, q.priority AS priority, daysSince
+MATCH (q:Quest {status: 'active'}) WHERE q.priority >= 2 OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q) WITH q, CASE WHEN count(a) > 0 THEN duration.inDays(date(max(a.created)), date()).days ELSE duration.inDays(date(q.started), date()).days END AS daysSince WHERE daysSince >= 10 RETURN q.id AS quest, q.priority AS priority, daysSince
 ```
 
 Q10 — Quest topic coverage (only if Q8 orphanRatio > 0.4):

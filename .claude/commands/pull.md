@@ -6,7 +6,7 @@ Pull latest for current repo and shared memory.
 
 1. Sync develop branch with remote
 2. If on a `dev/*` working branch, rebase onto develop (fallback: merge)
-3. Check memory symlink exists — if not: `ln -s ../curve-labs-memory memory`
+3. Check memory symlink exists — if not, derive directory from `egregore.json` and create symlink
 4. Pull memory repo via symlink
 
 **Does NOT sync sibling repos.** Use `/sync-repos` for that.
@@ -24,7 +24,11 @@ if [[ "$CURRENT" == dev/* ]]; then
   git rebase develop --quiet || (git rebase --abort && git merge develop -m "Sync with develop")
 fi
 
-# 3. Memory (via symlink)
+# 3. Memory — derive directory from egregore.json, never hardcode
+MEMORY_DIR=$(basename "$(jq -r '.memory_repo' egregore.json)" .git)
+if [ ! -L memory ]; then
+  ln -s "../$MEMORY_DIR" memory
+fi
 git -C memory pull origin main --quiet
 ```
 

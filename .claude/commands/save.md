@@ -57,7 +57,17 @@ Save your contributions to Egregore. Pushes working branch, creates PR to develo
      NON_MD=$(git diff develop --name-only | grep -v '\.md$' | head -1)
      ```
      - **Markdown-only** (NON_MD is empty) → `gh pr merge --auto --merge` → auto-merges
-     - **Has code/config changes** → leave PR open, notify maintainer
+     - **Has code/config changes** → run preflight check, then leave PR open for review:
+       ```bash
+       bash bin/preflight.sh
+       ```
+       - If preflight **passes** (exit 0) → show `✓ Preflight passed` and create PR normally
+       - If preflight **fails** (exit 1) → show violations, still create PR but add `⚠ preflight-failed` label:
+         ```bash
+         gh pr edit $PR_NUMBER --add-label "preflight-failed"
+         ```
+         Tell the developer: `⚠ Preflight found issues — fix before merging. See violations above.`
+       - Preflight never blocks the save — work is always preserved. It warns.
 
 4. **For project repos** (tristero, lace):
    - Warn user: "You have code changes. Use /push and /pr for review."
