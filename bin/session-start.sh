@@ -165,6 +165,40 @@ if [ -L "$SCRIPT_DIR/memory" ] && [ -d "$SCRIPT_DIR/memory/.git" ]; then
   MEMORY_SYNCED="true"
 fi
 
+# --- Bootstrap graph on first launch (deferred from web setup to avoid orphans) ---
+# Runs in background — must not block session start
+if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
+  (
+    API_KEY=$(grep '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2-)
+    if [ -n "$API_KEY" ]; then
+      ORG_NAME=$(jq -r '.org_name // empty' "$CONFIG" 2>/dev/null)
+      GITHUB_ORG=$(jq -r '.github_org // empty' "$CONFIG" 2>/dev/null)
+
+      if [ -n "$ORG_NAME" ] && [ -n "$GITHUB_ORG" ]; then
+        # Check if Org node exists — if not, bootstrap
+        # $_org is auto-injected by the API from the API key
+        EXISTS=$(bash "$SCRIPT_DIR/bin/graph.sh" query "MATCH (o:Org {id: \$_org}) RETURN o.id" 2>/dev/null || echo "")
+        if echo "$EXISTS" | jq -e '.values | length == 0' &>/dev/null; then
+          bash "$SCRIPT_DIR/bin/graph.sh" query \
+            "MERGE (o:Org {id: \$_org}) SET o.name = \$name, o.github_org = \$github_org" \
+            "{\"name\":\"$ORG_NAME\",\"github_org\":\"$GITHUB_ORG\"}" 2>/dev/null || true
+          bash "$SCRIPT_DIR/bin/graph.sh" query \
+            "MERGE (pr:Project {name: 'Egregore'}) WITH pr MATCH (o:Org {id: \$_org}) MERGE (pr)-[:PART_OF]->(o)" \
+            2>/dev/null || true
+        fi
+
+        # Always ensure Person node exists (idempotent)
+        GIT_USER=$(git config user.name 2>/dev/null | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1)
+        if [ -n "$GIT_USER" ]; then
+          bash "$SCRIPT_DIR/bin/graph.sh" query \
+            "MERGE (p:Person {name: \$name}) WITH p MATCH (o:Org {id: \$_org}) MERGE (p)-[:MEMBER_OF]->(o)" \
+            "{\"name\":\"$GIT_USER\"}" 2>/dev/null || true
+        fi
+      fi
+    fi
+  ) &
+fi
+
 # --- Output greeting for Claude to display ---
 cat << 'GREETING'
 
