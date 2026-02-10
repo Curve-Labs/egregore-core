@@ -61,8 +61,8 @@ Setting up Egregore...
       What should we call you? (short name for the team)
       > oz
 
-      MERGE (p:Person {name: 'oz'}) ...
-      ✓ Registered as "oz" (Oz Broccoli)
+      MERGE (p:Person {name: '$shortName'}) ...
+      ✓ Registered as "$shortName" ($fullName)
 
 [3/3] Project codebases
 
@@ -90,7 +90,7 @@ ON CREATE SET p.joined = date(), p.fullName = $fullName
 RETURN p.name AS name, p.joined AS joined
 ```
 
-**Existing team members:** oz, cem, ali — already registered, no changes needed.
+**Existing team members** are already registered — query `MATCH (p:Person) RETURN p.name` to check before creating duplicates.
 
 ## Adding a specific project later
 

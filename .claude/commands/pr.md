@@ -29,7 +29,7 @@ Description — summarize what this PR does:
 
   Creating PR via GitHub CLI...
   gh pr create --base develop --title "..."
-  ✓ PR #42 created: https://github.com/Curve-Labs/egregore/pull/42
+  ✓ PR #42 created: https://github.com/{github_org}/egregore-core/pull/42
 
 PR targeting develop — ready for review.
 When merged, oz can /release to main.
