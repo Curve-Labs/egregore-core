@@ -78,6 +78,25 @@ bash bin/graph.sh schema
 
 Current schema: Person, Session, Artifact, Quest, Project, Spirit. Relationships: BY, CONTRIBUTED_BY, HANDED_TO, INVOKED_BY, INVOLVES, PART_OF, RELATES_TO, STARTED_BY.
 
+### Two Neo4j Databases — DO NOT MIX
+
+There are **two separate Neo4j Aura instances**. They serve different purposes and must never be confused:
+
+| Env vars | Purpose | Who uses it |
+|---|---|---|
+| `NEO4J_HOST` / `NEO4J_USER` / `NEO4J_PASSWORD` | **Curve Labs private** — CL's own Egregore data only | Only the `curvelabs` org config in `api/auth.py` |
+| `EGREGORE_NEO4J_HOST` / `EGREGORE_NEO4J_USER` / `EGREGORE_NEO4J_PASSWORD` | **Customer shared** — All orgs created via `/api/org/setup` | Every non-CL org. Setup, reload, cross-org queries. |
+
+**Rules for API code:**
+- **New customer orgs** → always use `EGREGORE_NEO4J_HOST` env vars. Never inherit from `ORG_CONFIGS` (that would give them CL's private database).
+- **`load_orgs_from_neo4j()`** → must query `EGREGORE_NEO4J_HOST` to find customer Org nodes. Falls back to `ORG_CONFIGS` only if the env var isn't set.
+- **`_get_seed_org()`** (cross-org queries) → prefers `EGREGORE_NEO4J_HOST` since these are customer-facing web UI endpoints.
+- **CL's `curvelabs` config** → built from `NEO4J_HOST` in `load_org_configs()`. Never changes.
+
+Within each database, tenant isolation is done via `inject_org_scope()` — every query gets `org: $_org` injected into node patterns.
+
+See `DEV.md` for full infrastructure details (not synced to public repo).
+
 ## Notifications
 
 Telegram notifications via `bin/notify.sh`. Routes through the API gateway using `EGREGORE_API_KEY` from `.env`.

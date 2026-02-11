@@ -37,7 +37,7 @@ Topic: $ARGUMENTS
 git config user.name
 ```
 
-Map to Person node: "Oguzhan Yayla" -> oz, "Cem Dagdelen" -> cem, "Ali" -> ali
+Derive handle: lowercase first word of git user.name (e.g. "Oguzhan Yayla" → "oguzhan").
 
 ### Context queries (run ALL in parallel)
 

@@ -27,6 +27,7 @@ TOKEN=$(grep '^GITHUB_TOKEN=' .env | cut -d'=' -f2-)
 GITHUB_ORG=$(jq -r '.github_org' egregore.json)
 API_URL=$(jq -r '.api_url' egregore.json)
 ORG_NAME=$(jq -r '.org_name' egregore.json)
+REPO_NAME=$(jq -r '.repo_name // "egregore-core"' egregore.json)
 USERNAME="$ARGUMENTS"
 ```
 
@@ -38,7 +39,7 @@ If TOKEN is empty: **"No GitHub token found. Run `bash bin/github-auth.sh` first
 curl -s -X POST "$API_URL/api/org/invite" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d "{\"github_org\": \"$GITHUB_ORG\", \"github_username\": \"$USERNAME\"}"
+  -d "{\"github_org\": \"$GITHUB_ORG\", \"github_username\": \"$USERNAME\", \"repo_name\": \"$REPO_NAME\"}"
 ```
 
 ## Step 4: Handle response

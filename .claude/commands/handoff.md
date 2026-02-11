@@ -16,27 +16,39 @@ Topic: $ARGUMENTS
 - 1 notification via `bin/notify.sh send` (if recipient specified)
 - Progress shown incrementally, step by step
 
-## Step 0: Get current user
+## Step 0: Get current user and team members
 
 ```bash
 git config user.name
 ```
 
-Map to Person node: "Oguzhan Yayla" -> oz, "Cem Dagdelen" -> cem, "Ali" -> ali
+Derive author handle: lowercase first word of git user.name (e.g. "Oguzhan Yayla" → "oguzhan").
+
+Query all team members from the graph:
+```bash
+bash bin/graph.sh query "MATCH (p:Person) RETURN p.name AS name"
+```
+
+This returns all Person nodes in the org. Use this list for recipient matching in Step 1.
 
 ## Step 1: Parse arguments
 
 Parse `$ARGUMENTS` for topic and recipient.
 
 **Recipient detection** — understand from natural language who the handoff is for:
-- "defensibility architecture to oz" -> topic: "defensibility architecture", recipient: oz
-- "mcp auth for cem to pick up" -> topic: "mcp auth", recipient: cem
-- "ali should look at this: graph schema" -> topic: "graph schema", recipient: ali
-- "handoff blog styling" -> topic: "blog styling", recipient: none
+- "setup flow to oskar" → topic: "setup flow", recipient: oskar
+- "mcp auth for oguzhan to pick up" → topic: "mcp auth", recipient: oguzhan
+- "handoff blog styling" → topic: "blog styling", recipient: none
 
-Team members: oz, ali, cem
+Team members: **from the graph query in Step 0** (not hardcoded).
 
-If no recipient detected, the handoff is general (for the team or future self).
+Match recipient names case-insensitively against the Person names from the graph.
+
+If `$ARGUMENTS` has no clear recipient, show a picker using AskUserQuestion:
+- List each Person name from the graph (excluding the current user)
+- Add a final option: "General (no specific recipient)"
+
+If no recipient detected or user picks "General", the handoff is for the team or future self.
 
 ## Step 2: Summarize the session
 
