@@ -39,12 +39,20 @@ else
         git config user.name "${GH_NAME:-$GH_LOGIN}" 2>/dev/null || true
         git config user.email "${GH_LOGIN}@users.noreply.github.com" 2>/dev/null || true
         # Save to state file so we don't need API call next time
+        # Include onboarding_complete + name so it doesn't re-trigger onboarding
         if [ -f "$STATE_FILE" ]; then
           jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" \
-            '.github_username = $u | .github_name = $n' "$STATE_FILE" > "$STATE_FILE.tmp" \
+            '.github_username = $u | .github_name = $n | .name = $n | .onboarding_complete = true' "$STATE_FILE" > "$STATE_FILE.tmp" \
             && mv "$STATE_FILE.tmp" "$STATE_FILE"
         else
-          echo "{\"github_username\":\"$GH_LOGIN\",\"github_name\":\"${GH_NAME:-$GH_LOGIN}\"}" > "$STATE_FILE"
+          cat > "$STATE_FILE" << STATEEOF
+{
+  "github_username": "$GH_LOGIN",
+  "github_name": "${GH_NAME:-$GH_LOGIN}",
+  "name": "${GH_NAME:-$GH_LOGIN}",
+  "onboarding_complete": true
+}
+STATEEOF
         fi
       fi
     fi
