@@ -40,9 +40,16 @@ else
         git config user.email "${GH_LOGIN}@users.noreply.github.com" 2>/dev/null || true
         # Save to state file so we don't need API call next time
         # Include onboarding_complete + name so it doesn't re-trigger onboarding
+        # Determine if founder or joiner: if github_username != github_org, they're a joiner
+        GITHUB_ORG_CFG=$(jq -r '.github_org // empty' "$SCRIPT_DIR/egregore.json" 2>/dev/null)
+        if [ -n "$GITHUB_ORG_CFG" ] && [ "$GH_LOGIN" != "$GITHUB_ORG_CFG" ]; then
+          USAGE_TYPE="joiner_group"
+        else
+          USAGE_TYPE="founder_group"
+        fi
         if [ -f "$STATE_FILE" ]; then
-          jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" \
-            '.github_username = $u | .github_name = $n | .name = $n | .onboarding_complete = true' "$STATE_FILE" > "$STATE_FILE.tmp" \
+          jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" --arg ut "$USAGE_TYPE" \
+            '.github_username = $u | .github_name = $n | .name = $n | .onboarding_complete = true | .usage_type = $ut' "$STATE_FILE" > "$STATE_FILE.tmp" \
             && mv "$STATE_FILE.tmp" "$STATE_FILE"
         else
           cat > "$STATE_FILE" << STATEEOF
@@ -50,7 +57,8 @@ else
   "github_username": "$GH_LOGIN",
   "github_name": "${GH_NAME:-$GH_LOGIN}",
   "name": "${GH_NAME:-$GH_LOGIN}",
-  "onboarding_complete": true
+  "onboarding_complete": true,
+  "usage_type": "$USAGE_TYPE"
 }
 STATEEOF
         fi
