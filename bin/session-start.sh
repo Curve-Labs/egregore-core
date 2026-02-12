@@ -8,9 +8,54 @@ cd "$SCRIPT_DIR"
 STATE_FILE="$SCRIPT_DIR/.egregore-state.json"
 DATE=$(date +%Y-%m-%d)
 
-# --- Determine author short name ---
-FULLNAME=$(git config user.name 2>/dev/null || echo "")
-AUTHOR=$(echo "$FULLNAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1)
+# --- Determine author identity ---
+# Priority: .egregore-state.json github_username > repo-local git config > GitHub API auto-detect > global git config
+ENV_FILE="$SCRIPT_DIR/.env"
+STORED_USERNAME=""
+if [ -f "$STATE_FILE" ]; then
+  STORED_USERNAME=$(jq -r '.github_username // empty' "$STATE_FILE" 2>/dev/null)
+fi
+
+if [ -n "$STORED_USERNAME" ]; then
+  # Identity stored during setup — use it and ensure repo-local git config matches
+  AUTHOR="$STORED_USERNAME"
+  CURRENT_LOCAL=$(git config --local user.name 2>/dev/null || echo "")
+  if [ "$CURRENT_LOCAL" != "$STORED_USERNAME" ]; then
+    STORED_NAME=$(jq -r '.github_name // empty' "$STATE_FILE" 2>/dev/null)
+    git config user.name "${STORED_NAME:-$STORED_USERNAME}" 2>/dev/null || true
+    git config user.email "${STORED_USERNAME}@users.noreply.github.com" 2>/dev/null || true
+  fi
+else
+  # No stored identity — try GitHub API to auto-detect (self-healing for pre-fix installs)
+  if [ -f "$ENV_FILE" ]; then
+    GH_TOKEN=$(grep '^GITHUB_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2-)
+    if [ -n "$GH_TOKEN" ]; then
+      GH_USER_JSON=$(curl -s -H "Authorization: token $GH_TOKEN" https://api.github.com/user --max-time 5 2>/dev/null || echo "")
+      GH_LOGIN=$(echo "$GH_USER_JSON" | jq -r '.login // empty' 2>/dev/null)
+      GH_NAME=$(echo "$GH_USER_JSON" | jq -r '.name // empty' 2>/dev/null)
+      if [ -n "$GH_LOGIN" ]; then
+        AUTHOR="$GH_LOGIN"
+        # Set repo-local config and save to state for next time
+        git config user.name "${GH_NAME:-$GH_LOGIN}" 2>/dev/null || true
+        git config user.email "${GH_LOGIN}@users.noreply.github.com" 2>/dev/null || true
+        # Save to state file so we don't need API call next time
+        if [ -f "$STATE_FILE" ]; then
+          jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" \
+            '.github_username = $u | .github_name = $n' "$STATE_FILE" > "$STATE_FILE.tmp" \
+            && mv "$STATE_FILE.tmp" "$STATE_FILE"
+        else
+          echo "{\"github_username\":\"$GH_LOGIN\",\"github_name\":\"${GH_NAME:-$GH_LOGIN}\"}" > "$STATE_FILE"
+        fi
+      fi
+    fi
+  fi
+
+  # Final fallback: git config user.name (global or local)
+  if [ -z "$AUTHOR" ]; then
+    FULLNAME=$(git config user.name 2>/dev/null || echo "")
+    AUTHOR=$(echo "$FULLNAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1)
+  fi
+fi
 
 if [ -z "$AUTHOR" ]; then
   echo '{"error": "git user.name not set. Run: git config user.name \"Your Name\""}'
@@ -187,12 +232,11 @@ if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
             2>/dev/null || true
         fi
 
-        # Always ensure Person node exists (idempotent)
-        GIT_USER=$(git config user.name 2>/dev/null | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1)
-        if [ -n "$GIT_USER" ]; then
+        # Always ensure Person node exists (idempotent) — use AUTHOR determined above
+        if [ -n "$AUTHOR" ]; then
           bash "$SCRIPT_DIR/bin/graph.sh" query \
             "MERGE (p:Person {name: \$name}) WITH p MATCH (o:Org {id: \$_org}) MERGE (p)-[:MEMBER_OF]->(o)" \
-            "{\"name\":\"$GIT_USER\"}" 2>/dev/null || true
+            "{\"name\":\"$AUTHOR\"}" 2>/dev/null || true
         fi
       fi
     fi
