@@ -51,6 +51,7 @@ else
           jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" --arg ut "$USAGE_TYPE" \
             '.github_username = $u | .github_name = $n | .name = $n | .onboarding_complete = true | .usage_type = $ut' "$STATE_FILE" > "$STATE_FILE.tmp" \
             && mv "$STATE_FILE.tmp" "$STATE_FILE"
+          FIRST_SESSION="false"
         else
           cat > "$STATE_FILE" << STATEEOF
 {
@@ -58,9 +59,11 @@ else
   "github_name": "${GH_NAME:-$GH_LOGIN}",
   "name": "${GH_NAME:-$GH_LOGIN}",
   "onboarding_complete": true,
-  "usage_type": "$USAGE_TYPE"
+  "usage_type": "$USAGE_TYPE",
+  "first_session": true
 }
 STATEEOF
+          FIRST_SESSION="true"
         fi
       fi
     fi
@@ -284,15 +287,29 @@ echo "  Develop: synced"
 if [ "$MEMORY_SYNCED" = "true" ]; then echo "  Memory: synced"; fi
 if [ "$COMMITS_AHEAD" -gt 0 ] 2>/dev/null; then echo "  $COMMITS_AHEAD changes on develop since last release."; fi
 
-# --- Tutorial tip (if onboarding done but tutorial not) ---
-TUTORIAL_COMPLETE="true"
-if [ -f "$STATE_FILE" ]; then
-  TUTORIAL_COMPLETE=$(jq -r '.tutorial_complete // false' "$STATE_FILE" 2>/dev/null || echo "true")
+# --- First session welcome ---
+if [ -z "$FIRST_SESSION" ] && [ -f "$STATE_FILE" ]; then
+  FIRST_SESSION=$(jq -r '.first_session // false' "$STATE_FILE" 2>/dev/null)
 fi
 
-if [ "$TUTORIAL_COMPLETE" != "true" ]; then
-  echo "  Tip: Run /tutorial to learn the core loop."
-fi
+if [ "$FIRST_SESSION" = "true" ]; then
+  echo ""
+  echo "  Welcome! This is your first session."
+  echo ""
+  echo "IMPORTANT: Display the above greeting exactly as-is. Then ask the user if they'd like a quick onboarding tour (run /onboarding), or if they want to jump straight in."
+  # Clear the flag so it only shows once
+  jq '.first_session = false' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+else
+  # --- Tutorial tip (if onboarding done but tutorial not) ---
+  TUTORIAL_COMPLETE="true"
+  if [ -f "$STATE_FILE" ]; then
+    TUTORIAL_COMPLETE=$(jq -r '.tutorial_complete // false' "$STATE_FILE" 2>/dev/null || echo "true")
+  fi
 
-echo ""
-echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting) on their first message. Then ask: What are you working on?"
+  if [ "$TUTORIAL_COMPLETE" != "true" ]; then
+    echo "  Tip: Run /tutorial to learn the core loop."
+  fi
+
+  echo ""
+  echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting) on their first message. Then ask: What are you working on?"
+fi
