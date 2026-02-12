@@ -263,7 +263,10 @@ cat << 'GREETING'
 
 GREETING
 
-# Status line
+# Status line — show who's logged in
+ORG_DISPLAY=$(jq -r '.org_name // empty' "$SCRIPT_DIR/egregore.json" 2>/dev/null)
+echo "  ${AUTHOR}${ORG_DISPLAY:+ · ${ORG_DISPLAY}}"
+echo ""
 if [ "$ACTION" = "created" ]; then
   echo "  New session started."
 elif [ "$ACTION" = "resumed" ] || [ "$ACTION" = "rebased" ]; then
