@@ -10,17 +10,27 @@ TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
 # --- Detect user ---
+# Look up Person.name via github username (matches how session-start.sh creates Person nodes)
 ME="${1:-}"
 if [ -z "$ME" ]; then
-  FULL_NAME=$(git -C "$SCRIPT_DIR" config user.name 2>/dev/null || echo "unknown")
-  # Map git name → short name
-  case "$FULL_NAME" in
-    "Oguzhan Yayla"|"oz") ME="oz" ;;
-    "Cem Dagdelen"|"Cem F"|"cem") ME="cem" ;;
-    "Ali"|"ali") ME="ali" ;;
-    "Pali"|"pali") ME="pali" ;;
-    *) ME=$(echo "$FULL_NAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1) ;;
-  esac
+  STATE_FILE="$SCRIPT_DIR/.egregore-state.json"
+  GH_USER=""
+  if [ -f "$STATE_FILE" ]; then
+    GH_USER=$(jq -r '.github_username // empty' "$STATE_FILE" 2>/dev/null)
+  fi
+  if [ -n "$GH_USER" ]; then
+    # Look up the Person node name by github field — Person.name may differ from github username
+    PERSON_NAME=$(bash "$GS" query "MATCH (p:Person {github: \$gh}) RETURN p.name AS name" "{\"gh\": \"$GH_USER\"}" 2>/dev/null | jq -r '.values[0][0] // empty' 2>/dev/null)
+    if [ -n "$PERSON_NAME" ]; then
+      ME="$PERSON_NAME"
+    else
+      ME="$GH_USER"
+    fi
+  else
+    # Fallback: lowercase first word of git config user.name
+    FULL_NAME=$(git -C "$SCRIPT_DIR" config user.name 2>/dev/null || echo "unknown")
+    ME=$(echo "$FULL_NAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1)
+  fi
 fi
 
 ORG=$(jq -r '.org_name // "Egregore"' "$SCRIPT_DIR/egregore.json" 2>/dev/null || echo "Egregore")
