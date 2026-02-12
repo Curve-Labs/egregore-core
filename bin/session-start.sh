@@ -222,5 +222,16 @@ echo "  Branch: $BRANCH"
 echo "  Develop: synced"
 if [ "$MEMORY_SYNCED" = "true" ]; then echo "  Memory: synced"; fi
 if [ "$COMMITS_AHEAD" -gt 0 ] 2>/dev/null; then echo "  $COMMITS_AHEAD changes on develop since last release."; fi
+
+# --- Tutorial tip (if onboarding done but tutorial not) ---
+TUTORIAL_COMPLETE="true"
+if [ -f "$STATE_FILE" ]; then
+  TUTORIAL_COMPLETE=$(jq -r '.tutorial_complete // false' "$STATE_FILE" 2>/dev/null || echo "true")
+fi
+
+if [ "$TUTORIAL_COMPLETE" != "true" ]; then
+  echo "  Tip: Run /tutorial to learn the core loop."
+fi
+
 echo ""
 echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting) on their first message. Then ask: What are you working on?"

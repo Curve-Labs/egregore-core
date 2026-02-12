@@ -10,18 +10,15 @@ Run ONE command to get all dashboard data:
 bash bin/activity-data.sh
 ```
 
-Returns JSON: `me`, `org`, `date`, `my_sessions`, `team_sessions`, `quests`, `pending_questions`, `answered_questions`, `handoffs_to_me`, `all_handoffs`, `knowledge_gap`, `orphans`, `checkins`, `stale_blockers`, `todos`, `last_checkin`, `prs`, `disk`.
+Returns JSON: `me`, `org`, `date`, `my_sessions`, `team_sessions`, `quests`, `pending_questions`, `answered_questions`, `handoffs_to_me`, `all_handoffs`, `knowledge_gap`, `orphans`, `checkins`, `todos_merged`, `focus_history`, `prs`, `disk`, `trends`.
 
-If the command fails, run this scoped fallback instead — ONLY read from this project's own directory:
+The `todos_merged` object combines `activeTodoCount`, `blockedCount`, `deferredCount`, `staleBlockedCount`, and `lastCheckinDate` in one query result.
 
-```bash
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-# Read from $SCRIPT_DIR/memory/ ONLY — never browse parent or sibling directories
-ls -1 "$SCRIPT_DIR/memory/handoffs/$(date +%Y-%m)/" 2>/dev/null | head -10
-ls -1t "$SCRIPT_DIR/memory/knowledge/decisions/" 2>/dev/null | head -5
-```
+The `focus_history` object contains the last 5 sessions where the user selected a Focus option: `shown` (options presented), `selected` (what was chosen), `dismissed` (options not chosen), `date`, `topic`.
 
-Add `(offline)` after ✦ in header. If empty data is returned (graph has no sessions, no handoffs), display the dashboard with empty sections — do NOT explore the filesystem for alternative data sources. NEVER read from directories outside this project.
+The `trends` object contains: `cadence` (sessions per week, 4 weeks), `resolution` (handoff avg days, 30d), `throughput` (todos created vs done, 28d), `capture` (sessions with artifacts / total, 28d).
+
+If the command fails, fall back to reading `memory/` files. Add `(offline)` after ✦ in header.
 
 ## Step 2: Render dashboard
 
@@ -41,9 +38,10 @@ Content rows: `│  {text padded with trailing spaces}  │`
 
 **Header**: `{ORG} EGREGORE ✦ ACTIVITY DASHBOARD` left, `{me} · {date}` right
 
-**Insight** (1-2 lines): Synthesize what's happening. Warm, concise, connective. Additional insight lines:
-- If `stale_blockers.staleBlockedCount > 0`: `{N} todos blocked for 3+ days. /todo check to review.`
-- If no check-in in 3+ days (check `last_checkin`) AND `todos.activeTodoCount >= 3`: `{N} active todos, no check-in in {days}d. /todo check to review.`
+**Insight** (1-3 lines): Synthesize what's happening. Warm, concise, connective.
+- Use `trends` data when available to enrich synthesis. Compare this week's cadence vs last week ("session cadence up 40%"), note capture ratio ("capture ratio at 75%"), mention throughput ("3 todos created, 5 completed this week"). Only mention trends that are notable — don't list all metrics.
+- If `todos_merged.staleBlockedCount > 0`: `{N} todos blocked for 3+ days. /todo check to review.`
+- If no check-in in 3+ days (check `todos_merged.lastCheckinDate`) AND `todos_merged.activeTodoCount >= 3`: `{N} active todos, no check-in in {days}d. /todo check to review.`
 
 **Handoffs & Asks** (skip if all empty):
 - Handoffs (status=pending) → `[N] ● {from} → you: {topic} ({when})`
@@ -92,25 +90,58 @@ question: "What would you like to focus on?"
 multiSelect: false
 ```
 
-Generate 2-4 options, prioritized (take first 2-4 that apply):
+### Generating options — model-driven, not table-driven
 
-| Priority | Source | Label | Description |
-|----------|--------|-------|-------------|
-| 1 | handoffs_to_me **(status=pending only)** | `Read {author}'s handoff` | `{topic} — {when}` |
-| 2 | pending_questions | `Answer {asker}'s questions` | `About "{topic}" — {when}` |
-| 3-4 | my_sessions (last 3 days) | Work stream name | Cluster recent sessions by theme. Name specifically. Max 2 clusters. Hint at what's next, not what's done. |
-| 5 | prs (not by me) | `Review PR #{N}` | `{title} by {author}` |
-| 6 | fallback | `Start something new` | `Begin a fresh work stream` |
+Generate 2-4 options by reasoning over ALL available data. There is no fixed priority table. You have:
 
-Minimum 2 options. "Other" is automatic.
+- `handoffs_to_me` — pending, read, and done handoffs with status
+- `pending_questions` — unanswered questions from teammates
+- `my_sessions` — recent work showing what the user has been doing
+- `team_sessions` — what others are doing (collaboration opportunities)
+- `quests` — active quests with scores and recency
+- `prs` — open PRs that may need review
+- `focus_history` — **what the user chose and dismissed in recent sessions**
+- The full conversation context of this session (what they've already been working on)
 
-Handoffs with status `read` or `done` are excluded from Focus options but inform work stream clustering (priority 3-4). When generating work stream labels, consider topics from recent handoffs you've already seen.
+**Use `focus_history` to adapt.** This is the key signal:
+
+- If an option was **shown but not selected** across 2+ recent sessions → deprioritize it. The user has seen it and chosen not to engage. Don't keep pushing it to the top.
+- If the user consistently selects **work stream continuation** over handoffs → lead with work streams, not handoffs.
+- If the user typed **"Other" with custom text** → that tells you what they actually wanted. Use it to inform future option generation.
+- If `focus_history` is empty (first session or new user) → fall back to surfacing pending handoffs and questions first, then work streams.
+
+**Use current session context to adapt.** If the user has already been working on something in this session before running `/activity`, the options should reflect continuation of that work, not ignore it.
+
+**Work stream detection:** Cluster recent sessions by theme. Name specifically — not "Continue recent work" but "Query optimization + batch endpoints" or "Pricing strategy refinement." Hint at what's next, not what's done.
+
+**Constraints:**
+- Minimum 2 options, maximum 4. "Other" is automatic (provided by AskUserQuestion).
+- Every option must be grounded in actual data — no generic labels.
+- Handoffs with status `done` are excluded from options entirely.
+- Handoffs with status `read` are lower priority than `pending` but not excluded — the user may want to revisit.
+
+### Recording the selection
+
+After the user selects, record what happened for future sessions:
+
+```
+  ✦ Remembering...
+```
+
+Compute the dismissed options (shown minus selected) and record:
+```bash
+bash bin/graph-op.sh record-focus "$SESSION_ID" '$SHOWN_JSON' "$SELECTED" '$DISMISSED_JSON'
+```
+
+Where `$SESSION_ID` is the most recent session from `my_sessions`, `$SHOWN_JSON` is the array of option labels shown, `$SELECTED` is the chosen label, and `$DISMISSED_JSON` is the array of labels not chosen. If the user typed custom text via "Other", use their text as the selected value.
+
+This runs silently — do not show output. Proceed immediately to the action.
 
 ### After selection
 
 | Selection | Action |
 |-----------|--------|
-| Handoff | Read filePath from data. Display content + entry points. **Immediately** mark as read: `bash bin/graph.sh query "MATCH (s:Session {id: '$sessionId'}) SET s.handoffStatus = 'read', s.handoffReadDate = date() RETURN s.id"`. Then proceed — no follow-up question. Resolution happens automatically at next dashboard load (Q_resolve) or via `/activity done N`. |
+| Handoff | Read filePath from data. Display content + entry points. **Immediately** mark as read: output `  ✦ Remembering...` then run `bash bin/graph-op.sh mark-read $sessionId`. Then proceed — no follow-up question. Resolution happens automatically at next dashboard load (Q_resolve) or via `/activity done N`. |
 | Questions | Load QuestionSet, present via AskUserQuestion. |
 | Work stream | Read most recent handoff from cluster. Show Open Threads / Next Steps. Mention relevant knowledge artifacts. |
 | PR | `gh pr view #N --json title,body,additions,deletions,files`. Summarize. |
@@ -120,11 +151,13 @@ Handoffs with status `read` or `done` are excluded from Focus options but inform
 
 - `/activity quests` — expand quests, show all with full counts
 - `/activity @name` — filter to that person's sessions
-- `/activity done [N]` — resolve handoff N. Fetch activity data, map Nth ●/◐ handoff to sessionId, run: `bash bin/graph.sh query "MATCH (s:Session {id: '$sessionId'}) SET s.handoffStatus = 'done' RETURN s.id"`. Output: `✓ Resolved: {topic} from {author}`
+- `/activity done [N]` — resolve handoff N. Fetch activity data, map Nth ●/◐ handoff to sessionId. Output `  ✦ Resolving...` then run `bash bin/graph-op.sh mark-done $sessionId`. Output: `✓ Resolved: {topic} from {author}`
+- `/activity analytics` — Run `bash bin/analytics-data.sh` instead of the normal data script. Render full org health using all 10 metrics (cadence, resolution, quest velocity, collaboration density, todo health, throughput, capture ratio, question response, check-in frequency, issue lifecycle). Same TUI box, 72-char frame. Model decides layout — no rigid template. Group metrics by theme (velocity, collaboration, health). Highlight notable patterns, comparisons between people, and week-over-week changes.
 
 ## Rules
 
-- `bash bin/activity-data.sh` for ALL data — never call graph.sh directly
-- **NEVER read files outside this project directory** — no browsing parent/sibling directories, no looking at other egregore installations. If data is empty, show empty sections.
+- `bash bin/activity-data.sh` for ALL data — never call graph.sh directly for reads
+- Use `bash bin/graph-op.sh <operation>` for all graph writes (mark-read, mark-done, etc.) — never raw Cypher
+- Before any graph write, output a thinking indicator: `  ✦ Remembering...` or `  ✦ Resolving...`
 - No sub-boxes — only outer frame `│` and `├────┤` separators
 - DO NOT output reasoning, character counting, or analysis — render directly

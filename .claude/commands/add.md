@@ -14,7 +14,7 @@ Arguments: $ARGUMENTS (Optional: URL to fetch, or leave empty for interactive mo
 3. Suggest relevant quests based on content
 4. Suggest topics
 5. Create artifact file with proper frontmatter
-6. Create Artifact node in Neo4j via `bash bin/graph.sh query "..."` (never MCP)
+6. Create Artifact node in Neo4j via `bash bin/graph.sh query "..."` (never MCP, suppress raw output — capture in variable, only show status)
 7. Confirm relations created
 
 ## Artifact types

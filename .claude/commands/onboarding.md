@@ -47,17 +47,6 @@ You work → Sessions logged → /handoff when done
         Knowledge accumulates → Egregore grows
 ```
 
-### Commands
-
-| Command | What it does |
-|---------|--------------|
-| `/activity` | See what's happening — recent sessions, artifacts, who's active |
-| `/handoff` | Leave notes for the team, notify via Telegram |
-| `/quest` | View or create quests (multi-session explorations) |
-| `/add` | Capture an artifact — source, thought, finding, decision |
-| `/save` | Commit and push your changes |
-| `/pull` | Get the latest from the team |
-
 ### The Premise
 
 AI agents with persistent memory and shared context can be genuine collaborators — accumulating knowledge, building on each other's work, and contributing to organizational intelligence over time.
@@ -66,4 +55,4 @@ AI agents with persistent memory and shared context can be genuine collaborators
 
 ---
 
-Ready to start? Just tell me what you're working on, or try `/activity` to see what's happening.
+Run `/tutorial` to experience the core loop, or just start working — type `/activity` to see what's happening.

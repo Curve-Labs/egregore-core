@@ -33,6 +33,8 @@ completed: null
 
 Priority values: `0` (none/default), `1` (low), `2` (medium), `3` (high). Used by `/activity` scoring.
 
+**CRITICAL: Suppress raw output.** Never show raw JSON to the user. All `bin/graph.sh` and `bin/notify.sh` calls MUST capture output in a variable and only show formatted status lines.
+
 ## Neo4j Quest creation (via bin/graph.sh, on `/quest new`)
 
 Run with `bash bin/graph.sh query "..." '{"param": "value"}'`
@@ -129,6 +131,10 @@ Artifacts (4):
   → 2026-01-27 [source] Benchmarking LLM Reasoning
   → 2026-01-27 [finding] HELM adaptable with modifications (Ali)
 
+Todos:
+  □ cem: fix retry logic in graph.sh (2d ago)
+  □ oz: investigate connection pooling (today)
+
 Contributors: Oz, Ali
 
 Entry points:
@@ -185,6 +191,34 @@ Hey Cem, oz started a quest you're involved in: {title}
 
 "{question}"
 ```
+
+## Linked Todos (in detail view)
+
+When showing quest details (`/quest [name]`), query linked todos (all active statuses):
+
+```bash
+bash bin/graph.sh query "MATCH (t:Todo)-[:PART_OF]->(q:Quest {id: '$questSlug'}) WHERE t.status IN ['open', 'blocked', 'deferred'] MATCH (t)-[:BY]->(p:Person) RETURN t.text AS text, t.status AS status, t.blockedBy AS blockedBy, t.deferredUntil AS deferredUntil, p.name AS by, t.created AS created ORDER BY t.created DESC"
+```
+
+Display after Threads section, before Artifacts, with status indicators and health:
+```
+Todos: (healthy — 2/3 moving)
+  □ cem: fix retry logic in graph.sh (2d ago)
+  ✗ oz: investigate connection pooling — blocked: "waiting on API docs" (today)
+  ↓ cem: finalize tier naming — deferred until Feb 15 (5d ago)
+```
+
+**Health indicator** — derived from todo status distribution:
+- All open/progressing → `healthy`
+- >50% blocked → `stalling`
+- All deferred → `hibernating`
+- Mixed → show fraction: `{n}/{total} moving`
+
+Format: `Todos: ({health} — {n}/{total} moving)` or `Todos: ({health})` for simple states.
+
+Status sigils in todo list: `□` open, `✗` blocked (with blockedBy text), `↓` deferred (with deferredUntil date).
+
+Omit the Todos section entirely if no todos are linked to the quest.
 
 ## Next
 

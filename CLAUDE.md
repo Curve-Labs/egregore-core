@@ -346,13 +346,11 @@ Tell the user (using the actual alias name returned):
 
 Write `onboarding_complete: true` to state.
 
-End with: **"What are you working on today?"**
+Transition: **"Got it. Let me show you how this works."**
 
-Do NOT list commands. Do NOT show a menu.
+Then auto-trigger the `/tutorial` flow. The tutorial IS the first experience — no separate interview, no command list. Just run the tutorial steps directly (follow `.claude/commands/tutorial.md`).
 
-If they say "nothing specific" or "just exploring", offer a fallback first quest:
-
-> Want to write a quick note about what you want to get out of Egregore? I'll save it as your first contribution.
+Do NOT list commands. Do NOT show a menu. Do NOT say "What are you working on?" — the tutorial handles that at the end.
 
 ## Transparency Beat
 
@@ -371,7 +369,13 @@ Only say this once per session. Never repeat it.
   "name": "Oz",
   "github_configured": true,
   "workspace_ready": true,
-  "onboarding_complete": true
+  "onboarding_complete": true,
+  "usage_type": "founder_group",
+  "tutorial_step": 4,
+  "domain": "software",
+  "stage": "early",
+  "team_or_solo": "team",
+  "tutorial_complete": true
 }
 ```
 

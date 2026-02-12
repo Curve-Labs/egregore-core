@@ -187,18 +187,53 @@ RETURN s.topic, s.date ORDER BY s.date DESC LIMIT 5
 - If `$ARGUMENTS` starts with `egregore:` → strip prefix, use rest as description, pre-set recipient to `egregore`
 - If empty → prompt: *"What's the issue?"* (plain text, wait for user response)
 
-## Step 2: Recipient
+## Step 2: Smart Routing
 
-One AskUserQuestion. Build options dynamically from `egregore.json`.
+Infer the most likely destination from the description content, then confirm. Only ask an open "Who's this for?" when the destination is genuinely ambiguous.
 
-Read org config values:
+Read org config values (needed for matching):
 ```bash
 jq -r '.org_name,.github_org,.repos[]' egregore.json
 ```
 
-Present:
+**If the user used the `egregore:` prefix in Step 1**, skip this step entirely — recipient is already `egregore`.
+
+### Routing inference
+
+Analyze the description for signals:
+
+| Signal | Inferred destination |
+|---|---|
+| Mentions a slash command (`/save`, `/reflect`, `/activity`, etc.) | `{github_org}/egregore-core` |
+| Mentions `bin/`, `egregore.json`, `.claude/commands/`, onboarding, graph.sh | `{github_org}/egregore-core` |
+| Mentions a managed repo name from `.repos[]` (e.g., "lace", "tristero") | `{github_org}/{repo}` |
+| Mentions "memory", "handoff", "knowledge graph", "Neo4j", "sync" | `{github_org}/egregore-core` |
+| General/vague, no code or system references | Just memory |
+| `egregore:` prefix (already handled above) | `egregore` upstream |
+
+### Confidence-based flow
+
+**High confidence** (description clearly matches one destination):
+
+Present a single confirmation via AskUserQuestion:
 ```
-question: "Who's this for?"
+question: "This looks like an egregore-core issue. File it on {github_org}/egregore-core?"
+header: "Route"
+multiSelect: false
+options:
+  - label: "Yes, file on {github_org}/egregore-core"
+    description: "Creates a GitHub issue on the org's fork"
+  - label: "Just memory"
+    description: "Track locally only — visible on /activity"
+```
+
+The first option is always the inferred destination. "Just memory" is always the second option (lightweight fallback). If the user picks "Other", trigger a second-round AskUserQuestion with the full destination list (all repos + egregore upstream).
+
+**Low confidence** (ambiguous — no clear signals, or signals point to multiple destinations):
+
+Fall back to the full destination picker:
+```
+question: "Where should this be filed?"
 header: "Route"
 multiSelect: false
 options:
@@ -212,8 +247,6 @@ options:
     label: "{github_org}/{repo}"
     description: "Filed on {repo}"
 ```
-
-**If the user used the `egregore:` prefix in Step 1**, skip this step — recipient is already `egregore`.
 
 ## Step 3: Write to Memory
 
@@ -478,7 +511,37 @@ The separator lines are ALWAYS identical — copy-paste the same 72-char string.
 | Empty description | Ask: "What's the issue?" — don't proceed without content |
 | `bin/issue.sh` missing for egregore route | Show "(coming soon)" message with sanitized body for manual sharing |
 
-## Full example: memory only
+## Full example: smart routing (high confidence → egregore-core)
+
+```
+> /issue /save Neo4j sync drops CONTRIBUTED_BY links
+
+  [1/4] ✓ Issue saved to memory + graph
+        → memory/knowledge/issues/2026-02-10-save-sync-drops-contributed-by.md
+
+This looks like an egregore-core issue. File it on Curve-Labs/egregore-core?
+  1. Yes, file on Curve-Labs/egregore-core
+  2. Just memory — track locally only
+
+> 1
+
+  [2/4] ✓ Filed on Curve-Labs/egregore-core · #27
+  [3/4] ✓ Team notified
+  [4/4] ✓ Auto-saved
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  ✱ ISSUE REPORTED                                cem · Feb 10       │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Title: /save sync drops CONTRIBUTED_BY links                        │
+│  For: Curve-Labs/egregore-core · issue #27                           │
+│                                                                      │
+│  ✓ Saved to memory · graphed · team notified                         │
+│  → memory/knowledge/issues/2026-02-10-save-sync-drops-...            │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+## Full example: smart routing → user overrides to memory
 
 ```
 > /issue the memory symlink breaks after pull
@@ -486,13 +549,11 @@ The separator lines are ALWAYS identical — copy-paste the same 72-char string.
   [1/3] ✓ Issue saved to memory + graph
         → memory/knowledge/issues/2026-02-09-memory-symlink-breaks-after-pull.md
 
-Who's this for?
-  1. Just memory — tracked in knowledge graph, visible on /activity
-  2. egregore — (coming soon — Phase B)
-  3. {github_org}/egregore-core — filed on the org's fork
-  4. {github_org}/lace — filed on lace
+This looks like an egregore-core issue. File it on Curve-Labs/egregore-core?
+  1. Yes, file on Curve-Labs/egregore-core
+  2. Just memory — track locally only
 
-> 1
+> 2
 
   [2/3] ✓ Team notified
   [3/3] ✓ Auto-saved
@@ -503,35 +564,6 @@ Who's this for?
 │                                                                      │
 │  Title: Memory symlink breaks after pull                             │
 │  For: just memory                                                    │
-│                                                                      │
-│  ✓ Saved to memory · graphed · team notified                         │
-│  → memory/knowledge/issues/2026-02-09-memory-symlink.md              │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-## Full example: GitHub repo
-
-```
-> /issue the memory symlink breaks after pull
-
-  [1/4] ✓ Issue saved to memory + graph
-        → memory/knowledge/issues/2026-02-09-memory-symlink-breaks-after-pull.md
-
-Who's this for?
-  ...
-
-> {github_org}/egregore-core
-
-  [2/4] ✓ Filed on {github_org}/egregore-core · #42
-  [3/4] ✓ Team notified
-  [4/4] ✓ Auto-saved
-
-┌──────────────────────────────────────────────────────────────────────┐
-│  ✱ ISSUE REPORTED                                cem · Feb 09       │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  Title: Memory symlink breaks after pull                             │
-│  For: {github_org}/egregore-core · issue #42                           │
 │                                                                      │
 │  ✓ Saved to memory · graphed · team notified                         │
 │  → memory/knowledge/issues/2026-02-09-memory-symlink.md              │
@@ -571,6 +603,37 @@ manually — here's the sanitized body:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+## Full example: ambiguous (low confidence → full picker)
+
+```
+> /issue our team alignment on pricing feels off
+
+  [1/3] ✓ Issue saved to memory + graph
+        → memory/knowledge/issues/2026-02-10-team-pricing-alignment.md
+
+Where should this be filed?
+  1. Just memory — tracked in knowledge graph, visible on /activity
+  2. egregore — (coming soon — Phase B)
+  3. Curve-Labs/egregore-core — filed on the org's fork
+  4. Curve-Labs/lace — filed on lace
+
+> 1
+
+  [2/3] ✓ Team notified
+  [3/3] ✓ Auto-saved
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  ✱ ISSUE CAPTURED                                cem · Feb 10       │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Title: Team pricing alignment feels off                             │
+│  For: just memory                                                    │
+│                                                                      │
+│  ✓ Saved to memory · graphed · team notified                         │
+│  → memory/knowledge/issues/2026-02-10-team-pricing-alignment.md      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ## Full example: interactive (no args)
 
 ```
@@ -581,23 +644,25 @@ What's the issue?
 > The graph query for sessions returns duplicates when a session
 > has multiple HANDED_TO relationships
 
-  [1/3] ✓ Issue saved to memory + graph
+  [1/4] ✓ Issue saved to memory + graph
         → memory/knowledge/issues/2026-02-09-session-query-duplicates.md
 
-Who's this for?
-  ...
+This looks like an egregore-core issue. File it on Curve-Labs/egregore-core?
+  1. Yes, file on Curve-Labs/egregore-core
+  2. Just memory — track locally only
 
-> Just memory
+> 1
 
-  [2/3] ✓ Team notified
-  [3/3] ✓ Auto-saved
+  [2/4] ✓ Filed on Curve-Labs/egregore-core · #43
+  [3/4] ✓ Team notified
+  [4/4] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ✱ ISSUE CAPTURED                                cem · Feb 09       │
+│  ✱ ISSUE REPORTED                                cem · Feb 09       │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Title: Session query returns duplicates with multiple...            │
-│  For: just memory                                                    │
+│  For: Curve-Labs/egregore-core · issue #43                           │
 │                                                                      │
 │  ✓ Saved to memory · graphed · team notified                         │
 │  → memory/knowledge/issues/2026-02-09-session-query-duplicates.md    │

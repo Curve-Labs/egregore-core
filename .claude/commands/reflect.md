@@ -21,6 +21,7 @@ Topic: $ARGUMENTS
 ## Execution rules
 
 **Neo4j-first.** All queries via `bash bin/graph.sh query "..."`. No MCP. No direct curl to Neo4j.
+**CRITICAL: Suppress raw output.** Never show raw JSON to the user. All `bin/graph.sh` calls MUST capture output in a variable and only show formatted status lines.
 
 - 1 Bash call: `git config user.name`
 - 5-6 Neo4j queries for context gathering (run in parallel)
