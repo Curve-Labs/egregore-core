@@ -392,24 +392,21 @@ Org config lives in `egregore.json` (committed, non-secret). Personal tokens (`G
 
 ## Git Workflow
 
-Egregore uses a `develop` branch model. Users never interact with git directly — commands handle everything.
+Egregore uses `develop` branch model with deferred, topic-based branching. Users never interact with git directly.
 
 ```
-main ← stable, released (maintainer controls via /release)
-  │
-  develop ← integration branch (PRs land here)
-    │
-    dev/{author}/{date}-session ← working branches (created on launch)
+main ← stable (/release)
+  develop ← integration (PRs land here)
+    dev/{author}/{topic-slug} | feature/{slug} | bugfix/{slug}
 ```
 
-- **On launch**: `bin/session-start.sh` syncs develop and creates a working branch
-- **`/save`**: pushes working branch, creates PR to develop. Markdown-only PRs auto-merge; code changes need maintainer review
-- **`/handoff`**: same as /save + handoff file + Neo4j session + notifications
-- **`/release`** (maintainer only): merges develop → main, tags, syncs public repo
-- **`/pull`**: syncs develop, rebases working branch
-- **Memory repo**: stays on main (separate repo, auto-merge unchanged)
-
-**Never push directly to main or develop.** All changes flow through PRs.
+- **On launch**: syncs develop + memory. Does NOT create a branch.
+- **Branch creation**: deferred to conversation. When user says what they're working on, create a topic-based branch via `/branch`. If still on develop at first `/save`, create branch then.
+- **Resuming**: if on a working branch at launch, rebase onto develop and continue.
+- **If on develop after a few messages**, mention once: "Working on develop — I'll create a branch when you start making changes."
+- **`/save`**: pushes working branch, PR to develop. Auto-merges markdown-only PRs.
+- **Memory repo**: stays on main (separate repo, auto-merge).
+- **Never push directly to main or develop.** All changes flow through PRs.
 
 ## Working Conventions
 

@@ -25,10 +25,13 @@ Save your contributions to Egregore. Pushes working branch, creates PR to develo
    - User sees: "Contribution merged"
 
 3. **For egregore** (commands, scripts, config):
-   - Ensure on a `dev/*` working branch. If not, create one from develop:
+   - Ensure on a working branch (`dev/*`, `feature/*`, or `bugfix/*`). If not (e.g. still on develop), create one:
+     - Derive a topic slug from the changes being saved (look at modified files, commit messages, or conversation context)
+     - Create branch: `dev/$AUTHOR/{topic-slug}` from develop
+     - If no clear topic, fall back to date: `dev/$AUTHOR/$(date +%Y-%m-%d)`
      ```bash
      git fetch origin develop --quiet
-     git checkout -b dev/$AUTHOR/$(date +%Y-%m-%d)-session origin/develop
+     git checkout -b dev/$AUTHOR/$TOPIC_SLUG origin/develop
      ```
    - Commit all changes to working branch
    - **Rebase onto latest develop before pushing** (prevents stale overwrites):

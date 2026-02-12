@@ -130,9 +130,10 @@ else
 
   lookup_telegram_id() {
     local name="$1"
+    PARAMS=$(jq -n --arg name "$name" '{name: $name}')
     bash "$SCRIPT_DIR/bin/graph.sh" query \
-      "MATCH (p:Person {name: \$name}) RETURN p.telegramId AS tid" \
-      "{\"name\": \"$name\"}" \
+      "MATCH (p:Person {name: \$name}) OPTIONAL MATCH (tu:TelegramUser)-[:IDENTIFIES]->(p) OPTIONAL MATCH (tu2:TelegramUser) WHERE tu IS NULL AND tu2.username IS NOT NULL AND p.telegramUsername IS NOT NULL AND tu2.username = p.telegramUsername RETURN COALESCE(p.telegramId, tu.telegramId, tu2.telegramId) AS tid" \
+      "$PARAMS" \
       | jq -r '.values[0][0] // empty'
   }
 
