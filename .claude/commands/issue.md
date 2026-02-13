@@ -419,7 +419,7 @@ Show progress:
 
 Run the full `/save` flow:
 
-1. Commit changes in memory repo and push (contribution branch + PR + auto-merge)
+1. Commit changes in memory repo and push directly to main (pull-rebase-push with retry)
 2. Commit any egregore changes and push working branch + PR to develop
 
 Show progress:

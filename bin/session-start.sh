@@ -195,13 +195,19 @@ ACTION="ready"
 BRANCH="$CURRENT_BRANCH"
 
 if [[ "$CURRENT_BRANCH" == dev/* ]] || [[ "$CURRENT_BRANCH" == feature/* ]] || [[ "$CURRENT_BRANCH" == bugfix/* ]]; then
-  # Already on a working branch — rebase onto develop to stay current
-  if git rebase develop --quiet 2>/dev/null; then
-    ACTION="resumed"
+  # Check if branch is already merged into develop — if so, switch to develop
+  if git merge-base --is-ancestor "$CURRENT_BRANCH" develop 2>/dev/null; then
+    git checkout develop --quiet 2>/dev/null || true
+    BRANCH="develop"
   else
-    git rebase --abort 2>/dev/null || true
-    git merge develop --quiet -m "Sync with develop" 2>/dev/null || true
-    ACTION="resumed"
+    # Unmerged working branch — rebase onto develop to stay current
+    if git rebase develop --quiet 2>/dev/null; then
+      ACTION="resumed"
+    else
+      git rebase --abort 2>/dev/null || true
+      git merge develop --quiet -m "Sync with develop" 2>/dev/null || true
+      ACTION="resumed"
+    fi
   fi
 elif [[ "$CURRENT_BRANCH" != "develop" ]]; then
   # On main or some other branch — switch to develop so we're ready

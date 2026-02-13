@@ -30,6 +30,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/bin/save-reminder.sh"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
