@@ -10,13 +10,33 @@ Run ONE command to get all dashboard data:
 bash bin/activity-data.sh
 ```
 
-Returns JSON: `me`, `org`, `date`, `my_sessions`, `team_sessions`, `quests`, `pending_questions`, `answered_questions`, `handoffs_to_me`, `all_handoffs`, `knowledge_gap`, `orphans`, `checkins`, `todos_merged`, `focus_history`, `prs`, `disk`, `trends`.
+Returns JSON with these fields. Arrays are arrays of objects (NOT `{fields, values}` format).
 
-The `todos_merged` object combines `activeTodoCount`, `blockedCount`, `deferredCount`, `staleBlockedCount`, and `lastCheckinDate` in one query result.
+**Arrays of objects:**
+- `my_sessions` — `[{date, topic, id, filePath, handedTo}, ...]`
+- `team_sessions` — `[{date, topic, by}, ...]`
+- `quests` — `[{quest, title, artifacts, daysSince, score}, ...]`
+- `pending_questions` — `[{setId, topic, created, from}, ...]`
+- `answered_questions` — `[{setId, topic, answeredBy}, ...]`
+- `handoffs_to_me` — `[{topic, date, author, filePath, sessionId, status, response}, ...]`
+- `all_handoffs` — `[{topic, date, from, to, filePath}, ...]`
+- `checkins` — `[{id, summary, date, by, total}, ...]`
+- `focus_history` — `[{shown, selected, dismissed, date, topic}, ...]`
 
-The `focus_history` object contains the last 5 sessions where the user selected a Focus option: `shown` (options presented), `selected` (what was chosen), `dismissed` (options not chosen), `date`, `topic`.
+**Flat objects:**
+- `todos_merged` — `{activeTodoCount, blockedCount, deferredCount, staleBlockedCount, lastCheckinDate}`
+- `knowledge_gap` — `{gapCount}`
+- `orphans` — `{orphanCount}`
+- `trends.resolution` — `{avgDays, resolved}`
+- `trends.throughput` — `{created, completed}`
+- `trends.capture` — `{total, captured}`
 
-The `trends` object contains: `cadence` (sessions per week, 4 weeks), `resolution` (handoff avg days, 30d), `throughput` (todos created vs done, 28d), `capture` (sessions with artifacts / total, 28d).
+**Other:**
+- `trends.cadence` — `[{weeksAgo, sessions}, ...]`
+- `me` — string (person name)
+- `org`, `date` — strings (added client-side)
+- `prs` — `[{number, title, author}, ...]` (from git, client-side)
+- `disk` — `{handoffs, decisions}` (from filesystem, client-side)
 
 If the command fails, fall back to reading `memory/` files. Add `(offline)` after ✦ in header.
 
@@ -52,12 +72,12 @@ Content rows: `│  {text padded with trailing spaces}  │`
 - Other handoffs → `    {from} → {to}: {topic} ({when})`
 - Numbered items (● and ◐) first, blank line, then ○ + others.
 
-**Sessions** — ALWAYS render this section. NEVER skip it:
-- `◦ YOUR SESSIONS` — read `my_sessions.values` from the JSON. Show top 5. Format: `{date}  {topic}`. If the array is empty, show `(none yet)`.
-  - Interleave check-ins from `checkins` (by current user) in chronological order: `{date}  Check-in: {summary}`
-- `◦ TEAM` — read `team_sessions.values` from the JSON. This is a DIFFERENT field from my_sessions. Show top 5. Format: `{date}  {name}: {topic}`. If the array is empty, show `(none yet)`.
-  - Interleave check-ins from `checkins` (by others) in chronological order: `{date}  {name}: Check-in: {summary}`
-- CRITICAL: my_sessions and team_sessions are independent. One can be empty while the other has data. You MUST check both fields separately.
+**Sessions** — ALWAYS render. NEVER skip:
+- `◦ YOUR SESSIONS` — iterate `my_sessions` array. Each object has `.date` and `.topic`. Show top 5: `{date}  {topic}`. If array is empty: `(none yet)`.
+  - Interleave check-ins from `checkins` (where `.by` matches `me`) in chronological order: `{date}  Check-in: {summary}`
+- `◦ TEAM` — iterate `team_sessions` array. Each object has `.date`, `.topic`, `.by`. Show top 5: `{date}  {by}: {topic}`. If array is empty: `(none yet)`.
+  - Interleave check-ins from `checkins` (where `.by` differs from `me`) in chronological order: `{date}  {by}: Check-in: {summary}`
+- `my_sessions` and `team_sessions` are independent arrays. One can be empty `[]` while the other has data.
 - Blank line between sub-sections.
 
 **Quests & PRs** (skip if both empty):
