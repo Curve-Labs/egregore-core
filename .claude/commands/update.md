@@ -1,12 +1,10 @@
-Update local Egregore environment — sync framework from upstream, pull repos, merge MCP config.
+Update local Egregore environment — sync framework from upstream and pull repos.
 
 ## What to do
 
 1. **Sync framework from upstream** (Curve-Labs/egregore-core)
-2. **Run `/pull`** (smart sync all repos)
-3. **Merge shared MCPs** from `mcp.shared.json` into local `.mcp.json`
-4. Show what changed
-5. Remind to restart if MCPs changed
+2. **Run `/pull`** (sync develop + memory)
+3. Show what changed
 
 ## Step 1: Framework sync
 
@@ -44,44 +42,21 @@ git commit -m "Update Egregore framework from upstream"
 
 Run `/pull` logic (sync develop, rebase working branch, pull memory).
 
-## Step 3: MCP config merging
-
-```bash
-# Read mcp.shared.json (repo) and .mcp.json (local)
-# For each server in shared:
-#   - If not in local: add it (new)
-#   - If in local: keep local version (unchanged)
-# Personal MCPs in local but not in shared: keep them
-```
-
-## Files
-
-- `mcp.shared.json` — shared MCPs (committed to repo)
-- `.mcp.json` — local config (gitignored, personal + shared merged)
-
 ## Example
 
 ```
 > /update
 
 Syncing framework from upstream...
-  bin/session-start.sh       | 12 +++---
-  .claude/commands/update.md | 38 +++++++++++++---
-  skills/reflect/prompt.md   |  4 +-
+  bin/activity-data.sh         | 89 +++++------
+  .claude/commands/pull.md     |  4 --
+  bin/session-start.sh         | 12 +++---
   3 files changed, 32 insertions(+), 22 deletions(-)
   ✓ Framework updated and committed
 
 Pulling...
-  [memory]    ✓ 3 new commits
-  [egregore]  ✓ 1 new commit
-  [tristero]  ✓ current
-
-Updating MCP config...
-  + neo4j (new)
-  = telegram (unchanged)
-  · supabase (yours, kept)
-
-⚠ MCP config changed — restart Claude Code to load neo4j
+  develop        ✓ synced
+  memory         ✓ up to date
 ```
 
 ## If framework is already current
@@ -90,18 +65,3 @@ Updating MCP config...
 Syncing framework from upstream...
   ✓ Already up to date
 ```
-
-## If no MCP changes
-
-```
-Updating MCP config...
-  = neo4j (unchanged)
-  = telegram (unchanged)
-  · supabase (yours, kept)
-
-✓ No restart needed
-```
-
-## Next
-
-Restart Claude Code if MCPs changed, then `/activity` to see what's new.

@@ -52,12 +52,12 @@ Content rows: `│  {text padded with trailing spaces}  │`
 - Other handoffs → `    {from} → {to}: {topic} ({when})`
 - Numbered items (● and ◐) first, blank line, then ○ + others.
 
-**Sessions**:
-- `◦ YOUR SESSIONS` — top 5. Format: `{date}  {topic}`
+**Sessions** — IMPORTANT: `my_sessions` and `team_sessions` are SEPARATE fields. Check each independently. `my_sessions` can be empty while `team_sessions` has data:
+- `◦ YOUR SESSIONS` — from `my_sessions.values`. Top 5. Format: `{date}  {topic}`
   - Interleave check-ins from `checkins` (by current user) in chronological order: `{date}  Check-in: {summary}`
-- `◦ TEAM` — top 5. Format: `{date}  {name}: {topic}`
+- `◦ TEAM` — from `team_sessions.values`. Top 5. Format: `{date}  {name}: {topic}`
   - Interleave check-ins from `checkins` (by others) in chronological order: `{date}  {name}: Check-in: {summary}`
-- Blank line between sub-sections.
+- Blank line between sub-sections. Only show "(none)" if that specific field's `.values` array is empty.
 
 **Quests & PRs** (skip if both empty):
 - `⚑ QUESTS (N active)` — top 5 by score. `{quest-id}` left, `{N} artifacts · {N}d ago` right.

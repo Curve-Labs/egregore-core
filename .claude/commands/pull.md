@@ -9,8 +9,6 @@ Pull latest for current repo and shared memory.
 3. Check memory symlink exists — if not, derive directory from `egregore.json` and create symlink
 4. Pull memory repo via symlink
 
-**Does NOT sync sibling repos.** Use `/sync-repos` for that.
-
 ## Execution
 
 ```bash
@@ -61,4 +59,3 @@ If memory is already up to date:
   memory         ✓ up to date
 ```
 
-**Does NOT sync sibling repos.** Use `/sync-repos` for that.
