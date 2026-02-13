@@ -264,6 +264,16 @@ if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
           bash "$SCRIPT_DIR/bin/graph.sh" query \
             "MERGE (p:Person {github: \$github}) ON CREATE SET p.name = \$name SET p.fullName = CASE WHEN \$fullName <> '' THEN \$fullName ELSE p.fullName END WITH p MATCH (o:Org {id: \$_org}) MERGE (p)-[:MEMBER_OF]->(o) RETURN p.name" \
             "$PERSON_PARAMS" 2>/dev/null || true
+
+          # Sync user + membership to Supabase (non-blocking, non-fatal)
+          SB_API_URL=$(jq -r '.api_url // empty' "$CONFIG" 2>/dev/null)
+          if [ -n "$SB_API_URL" ]; then
+            curl -sf "${SB_API_URL}/api/user/ensure" \
+              -H "Authorization: Bearer $API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"github_username\":\"${GH_USERNAME_STATE:-$AUTHOR}\",\"github_name\":\"${GH_FULLNAME_STATE:-}\"}" \
+              --max-time 5 >/dev/null 2>&1 || true
+          fi
         fi
       fi
     fi

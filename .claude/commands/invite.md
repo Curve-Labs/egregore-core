@@ -104,9 +104,20 @@ Failed to invite {username}: {error}
 
 Run these two in parallel. Use description "Recording invite in graph" and "Checking notification channel":
 
-**Create Person node:**
+**Create Person node + sync to Supabase:**
 ```bash
 bash bin/graph.sh query "MERGE (p:Person {name: \$name}) ON CREATE SET p.invited = date(), p.invitedBy = \$inviter RETURN p.name" '{"name": "USERNAME", "inviter": "INVITER"}'
+```
+
+Then sync to Supabase (non-fatal):
+```bash
+API_URL=$(jq -r '.api_url // empty' egregore.json)
+API_KEY=$(grep '^EGREGORE_API_KEY=' .env | cut -d'=' -f2-)
+curl -sf "${API_URL}/api/user/ensure" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"github_username":"USERNAME"}' \
+  --max-time 5 >/dev/null 2>&1 || true
 ```
 
 Get the inviter name from `git config user.name` (derive short handle: lowercase first word).
