@@ -88,9 +88,49 @@ Save your contributions to Egregore. Pushes working branch, creates PR to develo
          Tell the developer: `⚠ Preflight found issues — fix before merging. See violations above.`
        - Preflight never blocks the save — work is always preserved. It warns.
 
-4. **For project repos** (tristero, lace):
-   - Warn user: "You have code changes. Use /push and /pr for review."
-   - Code changes require human review
+4. **For managed repos** (listed in `egregore.json` → `repos[]`, located at `../{repo}/`):
+   - Read the repos list: `jq -r '.repos[]? // empty' egregore.json`
+   - For each repo, check for uncommitted changes:
+     ```bash
+     REPO_DIR="$(cd .. && pwd)/$REPO"
+     if [ -n "$(git -C "$REPO_DIR" status --porcelain)" ]; then
+       # Has changes
+     fi
+     ```
+   - **If no changes in any repo**, skip silently
+   - **If changes exist**, handle each repo with the same develop workflow as egregore:
+     1. Ensure on a working branch. If on develop or main, create one:
+        ```bash
+        git -C "$REPO_DIR" fetch origin develop --quiet
+        git -C "$REPO_DIR" checkout -b dev/$AUTHOR/$TOPIC_SLUG origin/develop
+        ```
+        Derive topic slug from conversation context or changed files. Fall back to date.
+     2. Stage and commit changes:
+        ```bash
+        git -C "$REPO_DIR" add -A
+        git -C "$REPO_DIR" commit -m "$COMMIT_MESSAGE"
+        ```
+     3. Rebase onto latest develop before pushing:
+        ```bash
+        git -C "$REPO_DIR" fetch origin develop --quiet
+        git -C "$REPO_DIR" rebase origin/develop --quiet
+        ```
+        If rebase conflicts: abort, try merge:
+        ```bash
+        git -C "$REPO_DIR" rebase --abort
+        git -C "$REPO_DIR" merge origin/develop --quiet -m "Sync with develop"
+        ```
+        If merge also conflicts: stop and tell the user.
+     4. Push working branch:
+        ```bash
+        git -C "$REPO_DIR" push -u origin $BRANCH
+        ```
+     5. Create PR to develop:
+        ```bash
+        gh pr create --repo $GITHUB_ORG/$REPO --base develop --title "..." --body "..."
+        ```
+     6. User sees: `[repo-name] ✓ Pushed dev/oz/topic-slug → PR #N to develop`
+   - **Use `git -C` with absolute paths** — never `cd` into the repo (avoids permission prompts)
 
 ## Neo4j Sync Logic (via bin/graph.sh)
 
@@ -204,6 +244,39 @@ Saving to Egregore...
   ✓ Notified oz
 
 Done. Team sees your contribution on /activity.
+```
+
+## With managed repo changes
+
+```
+> /save
+
+Saving to Egregore...
+
+[sync] Checking Neo4j...
+  ✓ Nothing to sync
+
+[memory]
+  No changes.
+
+[egregore]
+  No changes.
+
+[lace]
+  On branch: develop → creating dev/oz/auth-flow
+  Changes:
+    src/auth/token.ts      (+18, -3)
+    src/auth/middleware.ts  (+42, new file)
+
+  Rebasing onto develop...
+    ✓ Clean rebase
+
+  Pushing and creating PR...
+    git push -u origin dev/oz/auth-flow
+    gh pr create --repo Curve-Labs/lace --base develop
+    ✓ PR #27 created for review
+
+Done.
 ```
 
 ## Markdown-only egregore PR (auto-merges)

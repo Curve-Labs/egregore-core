@@ -146,22 +146,23 @@ fi
 
 # --- Fetch all remotes in parallel ---
 git fetch origin --quiet 2>/dev/null &
-FETCH_PID=$!
 
 # Sync memory in parallel
 MEMORY_SYNCED="false"
 if [ -L "$SCRIPT_DIR/memory" ] && [ -d "$SCRIPT_DIR/memory/.git" ]; then
   git -C "$SCRIPT_DIR/memory" fetch origin --quiet 2>/dev/null &
-  MEM_FETCH_PID=$!
-else
-  MEM_FETCH_PID=""
 fi
 
-# Wait for fetches
-wait $FETCH_PID 2>/dev/null || true
-if [ -n "$MEM_FETCH_PID" ]; then
-  wait $MEM_FETCH_PID 2>/dev/null || true
-fi
+# Fetch managed repos in parallel
+MANAGED_REPOS=$(jq -r '.repos[]? // empty' "$SCRIPT_DIR/egregore.json" 2>/dev/null)
+for REPO in $MANAGED_REPOS; do
+  if [ -d "$SCRIPT_DIR/../$REPO/.git" ]; then
+    git -C "$SCRIPT_DIR/../$REPO" fetch origin --quiet 2>/dev/null &
+  fi
+done
+
+# Wait for all fetches
+wait 2>/dev/null || true
 
 # --- Ensure develop branch exists locally ---
 if ! git show-ref --verify --quiet refs/heads/develop 2>/dev/null; then
@@ -224,6 +225,29 @@ if [ -L "$SCRIPT_DIR/memory" ] && [ -d "$SCRIPT_DIR/memory/.git" ]; then
   fi
   MEMORY_SYNCED="true"
 fi
+
+# --- Sync managed repos ---
+REPOS_STATUS=""
+for REPO in $MANAGED_REPOS; do
+  REPO_DIR="$SCRIPT_DIR/../$REPO"
+  if [ -d "$REPO_DIR/.git" ]; then
+    # Ensure develop branch exists locally
+    if ! git -C "$REPO_DIR" show-ref --verify --quiet refs/heads/develop 2>/dev/null; then
+      if git -C "$REPO_DIR" show-ref --verify --quiet refs/remotes/origin/develop 2>/dev/null; then
+        git -C "$REPO_DIR" branch develop origin/develop --quiet 2>/dev/null || true
+      fi
+    else
+      git -C "$REPO_DIR" fetch origin develop:develop --quiet 2>/dev/null || true
+    fi
+    # Collect status
+    R_BRANCH=$(git -C "$REPO_DIR" branch --show-current 2>/dev/null || echo "?")
+    R_DIRTY=""
+    if [ -n "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null | head -1)" ]; then
+      R_DIRTY=" *"
+    fi
+    REPOS_STATUS="${REPOS_STATUS}    ${REPO}: ${R_BRANCH}${R_DIRTY}\n"
+  fi
+done
 
 # --- Bootstrap graph on first launch (deferred from web setup to avoid orphans) ---
 # Runs in background — must not block session start
@@ -302,6 +326,10 @@ fi
 echo "  Develop: synced"
 if [ "$MEMORY_SYNCED" = "true" ]; then echo "  Memory: synced"; fi
 if [ "$COMMITS_AHEAD" -gt 0 ] 2>/dev/null; then echo "  $COMMITS_AHEAD changes on develop since last release."; fi
+if [ -n "$REPOS_STATUS" ]; then
+  echo "  Repos:"
+  printf "$REPOS_STATUS"
+fi
 
 # --- First session welcome ---
 if [ -z "$FIRST_SESSION" ] && [ -f "$STATE_FILE" ]; then

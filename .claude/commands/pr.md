@@ -2,11 +2,12 @@ Create a pull request for current branch targeting develop.
 
 ## What to do
 
-1. Summarize branch changes vs develop
-2. Prompt for title and description
-3. Create PR via GitHub CLI targeting develop: `gh pr create --base develop`
-4. Return PR URL
-5. Do NOT auto-merge — explicit `/pr` means "please review this"
+1. Determine which repo — if the user mentions a managed repo (listed in `egregore.json` → `repos[]`), create the PR there. Otherwise use the hub.
+2. Summarize branch changes vs develop
+3. Prompt for title and description
+4. Create PR via GitHub CLI targeting develop: `gh pr create --base develop`
+5. Return PR URL
+6. Do NOT auto-merge — explicit `/pr` means "please review this"
 
 ## Example
 

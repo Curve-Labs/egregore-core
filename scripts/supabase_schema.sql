@@ -91,6 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_setup_tokens_token ON setup_tokens(token) WHERE c
 
 CREATE TABLE IF NOT EXISTS waitlist (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name TEXT,
     email TEXT,
     github_username TEXT,
     source TEXT,

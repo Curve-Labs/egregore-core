@@ -75,6 +75,30 @@ No description given. Using today's date.
 Ready to work. /save when done.
 ```
 
+## Managed repos
+
+If the user's description references a managed repo (listed in `egregore.json` → `repos[]`), create the branch in that repo's sibling directory instead of the hub.
+
+```bash
+REPO_DIR="$(cd .. && pwd)/$REPO"
+git -C "$REPO_DIR" fetch origin develop --quiet
+git -C "$REPO_DIR" checkout -b dev/$AUTHOR/$TOPIC_SLUG origin/develop
+```
+
+Use `git -C` with absolute paths — never `cd` into the repo.
+
+```
+> /branch auth flow in lace
+
+Creating branch in lace...
+
+  git -C ../lace fetch origin develop --quiet
+  git -C ../lace checkout -b dev/oz/auth-flow origin/develop
+  ✓ Created dev/oz/auth-flow in lace (from develop)
+
+Ready to work. /save when done.
+```
+
 ## Next
 
 Make your changes, then `/commit` or `/save` when ready.

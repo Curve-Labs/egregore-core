@@ -408,6 +408,17 @@ main ← stable (/release)
 - **Memory repo**: stays on main (separate repo, auto-merge).
 - **Never push directly to main or develop.** All changes flow through PRs.
 
+### Managed Repos
+
+Teams can add their own repos to `egregore.json` → `repos[]` (e.g. `["lace", "backend"]`). These are cloned as sibling directories (`../lace/`, `../backend/`).
+
+**Same branching strategy applies.** Each managed repo uses `develop` → working branch → PR → `main`, identical to the hub.
+
+- **On launch**: session-start fetches all managed repos in parallel and shows their status in the greeting (branch name, `*` if uncommitted changes).
+- **Working on a repo**: user says what they're working on. Claude reads/edits files at `../{repo}/`. Use `git -C` with absolute paths for all git operations — never `cd` into the repo.
+- **`/branch`**: if user mentions a managed repo, create the branch there.
+- **`/save`**: scans all managed repos for uncommitted changes. For each with changes: ensure on working branch, commit, rebase onto develop, push, create PR to develop via `gh pr create --repo {org}/{repo}`.
+
 ## Working Conventions
 
 - Check `memory/knowledge/` before starting unfamiliar work
