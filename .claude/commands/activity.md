@@ -52,12 +52,13 @@ Content rows: `│  {text padded with trailing spaces}  │`
 - Other handoffs → `    {from} → {to}: {topic} ({when})`
 - Numbered items (● and ◐) first, blank line, then ○ + others.
 
-**Sessions** — IMPORTANT: `my_sessions` and `team_sessions` are SEPARATE fields. Check each independently. `my_sessions` can be empty while `team_sessions` has data:
-- `◦ YOUR SESSIONS` — from `my_sessions.values`. Top 5. Format: `{date}  {topic}`
+**Sessions** — ALWAYS render this section. NEVER skip it:
+- `◦ YOUR SESSIONS` — read `my_sessions.values` from the JSON. Show top 5. Format: `{date}  {topic}`. If the array is empty, show `(none yet)`.
   - Interleave check-ins from `checkins` (by current user) in chronological order: `{date}  Check-in: {summary}`
-- `◦ TEAM` — from `team_sessions.values`. Top 5. Format: `{date}  {name}: {topic}`
+- `◦ TEAM` — read `team_sessions.values` from the JSON. This is a DIFFERENT field from my_sessions. Show top 5. Format: `{date}  {name}: {topic}`. If the array is empty, show `(none yet)`.
   - Interleave check-ins from `checkins` (by others) in chronological order: `{date}  {name}: Check-in: {summary}`
-- Blank line between sub-sections. Only show "(none)" if that specific field's `.values` array is empty.
+- CRITICAL: my_sessions and team_sessions are independent. One can be empty while the other has data. You MUST check both fields separately.
+- Blank line between sub-sections.
 
 **Quests & PRs** (skip if both empty):
 - `⚑ QUESTS (N active)` — top 5 by score. `{quest-id}` left, `{N} artifacts · {N}d ago` right.
