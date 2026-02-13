@@ -31,9 +31,9 @@ EMPTY='{"fields":[],"values":[]}'
 # AM1: Session cadence per person (4 weeks)
 bash "$GS" query "
 MATCH (s:Session)-[:BY]->(p:Person)
-WHERE s.date >= date() - duration('P28D')
+WHERE date(s.date) >= date() - duration('P28D')
 WITH p.name AS person,
-     duration.inDays(s.date, date()).days / 7 AS weeksAgo,
+     duration.inDays(date(s.date), date()).days / 7 AS weeksAgo,
      count(s) AS sessions
 RETURN person, weeksAgo, sessions
 ORDER BY person, weeksAgo" > "$TMPDIR/am1.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/am1.json" &
@@ -41,11 +41,11 @@ ORDER BY person, weeksAgo" > "$TMPDIR/am1.json" 2>/dev/null || echo "$EMPTY" > "
 # AM2: Handoff resolution time distribution
 bash "$GS" query "
 MATCH (s:Session)-[:HANDED_TO]->(p:Person)
-WHERE s.handoffStatus = 'done' AND s.date >= date() - duration('P30D')
+WHERE s.handoffStatus = 'done' AND date(s.date) >= date() - duration('P30D')
 WITH p.name AS recipient,
-     duration.inDays(s.date, date()).days AS daysAgo,
+     duration.inDays(date(s.date), date()).days AS daysAgo,
      CASE WHEN s.handoffReadDate IS NOT NULL
-       THEN duration.inDays(s.date, s.handoffReadDate).days
+       THEN duration.inDays(date(s.date), date(s.handoffReadDate)).days
        ELSE null END AS resolutionDays
 WHERE resolutionDays IS NOT NULL
 RETURN recipient,
@@ -109,7 +109,7 @@ ORDER BY person" > "$TMPDIR/am6.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/am
 # AM7: Knowledge capture ratio — sessions with same-day artifacts / total (28d)
 bash "$GS" query "
 MATCH (s:Session)-[:BY]->(p:Person)
-WHERE s.date >= date() - duration('P28D')
+WHERE date(s.date) >= date() - duration('P28D')
 OPTIONAL MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p)
 WHERE a.created >= datetime({year: s.date.year, month: s.date.month, day: s.date.day})
   AND a.created < datetime({year: s.date.year, month: s.date.month, day: s.date.day}) + duration('P1D')
@@ -136,7 +136,7 @@ ORDER BY person" > "$TMPDIR/am8.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/am
 # AM9: Check-in frequency — check-ins per person with totals
 bash "$GS" query "
 MATCH (c:CheckIn)-[:BY]->(p:Person)
-WHERE c.date >= date() - duration('P28D')
+WHERE date(c.date) >= date() - duration('P28D')
 RETURN p.name AS person, count(c) AS checkIns,
        sum(c.totalItems) AS totalReviewed
 ORDER BY person" > "$TMPDIR/am9.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/am9.json" &

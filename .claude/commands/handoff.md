@@ -50,7 +50,7 @@ Before creating a new handoff, check for open handoffs directed at the current u
 ```cypher
 MATCH (s:Session)-[:HANDED_TO]->(p:Person {name: $me})
 WHERE coalesce(s.handoffStatus, 'pending') IN ['pending', 'read']
-  AND s.date >= date() - duration('P14D')
+  AND date(s.date) >= date() - duration('P14D')
 MATCH (s)-[:BY]->(author:Person)
 RETURN s.topic AS topic, s.date AS date, author.name AS author,
        s.filePath AS filePath, s.id AS sessionId,

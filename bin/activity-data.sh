@@ -43,10 +43,10 @@ EMPTY='{"fields":[],"values":[]}'
 bash "$GS" query "MATCH (s:Session)-[:BY]->(p:Person {name: '$ME'}) OPTIONAL MATCH (s)-[:HANDED_TO]->(target:Person) RETURN s.date AS date, s.topic AS topic, s.id AS id, s.filePath AS filePath, target.name AS handedTo ORDER BY s.date DESC, s.id DESC LIMIT 10" > "$TMPDIR/q1.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/q1.json" &
 
 # Q2: Team sessions (7 days)
-bash "$GS" query "MATCH (s:Session)-[:BY]->(p:Person) WHERE p.name <> '$ME' AND s.date >= date() - duration('P7D') RETURN s.date AS date, s.topic AS topic, p.name AS by ORDER BY s.date DESC LIMIT 5" > "$TMPDIR/q2.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/q2.json" &
+bash "$GS" query "MATCH (s:Session)-[:BY]->(p:Person) WHERE p.name <> '$ME' AND date(s.date) >= date() - duration('P7D') RETURN s.date AS date, s.topic AS topic, p.name AS by ORDER BY s.date DESC LIMIT 5" > "$TMPDIR/q2.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/q2.json" &
 
 # Q3: Active quests (scored with personal relevance)
-bash "$GS" query "MATCH (q:Quest {status: 'active'}) OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q) OPTIONAL MATCH (a)-[:CONTRIBUTED_BY]->(p:Person) WHERE p.name IS NOT NULL AND p.name <> 'external' OPTIONAL MATCH (q)-[:STARTED_BY]->(starter:Person {name: '$ME'}) OPTIONAL MATCH (myArt:Artifact)-[:PART_OF]->(q) WHERE (myArt)-[:CONTRIBUTED_BY]->(:Person {name: '$ME'}) WITH q, count(DISTINCT a) AS artifacts, count(DISTINCT p) AS contributors, CASE WHEN count(a) > 0 THEN duration.inDays(max(a.created), date()).days ELSE duration.inDays(q.started, date()).days END AS daysSince, coalesce(q.priority, 0) AS priority, CASE WHEN starter IS NOT NULL THEN 1 ELSE 0 END AS iStarted, count(DISTINCT myArt) AS myArtifacts WITH q, artifacts, daysSince, round((toFloat(artifacts) + toFloat(contributors)*1.5 + toFloat(priority)*5.0 + 30.0/(1.0+toFloat(daysSince)*0.5) + CASE WHEN iStarted = 1 THEN 15.0 ELSE 0.0 END + toFloat(myArtifacts)*3.0) * 100)/100 AS score ORDER BY score DESC LIMIT 5 RETURN q.id AS quest, q.title AS title, artifacts, daysSince, score" > "$TMPDIR/q3.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/q3.json" &
+bash "$GS" query "MATCH (q:Quest {status: 'active'}) OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q) OPTIONAL MATCH (a)-[:CONTRIBUTED_BY]->(p:Person) WHERE p.name IS NOT NULL AND p.name <> 'external' OPTIONAL MATCH (q)-[:STARTED_BY]->(starter:Person {name: '$ME'}) OPTIONAL MATCH (myArt:Artifact)-[:PART_OF]->(q) WHERE (myArt)-[:CONTRIBUTED_BY]->(:Person {name: '$ME'}) WITH q, count(DISTINCT a) AS artifacts, count(DISTINCT p) AS contributors, CASE WHEN count(a) > 0 THEN duration.inDays(date(max(a.created)), date()).days ELSE duration.inDays(date(q.started), date()).days END AS daysSince, coalesce(q.priority, 0) AS priority, CASE WHEN starter IS NOT NULL THEN 1 ELSE 0 END AS iStarted, count(DISTINCT myArt) AS myArtifacts WITH q, artifacts, daysSince, round((toFloat(artifacts) + toFloat(contributors)*1.5 + toFloat(priority)*5.0 + 30.0/(1.0+toFloat(daysSince)*0.5) + CASE WHEN iStarted = 1 THEN 15.0 ELSE 0.0 END + toFloat(myArtifacts)*3.0) * 100)/100 AS score ORDER BY score DESC LIMIT 5 RETURN q.id AS quest, q.title AS title, artifacts, daysSince, score" > "$TMPDIR/q3.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/q3.json" &
 
 # Q4: Pending questions for me
 bash "$GS" query "MATCH (qs:QuestionSet {status: 'pending'})-[:ASKED_TO]->(p:Person {name: '$ME'}) MATCH (qs)-[:ASKED_BY]->(asker:Person) RETURN qs.id AS setId, qs.topic AS topic, qs.created AS created, asker.name AS from ORDER BY qs.created DESC LIMIT 10" > "$TMPDIR/q4.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/q4.json" &
@@ -67,7 +67,7 @@ SET s.handoffStatus = 'done'
 RETURN s.id AS resolved" > "$TMPDIR/qresolve.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/qresolve.json"
   # Then: fetch handoffs with accurate status
   bash "$GS" query "MATCH (s:Session)-[:HANDED_TO]->(p:Person {name: '$ME'})
-WHERE s.date >= date() - duration('P7D')
+WHERE date(s.date) >= date() - duration('P7D')
 MATCH (s)-[:BY]->(author:Person)
 RETURN s.topic AS topic, s.date AS date, author.name AS author,
        s.filePath AS filePath, s.id AS sessionId,
@@ -84,11 +84,11 @@ LIMIT 8" > "$TMPDIR/q6.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/q6.json"
 ) &
 
 # Q7: All handoffs (7 days)
-bash "$GS" query "MATCH (s:Session)-[:HANDED_TO]->(target:Person) WHERE s.date >= date() - duration('P7D') MATCH (s)-[:BY]->(author:Person) RETURN s.topic AS topic, s.date AS date, author.name AS from, target.name AS to, s.filePath AS filePath ORDER BY s.date DESC LIMIT 5" > "$TMPDIR/q7.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/q7.json" &
+bash "$GS" query "MATCH (s:Session)-[:HANDED_TO]->(target:Person) WHERE date(s.date) >= date() - duration('P7D') MATCH (s)-[:BY]->(author:Person) RETURN s.topic AS topic, s.date AS date, author.name AS from, target.name AS to, s.filePath AS filePath ORDER BY s.date DESC LIMIT 5" > "$TMPDIR/q7.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/q7.json" &
 
 # Q_checkins: Recent check-ins (7 days)
 bash "$GS" query "MATCH (c:CheckIn)-[:BY]->(p:Person)
-WHERE c.date >= date() - duration('P7D')
+WHERE date(c.date) >= date() - duration('P7D')
 RETURN c.id AS id, c.summary AS summary, c.date AS date,
        p.name AS by, c.totalItems AS total
 ORDER BY c.date DESC LIMIT 5" > "$TMPDIR/qcheckins.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/qcheckins.json" &
@@ -106,10 +106,10 @@ ORDER BY c.date DESC LIMIT 1
 RETURN activeTodoCount, blockedCount, deferredCount, staleBlockedCount, c.date AS lastCheckinDate" > "$TMPDIR/qtodos_merged.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/qtodos_merged.json" &
 
 # Q_gap: Knowledge gap count (sessions without artifacts)
-bash "$GS" query "MATCH (s:Session)-[:BY]->(p:Person {name: '$ME'}) WHERE s.date >= date() - duration('P14D') OPTIONAL MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p) WHERE a.created >= datetime({year: s.date.year, month: s.date.month, day: s.date.day}) AND a.created < datetime({year: s.date.year, month: s.date.month, day: s.date.day}) + duration('P1D') WITH s, count(a) AS artifactCount WHERE artifactCount = 0 RETURN count(s) AS gapCount" > "$TMPDIR/qgap.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/qgap.json" &
+bash "$GS" query "MATCH (s:Session)-[:BY]->(p:Person {name: '$ME'}) WHERE date(s.date) >= date() - duration('P14D') OPTIONAL MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p) WHERE a.created >= datetime({year: s.date.year, month: s.date.month, day: s.date.day}) AND a.created < datetime({year: s.date.year, month: s.date.month, day: s.date.day}) + duration('P1D') WITH s, count(a) AS artifactCount WHERE artifactCount = 0 RETURN count(s) AS gapCount" > "$TMPDIR/qgap.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/qgap.json" &
 
 # Q_orphans: Orphan artifact count (14 days)
-bash "$GS" query "OPTIONAL MATCH (a:Artifact) WHERE a.created >= date() - duration('P14D') AND NOT (a)-[:PART_OF]->(:Quest) RETURN count(a) AS orphanCount" > "$TMPDIR/qorphans.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/qorphans.json" &
+bash "$GS" query "OPTIONAL MATCH (a:Artifact) WHERE date(a.created) >= date() - duration('P14D') AND NOT (a)-[:PART_OF]->(:Quest) RETURN count(a) AS orphanCount" > "$TMPDIR/qorphans.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/qorphans.json" &
 
 # Q_focus_history: Recent Focus selections (what user chose vs what was shown)
 bash "$GS" query "MATCH (s:Session)-[:BY]->(p:Person {name: '$ME'})
@@ -122,16 +122,16 @@ ORDER BY s.date DESC LIMIT 5" > "$TMPDIR/qfocus.json" 2>/dev/null || echo "$EMPT
 # AM_cadence: My session count per week (4 weeks)
 bash "$GS" query "
 MATCH (s:Session)-[:BY]->(p:Person {name: '$ME'})
-WHERE s.date >= date() - duration('P28D')
-WITH duration.inDays(s.date, date()).days / 7 AS weeksAgo, count(s) AS sessions
+WHERE date(s.date) >= date() - duration('P28D')
+WITH duration.inDays(date(s.date), date()).days / 7 AS weeksAgo, count(s) AS sessions
 RETURN weeksAgo, sessions ORDER BY weeksAgo" > "$TMPDIR/am_cadence.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/am_cadence.json" &
 
 # AM_resolution: My handoff resolution stats (30d avg)
 bash "$GS" query "
 MATCH (s:Session)-[:HANDED_TO]->(p:Person {name: '$ME'})
-WHERE s.handoffStatus = 'done' AND s.date >= date() - duration('P30D')
+WHERE s.handoffStatus = 'done' AND date(s.date) >= date() - duration('P30D')
   AND s.handoffReadDate IS NOT NULL
-WITH duration.inDays(s.date, s.handoffReadDate).days AS days
+WITH duration.inDays(date(s.date), date(s.handoffReadDate)).days AS days
 RETURN avg(days) AS avgDays, count(*) AS resolved" > "$TMPDIR/am_resolution.json" 2>/dev/null || echo "$EMPTY" > "$TMPDIR/am_resolution.json" &
 
 # AM_throughput: My todo created vs done (28d)
@@ -145,7 +145,7 @@ RETURN count(CASE WHEN t.created >= datetime() - duration('P28D') THEN 1 END) AS
 # AM_capture: My knowledge capture ratio (28d)
 bash "$GS" query "
 MATCH (s:Session)-[:BY]->(p:Person {name: '$ME'})
-WHERE s.date >= date() - duration('P28D')
+WHERE date(s.date) >= date() - duration('P28D')
 OPTIONAL MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p)
 WHERE a.created >= datetime({year: s.date.year, month: s.date.month, day: s.date.day})
   AND a.created < datetime({year: s.date.year, month: s.date.month, day: s.date.day}) + duration('P1D')

@@ -47,7 +47,7 @@ Execute each with `bash bin/graph.sh query "..." '{"param": "value"}'`.
 **Q1 — Recent sessions (7 days):**
 ```cypher
 MATCH (s:Session)-[:BY]->(p:Person {name: $me})
-WHERE s.date >= date() - duration('P7D')
+WHERE date(s.date) >= date() - duration('P7D')
 RETURN s.topic AS topic, s.date AS date, s.summary AS summary
 ORDER BY s.date DESC LIMIT 5
 ```
@@ -74,7 +74,7 @@ ORDER BY a.created DESC LIMIT 10
 **Q4 — Knowledge gaps (sessions without corresponding artifacts):**
 ```cypher
 MATCH (s:Session)-[:BY]->(p:Person {name: $me})
-WHERE s.date >= date() - duration('P14D')
+WHERE date(s.date) >= date() - duration('P14D')
 OPTIONAL MATCH (a:Artifact)-[:CONTRIBUTED_BY]->(p)
 WHERE a.created >= datetime({year: s.date.year, month: s.date.month, day: s.date.day})
   AND a.created < datetime({year: s.date.year, month: s.date.month, day: s.date.day}) + duration('P1D')

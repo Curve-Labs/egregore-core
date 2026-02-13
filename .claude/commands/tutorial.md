@@ -376,7 +376,7 @@ bash bin/graph.sh query "MATCH (q:Quest {status: 'active'}) OPTIONAL MATCH (a:Ar
 ```
 
 ```bash
-bash bin/graph.sh query "MATCH (s:Session)-[:HANDED_TO]->(p:Person {name: $me}) WHERE s.date >= date() - duration('P7D') MATCH (s)-[:BY]->(author:Person) RETURN s.topic AS topic, author.name AS author, s.filePath AS filePath LIMIT 3" '{"me": "<author>"}'
+bash bin/graph.sh query "MATCH (s:Session)-[:HANDED_TO]->(p:Person {name: $me}) WHERE date(s.date) >= date() - duration('P7D') MATCH (s)-[:BY]->(author:Person) RETURN s.topic AS topic, author.name AS author, s.filePath AS filePath LIMIT 3" '{"me": "<author>"}'
 ```
 
 **If quests/handoffs exist:** Show the top quest with its artifacts. Walk through a handoff if one exists for them.
