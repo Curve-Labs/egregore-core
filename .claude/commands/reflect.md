@@ -38,7 +38,7 @@ Topic: $ARGUMENTS
 git config user.name
 ```
 
-Derive handle: lowercase first word of git user.name (e.g. "Oguzhan Yayla" → "oguzhan").
+Derive handle: lowercase first word of git user.name (e.g. "Alice Smith" → "alice").
 
 ### Context queries (run ALL in parallel)
 
@@ -330,7 +330,7 @@ CREATE (a)-[:RELATES_TO]->(b)
 
 Where:
 - `$artifactId` = `{YYYY-MM-DD}-{slug}` (matches filename without extension)
-- `$author` = short name (oz, cem, ali)
+- `$author` = short name (alice, bob, carol)
 - `$category` = decision | finding | pattern
 - `$topics` = array of topic strings
 - `$filePath` = `knowledge/{category}s/{YYYY-MM-DD}-{slug}.md`
@@ -376,7 +376,7 @@ The separator lines are ALWAYS identical — copy-paste the same 72-char string.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ◎ REFLECTION                                        cem · Feb 08   │
+│  ◎ REFLECTION                                        bob · Feb 08   │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  2 insights captured:                                                │
@@ -397,7 +397,7 @@ The separator lines are ALWAYS identical — copy-paste the same 72-char string.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ◎ REFLECTION                                        cem · Feb 08   │
+│  ◎ REFLECTION                                        bob · Feb 08   │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ◉ Finding: Neo4j HTTP API faster than Bolt for small...             │
@@ -500,7 +500,7 @@ Creating reflection...
   [3/3] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ◎ REFLECTION                                        cem · Feb 08   │
+│  ◎ REFLECTION                                        bob · Feb 08   │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  2 insights captured:                                                │
@@ -535,7 +535,7 @@ Creating reflection...
   [3/3] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ◎ REFLECTION                                        cem · Feb 08   │
+│  ◎ REFLECTION                                        bob · Feb 08   │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ◉ Finding: Neo4j HTTP API faster than Bolt for small...             │
@@ -564,7 +564,7 @@ Creating reflection...
   [3/3] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ◎ REFLECTION                                        cem · Feb 08   │
+│  ◎ REFLECTION                                        bob · Feb 08   │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ◉ Decision: Use stdio for MCP                                       │

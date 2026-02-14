@@ -21,7 +21,7 @@ The hook output is already in your context. It looks like this:
   ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝
 
   New session started.
-  Branch: dev/oz/2026-02-07-session
+  Branch: dev/alice/2026-02-07-session
   Develop: synced
   Memory: synced
 ```
@@ -68,7 +68,7 @@ bash bin/graph.sh test
 bash bin/graph.sh query "MATCH (p:Person) RETURN p.name"
 
 # Run a query with parameters
-bash bin/graph.sh query "MATCH (p:Person {name: \$name}) RETURN p" '{"name":"oz"}'
+bash bin/graph.sh query "MATCH (p:Person {name: \$name}) RETURN p" '{"name":"alice"}'
 
 # Show schema (node labels + relationship types)
 bash bin/graph.sh schema
@@ -78,32 +78,13 @@ bash bin/graph.sh schema
 
 Current schema: Person, Session, Artifact, Quest, Project, Spirit. Relationships: BY, CONTRIBUTED_BY, HANDED_TO, INVOKED_BY, INVOLVES, PART_OF, RELATES_TO, STARTED_BY.
 
-### Two Neo4j Databases — DO NOT MIX
-
-There are **two separate Neo4j Aura instances**. They serve different purposes and must never be confused:
-
-| Env vars | Purpose | Who uses it |
-|---|---|---|
-| `NEO4J_HOST` / `NEO4J_USER` / `NEO4J_PASSWORD` | **Curve Labs private** — CL's own Egregore data only | Only the `curvelabs` org config in `api/auth.py` |
-| `EGREGORE_NEO4J_HOST` / `EGREGORE_NEO4J_USER` / `EGREGORE_NEO4J_PASSWORD` | **Customer shared** — All orgs created via `/api/org/setup` | Every non-CL org. Setup, reload, cross-org queries. |
-
-**Rules for API code:**
-- **New customer orgs** → always use `EGREGORE_NEO4J_HOST` env vars. Never inherit from `ORG_CONFIGS` (that would give them CL's private database).
-- **`load_orgs_from_neo4j()`** → must query `EGREGORE_NEO4J_HOST` to find customer Org nodes. Falls back to `ORG_CONFIGS` only if the env var isn't set.
-- **`_get_seed_org()`** (cross-org queries) → prefers `EGREGORE_NEO4J_HOST` since these are customer-facing web UI endpoints.
-- **CL's `curvelabs` config** → built from `NEO4J_HOST` in `load_org_configs()`. Never changes.
-
-Within each database, tenant isolation is done via `inject_org_scope()` — every query gets `org: $_org` injected into node patterns.
-
-See `DEV.md` for full infrastructure details (not synced to public repo).
-
 ## Notifications
 
 Telegram notifications via `bin/notify.sh`. Routes through the API gateway using `EGREGORE_API_KEY` from `.env`.
 
 ```bash
 # Send to a person (DMs if they have telegramId in Neo4j, falls back to group)
-bash bin/notify.sh send "oz" "Hey Oz, new handoff about MCP auth"
+bash bin/notify.sh send "alice" "Hey Alice, new handoff about MCP auth"
 
 # Send to the group chat
 bash bin/notify.sh group "New quest started: research-agent"
@@ -154,9 +135,9 @@ Run these steps in order. Write `.egregore-state.json` after each step to checkp
    ```
    Where should we create the shared memory repo?
 
-   1. Curve-Labs
+   1. Acme-Org
    2. other-org
-   3. ozzibroccoli (personal account)
+   3. alicedev (personal account)
 
    Don't see your organization? Your org admin may need to approve Egregore at:
    https://github.com/organizations/{org}/settings/oauth_application_policy
@@ -307,7 +288,7 @@ If `memory/` symlink doesn't exist:
 Setting up your workspace...
 ```
 
-Derive the clone directory name from `memory_repo` — strip the trailing `.git` and take the last path segment. For example, `https://github.com/Curve-Labs/curve-labs-memory.git` becomes `curve-labs-memory`:
+Derive the clone directory name from `memory_repo` — strip the trailing `.git` and take the last path segment. For example, `https://github.com/Acme-Org/acme-org-memory.git` becomes `acme-org-memory`:
 ```bash
 MEMORY_REPO="$(jq -r '.memory_repo' egregore.json)"
 MEMORY_DIR="$(basename "$MEMORY_REPO" .git)"
@@ -366,7 +347,7 @@ Only say this once per session. Never repeat it.
 ```json
 {
   "org_setup": true,
-  "name": "Oz",
+  "name": "Alice",
   "github_configured": true,
   "workspace_ready": true,
   "onboarding_complete": true,
@@ -410,7 +391,7 @@ main ← stable (/release)
 
 ### Managed Repos
 
-Teams can add their own repos to `egregore.json` → `repos[]` (e.g. `["lace", "backend"]`). These are cloned as sibling directories (`../lace/`, `../backend/`).
+Teams can add their own repos to `egregore.json` → `repos[]` (e.g. `["frontend", "backend"]`). These are cloned as sibling directories (`../frontend/`, `../backend/`).
 
 **Same branching strategy applies.** Each managed repo uses `develop` → working branch → PR → `main`, identical to the hub.
 

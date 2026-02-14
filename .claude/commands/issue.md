@@ -45,19 +45,19 @@ TUI box — same boundary rules as all commands (72 chars, no sub-boxes).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ✱ ISSUES                                            oz · Feb 10    │
+│  ✱ ISSUES                                            alice · Feb 10    │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  OPEN                                                                │
 │    memory-symlink-breaks-after-pull                                  │
-│    Memory symlink breaks after pull (cem, Feb 09)                    │
+│    Memory symlink breaks after pull (bob, Feb 09)                    │
 │                                                                      │
 │    save-fails-silently                                               │
-│    /save fails silently when graph offline (oz, Feb 08) · #42        │
+│    /save fails silently when graph offline (alice, Feb 08) · #42        │
 │                                                                      │
 │  CLOSED                                                              │
 │    im-hungry                                                         │
-│    Im hungry (cem, Feb 09)                                           │
+│    Im hungry (bob, Feb 09)                                           │
 │                                                                      │
 ├──────────────────────────────────────────────────────────────────────┤
 │  /issue [description] to create · /issue close [id] to resolve       │
@@ -165,7 +165,7 @@ git status --short && echo "---" && \
 git log --oneline -5
 ```
 
-Map git username → short name: "Oguzhan Yayla" → oz, "Cem Dagdelen" → cem, "Cem F" → cem, "Ali" → ali
+Map git username → short name: "Alice Smith" → alice, "Bob Jones" → bob, "Bob J" → bob, "Carol" → carol
 
 **Bash call 2 — environment health:**
 ```bash
@@ -206,7 +206,7 @@ Analyze the description for signals:
 |---|---|
 | Mentions a slash command (`/save`, `/reflect`, `/activity`, etc.) | `{github_org}/egregore-core` |
 | Mentions `bin/`, `egregore.json`, `.claude/commands/`, onboarding, graph.sh | `{github_org}/egregore-core` |
-| Mentions a managed repo name from `.repos[]` (e.g., "lace", "tristero") | `{github_org}/{repo}` |
+| Mentions a managed repo name from `.repos[]` (e.g., "frontend", "backend") | `{github_org}/{repo}` |
 | Mentions "memory", "handoff", "knowledge graph", "Neo4j", "sync" | `{github_org}/egregore-core` |
 | General/vague, no code or system references | Just memory |
 | `egregore:` prefix (already handled above) | `egregore` upstream |
@@ -310,7 +310,7 @@ RETURN i.id
 
 Where:
 - `$id` = `YYYY-MM-DD-{slug}` (matches filename without extension)
-- `$author` = short name (oz, cem, ali)
+- `$author` = short name (alice, bob, carol)
 - `$title` = derived title
 - `$recipient` = selected recipient string
 - `$topics` = array of topic strings
@@ -519,22 +519,22 @@ The separator lines are ALWAYS identical — copy-paste the same 72-char string.
   [1/4] ✓ Issue saved to memory + graph
         → memory/knowledge/issues/2026-02-10-save-sync-drops-contributed-by.md
 
-This looks like an egregore-core issue. File it on Curve-Labs/egregore-core?
-  1. Yes, file on Curve-Labs/egregore-core
+This looks like an egregore-core issue. File it on acme-org/egregore-core?
+  1. Yes, file on acme-org/egregore-core
   2. Just memory — track locally only
 
 > 1
 
-  [2/4] ✓ Filed on Curve-Labs/egregore-core · #27
+  [2/4] ✓ Filed on acme-org/egregore-core · #27
   [3/4] ✓ Team notified
   [4/4] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ✱ ISSUE REPORTED                                cem · Feb 10       │
+│  ✱ ISSUE REPORTED                                bob · Feb 10       │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Title: /save sync drops CONTRIBUTED_BY links                        │
-│  For: Curve-Labs/egregore-core · issue #27                           │
+│  For: acme-org/egregore-core · issue #27                           │
 │                                                                      │
 │  ✓ Saved to memory · graphed · team notified                         │
 │  → memory/knowledge/issues/2026-02-10-save-sync-drops-...            │
@@ -549,8 +549,8 @@ This looks like an egregore-core issue. File it on Curve-Labs/egregore-core?
   [1/3] ✓ Issue saved to memory + graph
         → memory/knowledge/issues/2026-02-09-memory-symlink-breaks-after-pull.md
 
-This looks like an egregore-core issue. File it on Curve-Labs/egregore-core?
-  1. Yes, file on Curve-Labs/egregore-core
+This looks like an egregore-core issue. File it on acme-org/egregore-core?
+  1. Yes, file on acme-org/egregore-core
   2. Just memory — track locally only
 
 > 2
@@ -559,7 +559,7 @@ This looks like an egregore-core issue. File it on Curve-Labs/egregore-core?
   [3/3] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ✱ ISSUE CAPTURED                                cem · Feb 09       │
+│  ✱ ISSUE CAPTURED                                bob · Feb 09       │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Title: Memory symlink breaks after pull                             │
@@ -592,7 +592,7 @@ manually — here's the sanitized body:
   [2/2] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ✱ ISSUE CAPTURED                                cem · Feb 09       │
+│  ✱ ISSUE CAPTURED                                bob · Feb 09       │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Title: /save fails silently when graph is offline                   │
@@ -614,8 +614,8 @@ manually — here's the sanitized body:
 Where should this be filed?
   1. Just memory — tracked in knowledge graph, visible on /activity
   2. egregore — (coming soon — Phase B)
-  3. Curve-Labs/egregore-core — filed on the org's fork
-  4. Curve-Labs/lace — filed on lace
+  3. acme-org/egregore-core — filed on the org's fork
+  4. acme-org/frontend — filed on frontend
 
 > 1
 
@@ -623,7 +623,7 @@ Where should this be filed?
   [3/3] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ✱ ISSUE CAPTURED                                cem · Feb 10       │
+│  ✱ ISSUE CAPTURED                                bob · Feb 10       │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Title: Team pricing alignment feels off                             │
@@ -647,22 +647,22 @@ What's the issue?
   [1/4] ✓ Issue saved to memory + graph
         → memory/knowledge/issues/2026-02-09-session-query-duplicates.md
 
-This looks like an egregore-core issue. File it on Curve-Labs/egregore-core?
-  1. Yes, file on Curve-Labs/egregore-core
+This looks like an egregore-core issue. File it on acme-org/egregore-core?
+  1. Yes, file on acme-org/egregore-core
   2. Just memory — track locally only
 
 > 1
 
-  [2/4] ✓ Filed on Curve-Labs/egregore-core · #43
+  [2/4] ✓ Filed on acme-org/egregore-core · #43
   [3/4] ✓ Team notified
   [4/4] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ✱ ISSUE REPORTED                                cem · Feb 09       │
+│  ✱ ISSUE REPORTED                                bob · Feb 09       │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Title: Session query returns duplicates with multiple...            │
-│  For: Curve-Labs/egregore-core · issue #43                           │
+│  For: acme-org/egregore-core · issue #43                           │
 │                                                                      │
 │  ✓ Saved to memory · graphed · team notified                         │
 │  → memory/knowledge/issues/2026-02-09-session-query-duplicates.md    │

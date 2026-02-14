@@ -16,7 +16,7 @@ Description: $ARGUMENTS
 ## Deriving the topic slug
 
 Extract the essence of what the user said into a short, meaningful slug:
-- "auth flow in lace" → `auth-flow`
+- "auth flow in frontend" → `auth-flow`
 - "fix the payment endpoint bug" → `fix-payment-endpoint`
 - "refactoring the token store" → `refactor-token-store`
 - "working on oauth implementation" → `oauth-implementation`
@@ -46,8 +46,8 @@ If a match is found, offer to resume it instead of creating a new one.
 Creating branch...
 
   git fetch origin develop --quiet
-  git checkout -b dev/oz/auth-flow origin/develop
-  ✓ Created dev/oz/auth-flow (from develop)
+  git checkout -b dev/alice/auth-flow origin/develop
+  ✓ Created dev/alice/auth-flow (from develop)
 
 Ready to work. /save when done.
 ```
@@ -69,8 +69,8 @@ Ready to work. /save when done.
 
 No description given. Using today's date.
 
-  git checkout -b dev/oz/2026-02-12 origin/develop
-  ✓ Created dev/oz/2026-02-12 (from develop)
+  git checkout -b dev/alice/2026-02-12 origin/develop
+  ✓ Created dev/alice/2026-02-12 (from develop)
 
 Ready to work. /save when done.
 ```
@@ -88,13 +88,13 @@ git -C "$REPO_DIR" checkout -b dev/$AUTHOR/$TOPIC_SLUG origin/develop
 Use `git -C` with absolute paths — never `cd` into the repo.
 
 ```
-> /branch auth flow in lace
+> /branch auth flow in frontend
 
-Creating branch in lace...
+Creating branch in frontend...
 
-  git -C ../lace fetch origin develop --quiet
-  git -C ../lace checkout -b dev/oz/auth-flow origin/develop
-  ✓ Created dev/oz/auth-flow in lace (from develop)
+  git -C ../frontend fetch origin develop --quiet
+  git -C ../frontend checkout -b dev/alice/auth-flow origin/develop
+  ✓ Created dev/alice/auth-flow in frontend (from develop)
 
 Ready to work. /save when done.
 ```

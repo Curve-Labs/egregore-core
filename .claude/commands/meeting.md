@@ -546,7 +546,7 @@ Record these in the "Internal Tensions" section. These disagreements ARE signal 
 Show the merged extractions with multi-dimensional data:
 
 ```
-From "Weekly Sync — Feb 12" (Cem + Alice):
+From "Weekly Sync — Feb 12" (Bob + Alice):
 Tone: exploratory → decisive | Alignment: 0.85
 
   ◉ Decision: Use stdio transport for MCP servers           [0.9]
@@ -576,7 +576,7 @@ Tone: exploratory → decisive | Alignment: 0.85
 
   Actions:
     * Oz — write MCP auth spec by Friday
-    * Cem — prototype guided tour by Monday
+    * Bob — prototype guided tour by Monday
 
   Cross-refs: Decision (stdio) ← Finding (benchmark results)
 
@@ -1074,7 +1074,7 @@ Reading meeting...
     → Continuity Analyst (Sonnet)...
   Synthesizing results...
 
-From "Weekly Sync — Feb 12" (Cem + Alice, Bob):
+From "Weekly Sync — Feb 12" (Bob + Alice, Bob):
 Tone: exploratory → decisive | Alignment: 0.85
 
   ◉ Decision: Use stdio transport for MCP servers           [0.9]
@@ -1105,7 +1105,7 @@ Tone: exploratory → decisive | Alignment: 0.85
 
   Actions:
     * Oz — write MCP auth spec by Friday
-    * Cem — prototype guided tour by Monday
+    * Bob — prototype guided tour by Monday
 
   Cross-refs: Decision (stdio) ← Finding (benchmark results)
 

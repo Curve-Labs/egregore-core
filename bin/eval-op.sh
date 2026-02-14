@@ -120,7 +120,7 @@ case "$OP" in
       --arg bestConfig "$BEST_CONFIG" \
       --arg bestEfficiency "$BEST_EFFICIENCY" \
       --arg matchCount "$MATCH_COUNT" \
-      --arg author "${EGREGORE_USER:-cem}" \
+      --arg author "${EGREGORE_USER:-unknown}" \
       '{reportId: $reportId, pipelineId: $pipelineId, filePath: $filePath, configs: $configs, elo: $elo, bestConfig: $bestConfig, bestEfficiency: $bestEfficiency, matchCount: $matchCount, author: $author}')
     bash "$GS" query "
       CREATE (rep:EvalReport {

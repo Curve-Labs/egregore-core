@@ -129,7 +129,7 @@ Save your contributions to Egregore. Pushes working branch, creates PR to develo
         ```bash
         gh pr create --repo $GITHUB_ORG/$REPO --base develop --title "..." --body "..."
         ```
-     6. User sees: `[repo-name] ✓ Pushed dev/oz/topic-slug → PR #N to develop`
+     6. User sees: `[repo-name] ✓ Pushed dev/alice/topic-slug → PR #N to develop`
    - **Use `git -C` with absolute paths** — never `cd` into the repo (avoids permission prompts)
 
 ## Neo4j Sync Logic (via bin/graph.sh)
@@ -214,13 +214,13 @@ This ensures files and graph stay in sync even if earlier commands skipped Neo4j
 Saving to Egregore...
 
 [sync] Checking Neo4j...
-  handoffs/2026-02/07-oz-infra-fix.md → missing Session
-  ✓ Created Session node for oz
+  handoffs/2026-02/07-alice-infra-fix.md → missing Session
+  ✓ Created Session node for alice
   Synced: 1 session
 
 [memory]
   Changes:
-    handoffs/2026-02/07-oz-infra-fix.md (new)
+    handoffs/2026-02/07-alice-infra-fix.md (new)
     handoffs/index.md (modified)
 
   Pushing to main...
@@ -231,17 +231,17 @@ Saving to Egregore...
   ✓ Memory pushed
 
 [egregore]
-  On branch: dev/oz/2026-02-07-session
+  On branch: dev/alice/2026-02-07-session
   Changes:
     .claude/commands/save.md (modified)
     bin/session-start.sh (new)
 
   Pushing and creating PR...
-    git push -u origin dev/oz/2026-02-07-session
+    git push -u origin dev/alice/2026-02-07-session
     gh pr create --base develop --title "Update save command and add session-start"
 
   Has code changes — PR #15 created for review.
-  ✓ Notified oz
+  ✓ Notified alice
 
 Done. Team sees your contribution on /activity.
 ```
@@ -262,8 +262,8 @@ Saving to Egregore...
 [egregore]
   No changes.
 
-[lace]
-  On branch: develop → creating dev/oz/auth-flow
+[frontend]
+  On branch: develop → creating dev/alice/auth-flow
   Changes:
     src/auth/token.ts      (+18, -3)
     src/auth/middleware.ts  (+42, new file)
@@ -272,8 +272,8 @@ Saving to Egregore...
     ✓ Clean rebase
 
   Pushing and creating PR...
-    git push -u origin dev/oz/auth-flow
-    gh pr create --repo Curve-Labs/lace --base develop
+    git push -u origin dev/alice/auth-flow
+    gh pr create --repo acme-org/frontend --base develop
     ✓ PR #27 created for review
 
 Done.
@@ -283,7 +283,7 @@ Done.
 
 ```
 [egregore]
-  On branch: dev/cem/2026-02-08-session
+  On branch: dev/bob/2026-02-08-session
   Changes:
     .claude/commands/onboarding.md (modified)
 
@@ -304,7 +304,7 @@ No uncommitted changes.
 
 ## Site change detection
 
-After saving changes to `Curve-Labs/egregore` (the hub repo), check if any files in `site 2/` were modified in the commits being saved:
+After saving changes to the hub repo, check if any files in `site 2/` were modified in the commits being saved:
 
 ```bash
 # Check if any staged/committed files touch site 2/

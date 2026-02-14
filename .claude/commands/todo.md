@@ -19,7 +19,7 @@ Arguments: $ARGUMENTS (Optional: text to add, "done N", "cancel N", quest slug, 
 git config user.name
 ```
 
-Map to short name: "Oguzhan Yayla" → oz, "Cem Dagdelen" → cem, "Ali" → ali, "Pali" → pali
+Map to short name: "Alice Smith" → alice, "Bob Jones" → bob, "Carol" → carol, "Dave" → dave
 
 ## Step 2: Parse Arguments
 
@@ -58,7 +58,7 @@ bash bin/graph.sh query "MATCH (t:Todo)-[:BY]->(p:Person {name: '$me'}) WHERE t.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  □ TODO                                                cem · Feb 09  │
+│  □ TODO                                                bob · Feb 09  │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  [1] ★ fix retry logic in graph.sh                                   │
@@ -73,7 +73,7 @@ bash bin/graph.sh query "MATCH (t:Todo)-[:BY]->(p:Person {name: '$me'}) WHERE t.
 │  [4] finalize tier naming                                            │
 │      ↓ deferred until Feb 15 · 5d ago                                │
 │                                                                      │
-│  [5] ask oz about MCP auth                                           │
+│  [5] ask alice about MCP auth                                           │
 │      ? pending ask · today                                           │
 │                                                                      │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -119,11 +119,11 @@ bash bin/graph.sh query "MATCH (t:Todo)-[:PART_OF]->(q:Quest {id: '$questSlug'})
 Render same TUI as List but with quest name in header:
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  □ TODO · egregore-reliability                         cem · Feb 09  │
+│  □ TODO · egregore-reliability                         bob · Feb 09  │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
-│  [1] ★ fix retry logic in graph.sh (cem, 2d ago)                     │
-│  [2] investigate connection pooling (oz, today)                      │
+│  [1] ★ fix retry logic in graph.sh (bob, 2d ago)                     │
+│  [2] investigate connection pooling (alice, today)                      │
 │                                                                      │
 ├──────────────────────────────────────────────────────────────────────┤
 │  2 open · /todo done [N] to complete · /todo [text] to add          │
@@ -204,7 +204,7 @@ bash bin/graph.sh query "MATCH (t:Todo {id: '$id'}) MATCH (p:Person {name: '$men
 **Multiple items** — TUI box:
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  □ TODO ADDED                                          cem · Feb 09  │
+│  □ TODO ADDED                                          bob · Feb 09  │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ✓ fix retry logic in graph.sh                                       │
@@ -213,8 +213,8 @@ bash bin/graph.sh query "MATCH (t:Todo {id: '$id'}) MATCH (p:Person {name: '$men
 │  ✓ revisit pricing page copy                                         │
 │    → pricing-strategy                                                │
 │                                                                      │
-│  ✓ ask oz about MCP auth                                             │
-│    ? queued for oz · notified                                        │
+│  ✓ ask alice about MCP auth                                             │
+│    ? queued for alice · notified                                        │
 │                                                                      │
 ├──────────────────────────────────────────────────────────────────────┤
 │  3 added · 7 open total                                              │
@@ -269,7 +269,7 @@ Render TUI showing items grouped by quest, with overdue deferred items surfaced 
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  □ CHECK-IN                                            cem · Feb 10  │
+│  □ CHECK-IN                                            bob · Feb 10  │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ↓ ★ OVERDUE                                                         │
@@ -283,7 +283,7 @@ Render TUI showing items grouped by quest, with overdue deferred items surfaced 
 │  [4]   revisit pricing page copy                                     │
 │                                                                      │
 │  ○ unlinked                                                          │
-│  [5]   ask oz about MCP auth                                         │
+│  [5]   ask alice about MCP auth                                         │
 │                                                                      │
 ├──────────────────────────────────────────────────────────────────────┤
 │  5 items to review · walking through now                             │
@@ -440,7 +440,7 @@ Render check-in summary with state distribution + quest pulse:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  □ CHECK-IN COMPLETE                                   cem · Feb 10  │
+│  □ CHECK-IN COMPLETE                                   bob · Feb 10  │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ✓ 1 done · → 2 progressing · ✗ 1 blocked · ↓ 1 deferred           │
@@ -562,7 +562,7 @@ Output:
 
 ```
 (:Todo {
-  id: String,                  // "2026-02-09-cem-001"
+  id: String,                  // "2026-02-09-bob-001"
   text: String,                // "fix retry logic in graph.sh"
   status: String,              // "open" | "done" | "cancelled" | "blocked" | "deferred"
   created: datetime(),
@@ -580,7 +580,7 @@ Output:
 })
 
 (:CheckIn {
-  id: String,              // "checkin-2026-02-09-cem-001"
+  id: String,              // "checkin-2026-02-09-bob-001"
   date: date(),
   summary: String,         // "1 done, 2 progressing, 1 blocked"
   totalItems: Integer,

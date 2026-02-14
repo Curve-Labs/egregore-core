@@ -19,7 +19,7 @@ If `$ARGUMENTS` is empty, show usage and stop:
 ```
 Usage: /invite <github-username>
 
-Example: /invite rencburra
+Example: /invite newuser
 ```
 
 ## Step 2: Send invite (single call — credentials stay hidden)
@@ -148,17 +148,17 @@ or
 ## Example
 
 ```
-> /invite rencburra
+> /invite newuser
 
-Inviting rencburra to Curve Labs...
+Inviting newuser to Acme Org...
 
   GitHub org invitation: sent
   Memory repo access:    added
   Invite link:           created
 
-Share this link with rencburra:
+Share this link with newuser:
 
-  https://egregore-core.netlify.app/join?invite=inv_a1b2c3d4e5f6
+  https://egregore.xyz/join?invite=inv_a1b2c3d4e5f6
 
 They'll authenticate with GitHub, accept the org invite,
 and get a one-line install command.
@@ -169,10 +169,10 @@ and get a one-line install command.
 ## If already a member
 
 ```
-> /invite rencburra
+> /invite newuser
 
-rencburra is already a member of Curve-Labs.
-They can join Egregore directly at: https://egregore-core.netlify.app/setup
+newuser is already a member of acme-org.
+They can join Egregore directly at: https://egregore.xyz/setup
 ```
 
 ## Rules

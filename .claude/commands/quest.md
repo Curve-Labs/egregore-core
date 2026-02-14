@@ -23,9 +23,9 @@ All quests live in `memory/quests/[slug].md`
 title: Evaluation Benchmark for Dynamic Ontologies
 slug: benchmark-eval
 status: active | paused | completed
-projects: [tristero]
+projects: [backend]
 started: 2026-01-26
-started_by: Oz
+started_by: Alice
 priority: 0
 completed: null
 ---
@@ -76,7 +76,7 @@ SET q.priority = $priority
 RETURN q.id, q.priority
 ```
 
-Also update the quest markdown file — add or replace `priority:` in frontmatter.
+Also update the quest markdown file — add or repfrontend `priority:` in frontmatter.
 
 ```
 > /quest prioritize grants high
@@ -95,8 +95,8 @@ Active Quests
 
 | Quest | Project | Artifacts | Contributors |
 |-------|---------|-----------|--------------|
-| benchmark-eval | tristero | 4 | Oz, Ali |
-| research-agent | lace, tristero | 1 | Oz |
+| benchmark-eval | backend | 4 | Alice, Carol |
+| research-agent | frontend, backend | 1 | Alice |
 
 Paused: (none)
 
@@ -113,8 +113,8 @@ Quest: Evaluation Benchmark for Dynamic Ontologies
 ──────────────────────────────────────────────────
 
 Status: active
-Projects: tristero
-Started: 2026-01-26 by Oz
+Projects: backend
+Started: 2026-01-26 by Alice
 
 The Question:
   What does it mean for a dynamic ontology to be "good"?
@@ -127,19 +127,19 @@ Threads:
 
 Artifacts (4):
   → 2026-01-26 [source] HELM Framework Review
-  → 2026-01-26 [thought] Temporal dimension in evaluation (Oz)
+  → 2026-01-26 [thought] Temporal dimension in evaluation (Alice)
   → 2026-01-27 [source] Benchmarking LLM Reasoning
-  → 2026-01-27 [finding] HELM adaptable with modifications (Ali)
+  → 2026-01-27 [finding] HELM adaptable with modifications (Carol)
 
 Todos:
-  □ cem: fix retry logic in graph.sh (2d ago)
-  □ oz: investigate connection pooling (today)
+  □ bob: fix retry logic in graph.sh (2d ago)
+  □ alice: investigate connection pooling (today)
 
-Contributors: Oz, Ali
+Contributors: Alice, Carol
 
 Entry points:
   - Read the HELM finding
-  - Check tristero/benchmarks/ for prototype
+  - Check backend/benchmarks/ for prototype
 ```
 
 ## Example (new)
@@ -156,8 +156,8 @@ Short slug (lowercase, hyphens):
 > research-agent
 
 Which projects does this relate to?
-  [x] tristero
-  [x] lace
+  [x] backend
+  [x] frontend
   [ ] infrastructure
 
 ✓ Created memory/quests/research-agent.md
@@ -169,7 +169,7 @@ Add initial threads? (or skip)
 > done
 
 Recording in knowledge graph...
-  ✓ Quest node created, linked to tristero + lace
+  ✓ Quest node created, linked to backend + frontend
 
 ✓ Quest created. Run /save to share.
 ```
@@ -178,16 +178,16 @@ Recording in knowledge graph...
 
 When creating a quest that involves specific people, notify them:
 
-**Detection**: "quest involving cem and oz" → notify both
+**Detection**: "quest involving bob and alice" → notify both
 
 **Notification API**:
 ```bash
-bash bin/notify.sh send "cem" "message"
+bash bin/notify.sh send "bob" "message"
 ```
 
 **Message format**:
 ```
-Hey Cem, oz started a quest you're involved in: {title}
+Hey Bob, alice started a quest you're involved in: {title}
 
 "{question}"
 ```
@@ -203,9 +203,9 @@ bash bin/graph.sh query "MATCH (t:Todo)-[:PART_OF]->(q:Quest {id: '$questSlug'})
 Display after Threads section, before Artifacts, with status indicators and health:
 ```
 Todos: (healthy — 2/3 moving)
-  □ cem: fix retry logic in graph.sh (2d ago)
-  ✗ oz: investigate connection pooling — blocked: "waiting on API docs" (today)
-  ↓ cem: finalize tier naming — deferred until Feb 15 (5d ago)
+  □ bob: fix retry logic in graph.sh (2d ago)
+  ✗ alice: investigate connection pooling — blocked: "waiting on API docs" (today)
+  ↓ bob: finalize tier naming — deferred until Feb 15 (5d ago)
 ```
 
 **Health indicator** — derived from todo status distribution:

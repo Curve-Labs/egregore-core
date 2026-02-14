@@ -31,7 +31,7 @@ RESULT=$(bash bin/graph.sh query "..." 2>/dev/null) && echo "OK" || echo "FAILED
 git config user.name
 ```
 
-Derive author handle: lowercase first word of git user.name (e.g. "Oguzhan Yayla" → "oguzhan").
+Derive author handle: lowercase first word of git user.name (e.g. "Alice Smith" → "alice").
 
 Query all team members from the graph (suppress raw output, parse names):
 ```bash
@@ -162,7 +162,7 @@ Same fall-through as Route A.
   ─── 1 of 2 ───
 
   ┌──────────────────────────────────────────────────────────────────────┐
-  │  ⇌ HANDOFF FROM ALI                                   yesterday   │
+  │  ⇌ HANDOFF FROM CAROL                                 yesterday   │
   ├──────────────────────────────────────────────────────────────────────┤
   │                                                                      │
   │  Topic: Slash Command Testing                                        │
@@ -172,7 +172,7 @@ Same fall-through as Route A.
   │                                                                      │
   └──────────────────────────────────────────────────────────────────────┘
 
-  What's the status of ali's handoff on Slash Command Testing?
+  What's the status of carol's handoff on Slash Command Testing?
     1. Done
     2. Still open
     3. Not relevant
@@ -180,27 +180,27 @@ Same fall-through as Route A.
 > "Fixed the backtick bug, activity works. Reflect still needs
    the rubric rewrite."
 
-  ✓ Resolved: Slash Command Testing from ali
+  ✓ Resolved: Slash Command Testing from carol
     Captured: "Fixed the backtick bug, activity works. Reflect
     still needs the rubric rewrite."
 
   ─── 2 of 2 ───
 
   ┌──────────────────────────────────────────────────────────────────────┐
-  │  ⇌ HANDOFF FROM OZ                                       2d ago    │
+  │  ⇌ HANDOFF FROM ALICE                                     2d ago    │
   ├──────────────────────────────────────────────────────────────────────┤
   │  ...                                                                 │
   └──────────────────────────────────────────────────────────────────────┘
 
-  What's the status of oz's handoff on Setup flow?
+  What's the status of alice's handoff on Setup flow?
 > 1
 
-  ✓ Resolved: New Egregore setup flow from oz
+  ✓ Resolved: New Egregore setup flow from alice
 
   All caught up.
 
   Handing off this session? (topic, or enter to skip)
-> implicit handoff resolution to oz
+> implicit handoff resolution to alice
 
   Creating handoff...
   ...
@@ -212,14 +212,14 @@ Same fall-through as Route A.
 
   You have 5 open handoffs. Which have you addressed?
 
-  ☐ ● ali: Slash Command Testing (yesterday)
-  ☐ ◐ oz: New Egregore setup flow (2d ago)
-  ☐ ◐ oz: Infra fix after sync (3d ago)
-  ☐ ● pali: Animation handoff (4d ago)
+  ☐ ● carol: Slash Command Testing (yesterday)
+  ☐ ◐ alice: New Egregore setup flow (2d ago)
+  ☐ ◐ alice: Infra fix after sync (3d ago)
+  ☐ ● dave: Animation handoff (4d ago)
 
   Showing 4 of 5 — run /handoff again to triage the rest.
 
-> [selects ali + oz setup flow]
+> [selects carol + alice setup flow]
 
   ✓ Resolved 2 handoffs
   ◐ Kept 2 open
@@ -240,7 +240,7 @@ Parse `$ARGUMENTS` for topic and recipient.
 
 **Recipient detection** — understand from natural language who the handoff is for:
 - "setup flow to oskar" → topic: "setup flow", recipient: oskar
-- "mcp auth for oguzhan to pick up" → topic: "mcp auth", recipient: oguzhan
+- "mcp auth for alice to pick up" → topic: "mcp auth", recipient: alice
 - "handoff blog styling" → topic: "blog styling", recipient: none
 
 Team members: **from the graph query in Step 0** (not hardcoded).
@@ -262,13 +262,13 @@ Analyze the conversation context to produce:
 3. **Current state** — what's working, in progress, blocked
 4. **Open threads** — unfinished items with enough context to pick up
 5. **Next steps** — clear actions with entry points
-6. **Project** — which project this relates to (LACE/Tristero/Research/Egregore)
+6. **Project** — which project this relates to (identify from context)
 
 ## Step 3: Create handoff file
 
 File path: `memory/handoffs/YYYY-MM/DD-[author]-[topic-slug].md`
 
-Example: `memory/handoffs/2026-02/07-cem-defensibility-architecture.md`
+Example: `memory/handoffs/2026-02/07-bob-defensibility-architecture.md`
 
 Generate slug from topic: lowercase, hyphens, no special chars, max 50 chars.
 
@@ -286,7 +286,7 @@ cat > "memory/handoffs/YYYY-MM/DD-author-topic-slug.md" << 'HANDOFFEOF'
 **Date**: YYYY-MM-DD
 **Author**: [from git config user.name]
 **To**: [recipient, if specified]
-**Project**: [LACE/Tristero/Research/Egregore]
+**Project**: [project name from context]
 
 ## Session Summary
 
@@ -387,7 +387,7 @@ If any resolved, include in progress output: `[3/5] ✓ Session -> knowledge gra
 
 Where:
 - `$sessionId` = `YYYY-MM-DD-author-topic-slug` (matches filename without extension)
-- `$author` = short name (oz, cem, ali)
+- `$author` = short name (alice, bob, carol)
 - `$date` = `YYYY-MM-DD`
 - `$topic` = the topic string
 - `$summary` = 1-2 sentence summary
@@ -466,7 +466,7 @@ Entry point: memory/[handoff file path]
 
 Example:
 ```
-Handoff from Cem: Defensibility architecture
+Handoff from Bob: Defensibility architecture
 
 "Analyzed five-layer moat framework. Server-side intelligence is the biggest gap. Full artifact in knowledge/decisions/."
 
@@ -474,7 +474,7 @@ Session included 2 artifacts:
   - Decision: Defensibility architecture framework
   - Finding: Harvest flywheel as training surface
 
-Entry point: memory/handoffs/2026-02/07-cem-defensibility-architecture.md
+Entry point: memory/handoffs/2026-02/07-bob-defensibility-architecture.md
 ```
 
 Show progress:
@@ -509,11 +509,11 @@ The session summary is the primary content — what was actually handed off. The
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ⇌ HANDOFF SENT                                     cem · Feb 07     │
+│  ⇌ HANDOFF SENT                                     bob · Feb 07     │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Topic: Defensibility architecture                                   │
-│  To: Oz                                                              │
+│  To: Alice                                                           │
 │                                                                      │
 │  Analyzed five-layer moat framework for Egregore. Server-side        │
 │  intelligence is the biggest gap and biggest opportunity.             │
@@ -523,7 +523,7 @@ The session summary is the primary content — what was actually handed off. The
 │  ◉ Decision: Defensibility architecture framework                    │
 │  ◉ Finding: Harvest flywheel as training surface                     │
 ├──────────────────────────────────────────────────────────────────────┤
-│  ✓ Saved · graphed · pushed · Oz notified                            │
+│  ✓ Saved · graphed · pushed · Alice notified                            │
 │  Team sees this on /activity.                                        │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -532,7 +532,7 @@ The session summary is the primary content — what was actually handed off. The
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ⇌ HANDOFF SENT                                      oz · Feb 07     │
+│  ⇌ HANDOFF SENT                                      alice · Feb 07     │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Topic: MCP auth flow                                                │
@@ -568,7 +568,7 @@ Same boundary rules apply — 4 line patterns only, no sub-boxes, 72-char outer 
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ⇌ HANDOFF FROM CEM                                     Feb 07       │
+│  ⇌ HANDOFF FROM BOB                                     Feb 07       │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Topic: Defensibility architecture                                   │
@@ -587,7 +587,7 @@ Same boundary rules apply — 4 line patterns only, no sub-boxes, 72-char outer 
 │  ◉ Finding: Harvest flywheel as training surface                     │
 ├──────────────────────────────────────────────────────────────────────┤
 │  → memory/knowledge/decisions/2026-02-07-defensibility-...           │
-│  → memory/handoffs/2026-02/07-cem-defensibility-...             │
+│  → memory/handoffs/2026-02/07-bob-defensibility-...             │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -605,9 +605,9 @@ Same boundary rules apply — 4 line patterns only, no sub-boxes, 72-char outer 
 
 In `/activity`, handoffs directed at the current user use the three-icon status system:
 ```
-[1] ● oz → you: Infra fix after sync (yesterday)      ← pending (unread)
-[2] ◐ ali → you: Slash command testing (2d ago)        ← read but open
-    ○ oz → you: Setup flow (done)                      ← resolved (unnumbered)
+[1] ● alice → you: Infra fix after sync (yesterday)    ← pending (unread)
+[2] ◐ carol → you: Slash command testing (2d ago)      ← read but open
+    ○ alice → you: Setup flow (done)                   ← resolved (unnumbered)
 ```
 
 When the user selects a numbered item, display the receiver view above by reading the handoff file from the path in the Session node's `filePath` property.
@@ -647,14 +647,14 @@ If artifacts exist, skip this step silently.
 ## Full example: with recipient
 
 ```
-> /handoff defensibility architecture to oz
+> /handoff defensibility architecture to alice
 
 Creating handoff...
 
 Summarizing session...
 
   [1/5] ✓ Conversation file
-        → memory/handoffs/2026-02/07-cem-defensibility-architecture.md
+        → memory/handoffs/2026-02/07-bob-defensibility-architecture.md
 
   [2/5] ✓ Index updated
 
@@ -662,14 +662,14 @@ Summarizing session...
 
   [4/5] ✓ Pushed + PR created
 
-  [5/5] ✓ Oz notified
+  [5/5] ✓ Alice notified
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ⇌ HANDOFF SENT                                     cem · Feb 07     │
+│  ⇌ HANDOFF SENT                                     bob · Feb 07     │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Topic: Defensibility architecture                                   │
-│  To: Oz                                                              │
+│  To: Alice                                                           │
 │                                                                      │
 │  Analyzed five-layer moat framework for Egregore. Server-side        │
 │  intelligence is the biggest gap and biggest opportunity.             │
@@ -679,7 +679,7 @@ Summarizing session...
 │  ◉ Decision: Defensibility architecture framework                    │
 │  ◉ Finding: Harvest flywheel as training surface                     │
 ├──────────────────────────────────────────────────────────────────────┤
-│  ✓ Saved · graphed · pushed · Oz notified                            │
+│  ✓ Saved · graphed · pushed · Alice notified                            │
 │  Team sees this on /activity.                                        │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -694,7 +694,7 @@ Creating handoff...
 Summarizing session...
 
   [1/4] ✓ Conversation file
-        → memory/handoffs/2026-02/07-oz-mcp-auth-flow.md
+        → memory/handoffs/2026-02/07-alice-mcp-auth-flow.md
 
   [2/4] ✓ Index updated
 
@@ -703,7 +703,7 @@ Summarizing session...
   [4/4] ✓ Pushed + PR created
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ⇌ HANDOFF SENT                                      oz · Feb 07     │
+│  ⇌ HANDOFF SENT                                      alice · Feb 07     │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  Topic: MCP auth flow                                                │

@@ -37,7 +37,7 @@ All artifacts go in `memory/artifacts/`
 ---
 title: HELM Framework Review
 type: source | thought | finding | decision
-author: Oz (or "external" for sources)
+author: Alice (or "external" for sources)
 origin: https://... (for external sources)
 date: 2026-01-26
 quests: [benchmark-eval, research-agent]
@@ -71,7 +71,7 @@ RETURN a.id
 ```
 
 Where:
-- `$artifactId` = filename without extension (e.g., `2026-01-26-oz-temporal-thought`)
+- `$artifactId` = filename without extension (e.g., `2026-01-26-alice-temporal-thought`)
 - `$type` = source | thought | finding | decision
 - `$origin` = URL for external sources, null for thoughts
 - `$topics` = array of topic strings from frontmatter (e.g., `["evaluation", "benchmarks", "llm"]`)
@@ -100,7 +100,7 @@ Confirm? (y / edit tags / n)
 
 ✓ memory/artifacts/2026-01-26-benchmarking-llm-reasoning.md
 ✓ Artifact node created in knowledge graph
-✓ Linked: benchmark-eval → tristero
+✓ Linked: benchmark-eval → backend
 
 To see the graph: /quest benchmark-eval
 ```
@@ -116,15 +116,15 @@ What do you have?
 > goodness change as the ontology evolves"
 
 Type: thought
-Author: Oz (from git config)
+Author: Alice (from git config)
 
 Relevant quests:
   → benchmark-eval (this extends the core question)
 
 Topics: [evaluation, temporality, dynamic-ontologies]
 
-✓ memory/artifacts/2026-01-26-oz-temporal-evaluation-thought.md
-✓ Artifact node created, linked to oz
+✓ memory/artifacts/2026-01-26-alice-temporal-evaluation-thought.md
+✓ Artifact node created, linked to alice
 ✓ Linked to quest: benchmark-eval
 ```
 

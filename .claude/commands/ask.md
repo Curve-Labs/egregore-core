@@ -13,13 +13,13 @@ Parse `$ARGUMENTS`:
 - **target**: first word if it matches a known person name (query `MATCH (p:Person) RETURN p.name`), else none
 - **topic**: everything after "about", or the full argument if no "about"
 
-Strip `@` from names. Both `oz` and `@oz` work.
+Strip `@` from names. Both `alice` and `@alice` work.
 
 Get current user:
 ```bash
 git config user.name
 ```
-Map to short name: "Oguzhan Yayla" → oz, "Cem Dagdelen" → cem, etc.
+Map to short name: "Alice Smith" → alice, "Bob Jones" → bob, etc.
 
 **If target is a person → Outward (Step 3)**
 **Otherwise → Inward (Step 2)**

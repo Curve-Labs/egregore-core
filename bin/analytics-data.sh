@@ -13,13 +13,8 @@ trap "rm -rf $TMPDIR" EXIT
 ME="${1:-}"
 if [ -z "$ME" ]; then
   FULL_NAME=$(git -C "$SCRIPT_DIR" config user.name 2>/dev/null || echo "unknown")
-  case "$FULL_NAME" in
-    "Oguzhan Yayla"|"oz") ME="oz" ;;
-    "Cem Dagdelen"|"Cem F"|"cem") ME="cem" ;;
-    "Ali"|"ali") ME="ali" ;;
-    "Pali"|"pali") ME="pali" ;;
-    *) ME=$(echo "$FULL_NAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1) ;;
-  esac
+  # Derive short handle from git name (lowercase first word)
+  ME=$(echo "$FULL_NAME" | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1)
 fi
 
 ORG=$(jq -r '.org_name // "Egregore"' "$SCRIPT_DIR/egregore.json" 2>/dev/null || echo "Egregore")

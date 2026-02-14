@@ -37,7 +37,7 @@ Topic: $ARGUMENTS
 git config user.name
 ```
 
-Map to Person node: "Oguzhan Yayla" -> oz, "Cem Dagdelen" -> cem, "Ali" -> ali
+Map to Person node: "Alice Smith" -> alice, "Bob Jones" -> bob, "Carol" -> carol
 
 ### Context queries (run ALL in parallel)
 
@@ -304,7 +304,7 @@ CREATE (a)-[:RELATES_TO]->(b)
 
 Where:
 - `$artifactId` = `YYYY-MM-DD-{slug}` (matches filename without extension)
-- `$author` = short name (oz, cem, ali)
+- `$author` = short name (alice, bob, carol)
 - `$topics` = array of topic strings, always includes `'prompt-chain'`
 - `$moveTypes` = array of move type strings (e.g., `['inversion', 'calibration', 'scoping']`)
 - `$filePath` = `knowledge/patterns/YYYY-MM-DD-{slug}.md`
@@ -350,7 +350,7 @@ The separator lines are ALWAYS identical — copy-paste the same 72-char string.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ◇ ARCHIVE                                          cem · Feb 10    │
+│  ◇ ARCHIVE                                          bob · Feb 10    │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ◉ The Bitter Lesson Chain                                           │
@@ -369,7 +369,7 @@ The separator lines are ALWAYS identical — copy-paste the same 72-char string.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ◇ ARCHIVE                                          cem · Feb 10    │
+│  ◇ ARCHIVE                                          bob · Feb 10    │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ◉ Flip the question to removal                                     │
@@ -503,7 +503,7 @@ Creating archive...
   [3/3] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ◇ ARCHIVE                                          cem · Feb 10    │
+│  ◇ ARCHIVE                                          bob · Feb 10    │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ◉ The Bitter Lesson Chain                                           │
@@ -537,7 +537,7 @@ Creating archive...
   [3/3] ✓ Auto-saved
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│  ◇ ARCHIVE                                          cem · Feb 10    │
+│  ◇ ARCHIVE                                          bob · Feb 10    │
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ◉ Flip the question to removal                                     │
