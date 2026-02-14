@@ -304,6 +304,18 @@ if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
   ) &
 fi
 
+# --- Retry failed transcript pushes (background, silent) ---
+RETRY_QUEUE="$SCRIPT_DIR/.transcript-retry-queue"
+TRANSCRIPTS_DIR="$SCRIPT_DIR/../egregore-transcripts"
+if [ -f "$RETRY_QUEUE" ] && [ -s "$RETRY_QUEUE" ] && [ -d "$TRANSCRIPTS_DIR/.git" ]; then
+  (
+    # Just retry the git push — files are already committed locally
+    if git -C "$TRANSCRIPTS_DIR" push origin main 2>/dev/null; then
+      rm -f "$RETRY_QUEUE"
+    fi
+  ) >/dev/null 2>&1 &
+fi
+
 # --- Output greeting for Claude to display ---
 cat << 'GREETING'
 

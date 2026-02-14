@@ -302,6 +302,23 @@ Done.
 No uncommitted changes.
 ```
 
+## Site change detection
+
+After saving changes to `Curve-Labs/egregore` (the hub repo), check if any files in `site 2/` were modified in the commits being saved:
+
+```bash
+# Check if any staged/committed files touch site 2/
+git diff develop --name-only | grep '^site 2/' | head -1
+```
+
+If there are changes in `site 2/`, print after the save summary:
+
+```
+Site changes detected in site 2/. Run /deploy-site to publish to egregore.xyz
+```
+
+Do NOT auto-deploy. Explicit is better than implicit for production deploys.
+
 ## Why this flow?
 
 - Non-technical users never see git complexity
