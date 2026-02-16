@@ -247,7 +247,7 @@ for REPO in $MANAGED_REPOS; do
     if [ -n "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null | head -1)" ]; then
       R_DIRTY=" *"
     fi
-    REPOS_STATUS="${REPOS_STATUS}    ${REPO}: ${R_BRANCH}${R_DIRTY}\n"
+    REPOS_STATUS="${REPOS_STATUS}  ◇ ${REPO}: ${R_BRANCH}${R_DIRTY}\n"
   fi
 done
 
@@ -425,6 +425,25 @@ fi
   echo "$SUMMARY" > "$CTX_DIR/soul_summary"
 ) &
 
+# 6. Handoffs addressed to user (background)
+(
+  JSON="[]"
+  if [ -d "$SCRIPT_DIR/memory/handoffs" ]; then
+    ADDRESSED=$(grep -rl "to: $AUTHOR\|to:$AUTHOR" "$SCRIPT_DIR/memory/handoffs/" 2>/dev/null | head -5 || true)
+    JSON="["
+    FIRST=true
+    for AF in $ADDRESSED; do
+      [ -z "$AF" ] && continue
+      AF_NAME=$(basename "$AF" .md)
+      $FIRST || JSON="$JSON,"
+      JSON="$JSON\"$AF_NAME\""
+      FIRST=false
+    done
+    JSON="$JSON]"
+  fi
+  echo "$JSON" > "$CTX_DIR/addressed"
+) &
+
 # Wait for all context gathering to finish
 wait
 
@@ -440,7 +459,27 @@ cat << 'GREETING'
 
 GREETING
 
-# --- Status ---
+# --- Ornamented status ---
+# Humanize repo_name: egregore-0 → Egregore 0
+REPO_NAME=$(jq -r '.repo_name // "egregore"' "$SCRIPT_DIR/egregore.json" 2>/dev/null)
+INSTANCE_NAME=$(echo "$REPO_NAME" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1')
+ORG_NAME=$(jq -r '.org_name // ""' "$SCRIPT_DIR/egregore.json" 2>/dev/null)
+
+# Build the status line with right-aligned org name
+SEPARATOR="  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
+echo "$SEPARATOR"
+
+# Instance + org line (right-aligned org)
+LEFT="  ◈ $INSTANCE_NAME"
+RIGHT="$ORG_NAME"
+LINE_WIDTH=67
+LEFT_LEN=${#LEFT}
+RIGHT_LEN=${#RIGHT}
+PADDING=$((LINE_WIDTH - LEFT_LEN - RIGHT_LEN))
+if [ "$PADDING" -lt 1 ]; then PADDING=1; fi
+printf "%s%*s%s\n" "$LEFT" "$PADDING" "" "$RIGHT"
+
+# User + branch + memory line
 DISPLAY_NAME=""
 if [ -f "$STATE_FILE" ]; then
   DISPLAY_NAME=$(jq -r '.display_name // .name // empty' "$STATE_FILE" 2>/dev/null)
@@ -451,19 +490,28 @@ BRANCH_STATUS="$BRANCH"
 if [ "$ACTION" = "resumed" ]; then
   BRANCH_STATUS="$BRANCH (resumed)"
 fi
+BRANCH_STATUS="$BRANCH_STATUS · synced"
+if [ "$COMMITS_AHEAD" -gt 0 ] 2>/dev/null; then
+  BRANCH_STATUS="$BRANCH_STATUS · $COMMITS_AHEAD ahead"
+fi
 
-echo "  User: $GREETING_NAME"
-echo "  Branch: $BRANCH_STATUS"
-echo "  Develop: synced"
-if [ "$MEMORY_SYNCED" = "true" ]; then echo "  Memory: synced"; fi
-if [ "$COMMITS_AHEAD" -gt 0 ] 2>/dev/null; then echo "  $COMMITS_AHEAD changes on develop since last release."; fi
+MEMORY_STATUS=""
+if [ "$MEMORY_SYNCED" = "true" ]; then
+  MEMORY_STATUS="◆ memory · synced"
+fi
+
+echo "  ◇ $GREETING_NAME        ⎇ $BRANCH_STATUS        $MEMORY_STATUS"
+
+# Managed repos status
 if [ -n "$REPOS_STATUS" ]; then
-  echo "  Repos:"
   printf "$REPOS_STATUS"
 fi
 
+echo ""
+
 # --- Session context (hidden, for Claude) ---
 CONTEXT_HANDOFFS=$(cat "$CTX_DIR/handoffs" 2>/dev/null || echo "[]")
+CONTEXT_ADDRESSED=$(cat "$CTX_DIR/addressed" 2>/dev/null || echo "[]")
 CONTEXT_QUESTS=$(cat "$CTX_DIR/quests" 2>/dev/null || echo "[]")
 CONTEXT_ACTIVITY=$(cat "$CTX_DIR/activity" 2>/dev/null || echo "")
 CONTEXT_TEAM=$(cat "$CTX_DIR/team" 2>/dev/null || echo "[]")
@@ -475,6 +523,7 @@ cat << CTXEOF
 {
   "time_of_day": "$TIME_OF_DAY",
   "recent_handoffs": $CONTEXT_HANDOFFS,
+  "addressed_to_user": $CONTEXT_ADDRESSED,
   "quests": $CONTEXT_QUESTS,
   "last_user_activity": "$CONTEXT_ACTIVITY",
   "team_recent_memory": $CONTEXT_TEAM,
@@ -513,7 +562,7 @@ if [ "$FIRST_SESSION" = "true" ]; then
   echo ""
   echo "  Welcome! This is your first session."
   echo ""
-  echo "IMPORTANT: Display the above greeting exactly as-is. Then ask the user if they'd like a quick onboarding tour (run /onboarding), or if they want to jump straight in."
+  echo "IMPORTANT: Display the above greeting exactly as-is (ASCII art + ornamented status). Then ask the user if they'd like a quick onboarding tour (run /onboarding), or if they want to jump straight in."
   # Clear the flag so it only shows once
   jq '.first_session = false' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 else
@@ -528,7 +577,7 @@ else
   fi
 
   echo ""
-  echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting) on their first message. Then ask: What are you working on?"
+  echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting and ornamented status) on their first message. Then ask: What are you working on?"
   echo ""
   echo "BRANCH RULE: When the user responds with what they're working on, your FIRST action is to create a working branch: git fetch origin develop --quiet && git checkout -b dev/{author}/{topic-slug} origin/develop. Do this BEFORE any other work. Derive the topic slug from their description. If they ask a pure question with no work intent, skip branching."
 fi
