@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Egregore Works</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    color: #c8c8d0;
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    min-height: 100vh;
+  }
+
+  .container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 48px 40px 80px;
+  }
+
+  h1 {
+    font-size: 14px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    font-size: 11px;
+    color: #444;
+    margin-bottom: 56px;
+    letter-spacing: 2px;
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1a1a24;
+  }
+
+  .section-desc {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 24px;
+    line-height: 1.6;
+    max-width: 800px;
+  }
+
+  /* ═══════════════ STACK DIAGRAM ═══════════════ */
+  .stack {
+    margin-bottom: 64px;
+  }
+
+  .stack-layer {
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 2px;
+    position: relative;
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .stack-layer:first-child { border-radius: 8px 8px 4px 4px; }
+  .stack-layer:last-child { border-radius: 4px 4px 8px 8px; margin-bottom: 0; }
+
+  .stack-layer.l-terminal { background: #0d0d14; border-color: #2a2a3a; }
+  .stack-layer.l-commands { background: #0d0e14; border-color: #1a2a3a; }
+  .stack-layer.l-scripts { background: #0d0f12; border-color: #1a2a2a; }
+  .stack-layer.l-api { background: #0e0d0c; border-color: #2a2218; }
+  .stack-layer.l-data { background: #0c0d0e; border-color: #1a1a28; }
+
+  .stack-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 2px;
+  }
+
+  .stack-label-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #c8c8d0;
+  }
+
+  .stack-label-sub {
+    font-size: 9px;
+    color: #555;
+    letter-spacing: 1px;
+  }
+
+  .stack-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .stack-item {
+    border: 1px solid #222;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 10px;
+    color: #888;
+    background: #08080c;
+    white-space: nowrap;
+  }
+
+  .stack-item.highlight { color: #c8c8d0; border-color: #333; }
+  .stack-item .count { color: #555; font-size: 9px; }
+  .stack-item .detail { color: #555; font-size: 9px; display: block; margin-top: 2px; }
+
+  .stack-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stack-group-label {
+    font-size: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #444;
+    margin-bottom: 2px;
+  }
+
+  .stack-group-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Colors for stack items */
+  .si-purple { border-color: #3d2a55; color: #a06cd5; }
+  .si-blue { border-color: #2a3350; color: #7a9ec2; }
+  .si-green { border-color: #2a3d2a; color: #5da05d; }
+  .si-orange { border-color: #3d3020; color: #c29a5a; }
+  .si-red { border-color: #3d2020; color: #c25a5a; }
+  .si-teal { border-color: #1a3030; color: #5aaa9a; }
+
+  /* ═══════════════ ARROWS BETWEEN LAYERS ═══════════════ */
+  .stack-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 4px 0;
+    margin-left: 80px;
+  }
+
+  .stack-arrow .shaft {
+    width: 1px;
+    height: 12px;
+    background: #2a2a34;
+  }
+
+  .stack-arrow .label {
+    font-size: 9px;
+    color: #444;
+    letter-spacing: 1px;
+  }
+
+  /* ═══════════════ ONTOLOGY ═══════════════ */
+  .ontology {
+    margin-bottom: 64px;
+  }
+
+  .ontology-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .onto-card {
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 20px 22px;
+    background: #0d0d14;
+  }
+
+  .onto-node-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .onto-node-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .oni-person { background: #1a1030; color: #a06cd5; border: 1px solid #3d2a55; }
+  .oni-session { background: #101a30; color: #7a9ec2; border: 1px solid #2a3350; }
+  .oni-artifact { background: #101a10; color: #5da05d; border: 1px solid #2a3d2a; }
+  .oni-quest { background: #1a1510; color: #c29a5a; border: 1px solid #3d3020; }
+  .oni-project { background: #1a1018; color: #c07aaa; border: 1px solid #3d2040; }
+  .oni-todo { background: #0f1a1a; color: #5aaa9a; border: 1px solid #1a3030; }
+  .oni-question { background: #1a1a10; color: #aaaa5a; border: 1px solid #303020; }
+  .oni-checkin { background: #10101a; color: #8888cc; border: 1px solid #282840; }
+  .oni-spirit { background: #1a0f0f; color: #cc8888; border: 1px solid #402828; }
+  .oni-org { background: #101010; color: #999; border: 1px solid #333; }
+  .oni-tguser { background: #101a18; color: #5aaa8a; border: 1px solid #1a3028; }
+
+  .onto-node-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #c8c8d0;
+  }
+
+  .onto-node-desc {
+    font-size: 10px;
+    color: #666;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+
+  .onto-props {
+    margin-bottom: 12px;
+  }
+
+  .onto-props-label {
+    font-size: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #444;
+    margin-bottom: 6px;
+  }
+
+  .onto-prop {
+    font-size: 10px;
+    color: #777;
+    line-height: 1.6;
+    padding-left: 10px;
+    position: relative;
+  }
+
+  .onto-prop::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 4px;
+    height: 4px;
+    border-radius: 1px;
+    background: #333;
+  }
+
+  .onto-rels {
+    margin-top: 10px;
+  }
+
+  .onto-rel {
+    font-size: 10px;
+    line-height: 1.8;
+    padding-left: 10px;
+    position: relative;
+  }
+
+  .onto-rel::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: #444;
+    font-size: 9px;
+  }
+
+  .onto-rel .rel-type { color: #c29a5a; }
+  .onto-rel .rel-target { color: #7a9ec2; }
+  .onto-rel .rel-note { color: #444; font-size: 9px; }
+
+  /* ═══════════════ RELATIONSHIP MAP ═══════════════ */
+  .relmap {
+    margin-bottom: 64px;
+  }
+
+  .relmap-diagram {
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 32px;
+    background: #0d0d14;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
+    color: #666;
+  }
+
+  /* ═══════════════ COMMANDS GRID ═══════════════ */
+  .commands {
+    margin-bottom: 64px;
+  }
+
+  .cmd-category {
+    margin-bottom: 32px;
+  }
+
+  .cmd-category-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 12px;
+  }
+
+  .cmd-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+  }
+
+  .cmd-card {
+    border: 1px solid #1a1a28;
+    border-radius: 6px;
+    padding: 12px 14px;
+    background: #0d0d14;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .cmd-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #c8c8d0;
+    white-space: nowrap;
+  }
+
+  .cmd-desc {
+    font-size: 10px;
+    color: #666;
+    line-height: 1.4;
+  }
+
+  .cmd-infra {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+
+  .cmd-tag {
+    font-size: 8px;
+    letter-spacing: 1px;
+    padding: 1px 5px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+
+  .tag-graph { background: #0f1a10; color: #5da05d; border: 1px solid #1a2a1a; }
+  .tag-git { background: #10101a; color: #8888cc; border: 1px solid #1a1a30; }
+  .tag-notify { background: #1a1510; color: #c29a5a; border: 1px solid #2a2218; }
+  .tag-memory { background: #1a1018; color: #c07aaa; border: 1px solid #2a1828; }
+  .tag-api { background: #0f1a1a; color: #5aaa9a; border: 1px solid #1a2a2a; }
+  .tag-local { background: #121212; color: #888; border: 1px solid #222; }
+
+  /* ═══════════════ API ENDPOINTS ═══════════════ */
+  .api-section {
+    margin-bottom: 64px;
+  }
+
+  .api-groups {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .api-group {
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 18px 20px;
+    background: #0d0d14;
+  }
+
+  .api-group-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #c29a5a;
+    margin-bottom: 4px;
+  }
+
+  .api-group-desc {
+    font-size: 9px;
+    color: #555;
+    margin-bottom: 12px;
+  }
+
+  .api-endpoint {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    font-size: 10px;
+    line-height: 1.8;
+  }
+
+  .api-method {
+    font-weight: 600;
+    font-size: 9px;
+    width: 36px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .api-method.get { color: #5da05d; }
+  .api-method.post { color: #7a9ec2; }
+
+  .api-path { color: #888; }
+  .api-note { color: #444; font-size: 9px; }
+
+  /* ═══════════════ DATA STORES ═══════════════ */
+  .stores {
+    margin-bottom: 64px;
+  }
+
+  .stores-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .store-card {
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 22px 24px;
+    background: #0d0d14;
+  }
+
+  .store-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #c8c8d0;
+    margin-bottom: 4px;
+  }
+
+  .store-role {
+    font-size: 10px;
+    color: #666;
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+
+  .store-items {
+    margin-bottom: 12px;
+  }
+
+  .store-items-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #444;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #151520;
+  }
+
+  .store-item {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.7;
+    padding-left: 10px;
+    position: relative;
+  }
+
+  .store-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 8px;
+    width: 4px;
+    height: 4px;
+    border-radius: 1px;
+    background: #444;
+  }
+
+  .store-item .dim { color: #555; font-size: 10px; }
+
+  /* ═══════════════ SECURITY ═══════════════ */
+  .security {
+    margin-bottom: 64px;
+  }
+
+  .sec-flow {
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 24px;
+    background: #0d0d14;
+  }
+
+  .sec-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 10px 0;
+    border-bottom: 1px solid #111118;
+  }
+
+  .sec-step:last-child { border-bottom: none; }
+
+  .sec-step-num {
+    font-size: 10px;
+    color: #555;
+    width: 24px;
+    height: 24px;
+    border: 1px solid #222;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: #0a0a10;
+  }
+
+  .sec-step-content {
+    flex: 1;
+  }
+
+  .sec-step-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #c8c8d0;
+    margin-bottom: 2px;
+  }
+
+  .sec-step-detail {
+    font-size: 10px;
+    color: #666;
+    line-height: 1.5;
+  }
+
+  .sec-step-detail .red { color: #c25a5a; }
+  .sec-step-detail .green { color: #5da05d; }
+
+  /* ═══════════════ UTILITIES ═══════════════ */
+  .purple { color: #a06cd5; }
+  .blue { color: #7a9ec2; }
+  .green { color: #5da05d; }
+  .orange { color: #c29a5a; }
+  .teal { color: #5aaa9a; }
+  .red { color: #c25a5a; }
+  .dim { color: #555; }
+  .white { color: #c8c8d0; }
+
+  .mt-64 { margin-top: 64px; }
+  .mb-24 { margin-bottom: 24px; }
+
+  .note-box {
+    border: 1px dashed #1a1a28;
+    border-radius: 6px;
+    padding: 14px 18px;
+    background: #08080c;
+    font-size: 10px;
+    color: #666;
+    line-height: 1.6;
+    margin-top: 16px;
+  }
+
+  .note-box .label { color: #888; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>How Egregore Works</h1>
+  <p class="subtitle">The internal architecture &mdash; layers, ontology, commands, API</p>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SECTION 1: THE STACK                        -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="stack">
+    <div class="section-label">The Stack</div>
+    <p class="section-desc">
+      Five layers from the user's terminal down to the data stores. Each layer only talks to the one below it.
+    </p>
+
+    <!-- Layer 1: Terminal -->
+    <div class="stack-layer l-terminal">
+      <div class="stack-label">
+        <div class="stack-label-name"><span class="purple">Terminal</span></div>
+        <div class="stack-label-sub">User's laptop</div>
+      </div>
+      <div class="stack-content">
+        <div class="stack-item si-purple highlight">Claude Code <span class="detail">claude CLI &rarr; CLAUDE.md loaded</span></div>
+        <div class="stack-item si-purple">session-start.sh <span class="detail">auto-runs before first message</span></div>
+        <div class="stack-item">egregore.json <span class="detail">org config (committed)</span></div>
+        <div class="stack-item">.env <span class="detail">secrets (gitignored)</span></div>
+        <div class="stack-item">memory/ <span class="detail">symlink &rarr; ../{org}-memory</span></div>
+      </div>
+    </div>
+
+    <!-- Layer 2: Commands & Skills -->
+    <div class="stack-layer l-commands">
+      <div class="stack-label">
+        <div class="stack-label-name"><span class="blue">Commands</span></div>
+        <div class="stack-label-sub">.claude/commands/</div>
+      </div>
+      <div class="stack-content">
+        <div class="stack-group">
+          <div class="stack-group-label">Workflow <span class="dim">(10)</span></div>
+          <div class="stack-group-items">
+            <div class="stack-item si-blue">/save</div>
+            <div class="stack-item si-blue">/branch</div>
+            <div class="stack-item si-blue">/commit</div>
+            <div class="stack-item si-blue">/push</div>
+            <div class="stack-item si-blue">/pull</div>
+            <div class="stack-item si-blue">/pr</div>
+            <div class="stack-item si-blue">/update</div>
+            <div class="stack-item si-blue">/sync-repos</div>
+            <div class="stack-item si-blue">/sync-public</div>
+            <div class="stack-item si-blue">/release</div>
+          </div>
+        </div>
+        <div class="stack-group">
+          <div class="stack-group-label">Knowledge <span class="dim">(5)</span></div>
+          <div class="stack-group-items">
+            <div class="stack-item si-green">/reflect</div>
+            <div class="stack-item si-green">/add</div>
+            <div class="stack-item si-green">/note</div>
+            <div class="stack-item si-green">/archive</div>
+            <div class="stack-item si-green">/ask</div>
+          </div>
+        </div>
+        <div class="stack-group">
+          <div class="stack-group-label">Project <span class="dim">(4)</span></div>
+          <div class="stack-group-items">
+            <div class="stack-item si-orange">/quest</div>
+            <div class="stack-item si-orange">/project</div>
+            <div class="stack-item si-orange">/todo</div>
+            <div class="stack-item si-orange">/quest-suggest</div>
+          </div>
+        </div>
+        <div class="stack-group">
+          <div class="stack-group-label">Social <span class="dim">(5)</span></div>
+          <div class="stack-group-items">
+            <div class="stack-item si-teal">/activity</div>
+            <div class="stack-item si-teal">/handoff</div>
+            <div class="stack-item si-teal">/meeting</div>
+            <div class="stack-item si-teal">/invite</div>
+            <div class="stack-item si-teal">/issue</div>
+          </div>
+        </div>
+        <div class="stack-group">
+          <div class="stack-group-label">Setup <span class="dim">(4) + Eval (2)</span></div>
+          <div class="stack-group-items">
+            <div class="stack-item">/setup</div>
+            <div class="stack-item">/onboarding</div>
+            <div class="stack-item">/tutorial</div>
+            <div class="stack-item">/env</div>
+            <div class="stack-item">/eval</div>
+            <div class="stack-item">/eval-multiagent</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layer 3: Scripts -->
+    <div class="stack-layer l-scripts">
+      <div class="stack-label">
+        <div class="stack-label-name"><span class="green">Scripts</span></div>
+        <div class="stack-label-sub">bin/</div>
+      </div>
+      <div class="stack-content">
+        <div class="stack-item si-green highlight">graph.sh <span class="detail">Neo4j queries via API gateway</span></div>
+        <div class="stack-item si-green highlight">notify.sh <span class="detail">Telegram via API gateway</span></div>
+        <div class="stack-item si-green">activity-data.sh <span class="detail">dashboard aggregation (1 API call)</span></div>
+        <div class="stack-item si-green">session-start.sh <span class="detail">launch hook (600+ lines)</span></div>
+        <div class="stack-item">github-auth.sh <span class="detail">OAuth device flow</span></div>
+        <div class="stack-item">ensure-shell-function.sh <span class="detail">shell alias setup</span></div>
+        <div class="stack-item">graph-batch.sh</div>
+        <div class="stack-item">save-reminder.sh</div>
+      </div>
+    </div>
+
+    <!-- Layer 4: API Gateway -->
+    <div class="stack-layer l-api">
+      <div class="stack-label">
+        <div class="stack-label-name"><span class="orange">API Gateway</span></div>
+        <div class="stack-label-sub">FastAPI on Railway</div>
+      </div>
+      <div class="stack-content">
+        <div class="stack-group">
+          <div class="stack-group-label">Graph</div>
+          <div class="stack-group-items">
+            <div class="stack-item si-orange">/api/graph/query</div>
+            <div class="stack-item si-orange">/api/graph/batch</div>
+            <div class="stack-item si-orange">/api/graph/schema</div>
+          </div>
+        </div>
+        <div class="stack-group">
+          <div class="stack-group-label">Notify</div>
+          <div class="stack-group-items">
+            <div class="stack-item si-orange">/api/notify/send</div>
+            <div class="stack-item si-orange">/api/notify/group</div>
+          </div>
+        </div>
+        <div class="stack-group">
+          <div class="stack-group-label">Activity</div>
+          <div class="stack-group-items">
+            <div class="stack-item si-orange">/api/activity/dashboard</div>
+          </div>
+        </div>
+        <div class="stack-group">
+          <div class="stack-group-label">Org Lifecycle</div>
+          <div class="stack-group-items">
+            <div class="stack-item">/api/org/setup</div>
+            <div class="stack-item">/api/org/join</div>
+            <div class="stack-item">/api/org/invite</div>
+            <div class="stack-item">/api/org/telegram</div>
+          </div>
+        </div>
+        <div class="stack-group">
+          <div class="stack-group-label">User + Admin</div>
+          <div class="stack-group-items">
+            <div class="stack-item">/api/user/ensure</div>
+            <div class="stack-item">/api/user/profile</div>
+            <div class="stack-item">/api/admin/reload</div>
+            <div class="stack-item">/api/admin/waitlist</div>
+          </div>
+        </div>
+        <div class="stack-group">
+          <div class="stack-group-label">Security</div>
+          <div class="stack-group-items">
+            <div class="stack-item si-red">guard.py <span class="detail">blocks DELETE, DROP, unlabeled nodes</span></div>
+            <div class="stack-item si-red">inject_org_scope <span class="detail">adds org: $_org to all queries</span></div>
+            <div class="stack-item si-red">rate limiter <span class="detail">120 req/60s per org</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layer 5: Data Stores -->
+    <div class="stack-layer l-data">
+      <div class="stack-label">
+        <div class="stack-label-name"><span class="white">Data</span></div>
+        <div class="stack-label-sub">Persistent stores</div>
+      </div>
+      <div class="stack-content">
+        <div class="stack-item si-green highlight">Neo4j <span class="detail">Knowledge graph &mdash; people, sessions, artifacts, quests</span></div>
+        <div class="stack-item si-teal highlight">Supabase <span class="detail">Platform &mdash; orgs, API keys, tokens, users, waitlist</span></div>
+        <div class="stack-item si-blue highlight">GitHub <span class="detail">Code + memory repos &mdash; git-based storage</span></div>
+        <div class="stack-item si-orange highlight">Telegram <span class="detail">Notifications &mdash; DMs and group messages</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SECTION 2: DATA STORES                      -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="stores">
+    <div class="section-label">Data Stores &mdash; Neo4j vs Supabase</div>
+    <p class="section-desc">
+      Two databases, different purposes. Neo4j is the knowledge graph (what people do). Supabase is the platform layer (who has access).
+    </p>
+
+    <div class="stores-grid">
+      <div class="store-card" style="border-color: #2a3d2a;">
+        <div class="store-name green">Neo4j</div>
+        <div class="store-role">Knowledge graph. Stores everything that happens inside an Egregore &mdash; sessions, artifacts, quests, handoffs, todos, questions. Queried via Cypher through bin/graph.sh &rarr; API &rarr; Neo4j.</div>
+
+        <div class="store-items">
+          <div class="store-items-label">Node types</div>
+          <div class="store-item">Person <span class="dim">&mdash; team members</span></div>
+          <div class="store-item">Session <span class="dim">&mdash; work sessions, handoffs</span></div>
+          <div class="store-item">Artifact <span class="dim">&mdash; decisions, findings, patterns</span></div>
+          <div class="store-item">Quest <span class="dim">&mdash; open-ended explorations</span></div>
+          <div class="store-item">Project <span class="dim">&mdash; named workstreams</span></div>
+          <div class="store-item">Todo <span class="dim">&mdash; personal task items</span></div>
+          <div class="store-item">QuestionSet <span class="dim">&mdash; async questions</span></div>
+          <div class="store-item">CheckIn <span class="dim">&mdash; todo review snapshots</span></div>
+          <div class="store-item">Spirit <span class="dim">&mdash; org identity/culture</span></div>
+        </div>
+
+        <div class="store-items">
+          <div class="store-items-label">Tenant isolation</div>
+          <div class="store-item">Every query gets <span class="green">org: $_org</span> injected server-side</div>
+          <div class="store-item">Two instances: CL private + customer shared</div>
+        </div>
+      </div>
+
+      <div class="store-card" style="border-color: #1a3030;">
+        <div class="store-name teal">Supabase</div>
+        <div class="store-role">Platform layer. Manages org registration, API key validation, setup/invite tokens, user accounts, and the waitlist. Replacing in-memory ORG_CONFIGS for persistence across deploys.</div>
+
+        <div class="store-items">
+          <div class="store-items-label">Tables</div>
+          <div class="store-item">orgs <span class="dim">&mdash; org config (slug, name, github_org, neo4j creds, telegram)</span></div>
+          <div class="store-item">api_keys <span class="dim">&mdash; hashed keys (SHA256, prefix lookup)</span></div>
+          <div class="store-item">setup_tokens <span class="dim">&mdash; one-time tokens (10min/7day TTL)</span></div>
+          <div class="store-item">users <span class="dim">&mdash; GitHub username &rarr; profile</span></div>
+          <div class="store-item">memberships <span class="dim">&mdash; user &harr; org mapping</span></div>
+          <div class="store-item">waitlist <span class="dim">&mdash; signup queue</span></div>
+          <div class="store-item">telegram_events <span class="dim">&mdash; connection audit log</span></div>
+        </div>
+
+        <div class="note-box">
+          <span class="label">Fallback:</span> When USE_SUPABASE=false, tokens and org configs live in-memory. Neo4j Org nodes are the source of truth for customer orgs.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SECTION 3: KNOWLEDGE GRAPH ONTOLOGY         -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="ontology">
+    <div class="section-label">Knowledge Graph Ontology</div>
+    <p class="section-desc">
+      11 node types, 15+ relationship types. Every node gets <span class="green">org: $_org</span> injected for tenant isolation (except system nodes: Org, TelegramUser).
+    </p>
+
+    <div class="ontology-grid">
+      <!-- Person -->
+      <div class="onto-card">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-person">P</div>
+          <div class="onto-node-name">Person</div>
+        </div>
+        <div class="onto-node-desc">Team member. Created during onboarding or /invite.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Properties</div>
+          <div class="onto-prop">name, joined, telegramId, telegramUsername</div>
+        </div>
+        <div class="onto-rels">
+          <div class="onto-props-label">Relationships</div>
+          <div class="onto-rel"><span class="rel-type">BY</span> &larr; <span class="rel-target">Session, Quest, Artifact, Todo, CheckIn</span></div>
+          <div class="onto-rel"><span class="rel-type">HANDED_TO</span> &larr; <span class="rel-target">Session</span> <span class="rel-note">(directed handoffs)</span></div>
+          <div class="onto-rel"><span class="rel-type">ASKED_TO</span> &larr; <span class="rel-target">QuestionSet</span></div>
+          <div class="onto-rel"><span class="rel-type">IDENTIFIES</span> &larr; <span class="rel-target">TelegramUser</span> <span class="rel-note">(system node)</span></div>
+        </div>
+      </div>
+
+      <!-- Session -->
+      <div class="onto-card">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-session">S</div>
+          <div class="onto-node-name">Session</div>
+        </div>
+        <div class="onto-node-desc">A work session. Created by /handoff with summary, topic, and optional recipient.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Properties</div>
+          <div class="onto-prop">id, date, topic, summary, filePath</div>
+          <div class="onto-prop">handoffStatus <span class="dim">(pending/read/done)</span></div>
+          <div class="onto-prop">handoffReadDate, handoffResponse</div>
+        </div>
+        <div class="onto-rels">
+          <div class="onto-props-label">Relationships</div>
+          <div class="onto-rel"><span class="rel-type">BY</span> &rarr; <span class="rel-target">Person</span></div>
+          <div class="onto-rel"><span class="rel-type">HANDED_TO</span> &rarr; <span class="rel-target">Person</span></div>
+          <div class="onto-rel"><span class="rel-type">ABOUT</span> &rarr; <span class="rel-target">Project</span></div>
+        </div>
+      </div>
+
+      <!-- Artifact -->
+      <div class="onto-card">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-artifact">A</div>
+          <div class="onto-node-name">Artifact</div>
+        </div>
+        <div class="onto-node-desc">Knowledge unit &mdash; decision, finding, pattern, or archive. Created by /reflect, /add, /meeting, /archive.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Properties</div>
+          <div class="onto-prop">id, title, type <span class="dim">(decision/finding/pattern/archive)</span></div>
+          <div class="onto-prop">summary, filePath, topics[], created</div>
+        </div>
+        <div class="onto-rels">
+          <div class="onto-props-label">Relationships</div>
+          <div class="onto-rel"><span class="rel-type">CONTRIBUTED_BY</span> &rarr; <span class="rel-target">Person</span></div>
+          <div class="onto-rel"><span class="rel-type">PART_OF</span> &rarr; <span class="rel-target">Quest</span></div>
+          <div class="onto-rel"><span class="rel-type">RELATES_TO</span> &rarr; <span class="rel-target">Artifact</span> <span class="rel-note">(cross-refs)</span></div>
+          <div class="onto-rel"><span class="rel-type">FROM_MEETING</span> &rarr; <span class="rel-target">Session</span> <span class="rel-note">(meeting-sourced)</span></div>
+        </div>
+      </div>
+
+      <!-- Quest -->
+      <div class="onto-card">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-quest">Q</div>
+          <div class="onto-node-name">Quest</div>
+        </div>
+        <div class="onto-node-desc">Open-ended exploration. Created by /quest, artifacts and todos link to it via PART_OF.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Properties</div>
+          <div class="onto-prop">id <span class="dim">(slug)</span>, title, description, status <span class="dim">(active/paused/complete)</span></div>
+          <div class="onto-prop">created, priority, topics[]</div>
+        </div>
+        <div class="onto-rels">
+          <div class="onto-props-label">Relationships</div>
+          <div class="onto-rel"><span class="rel-type">STARTED_BY</span> &rarr; <span class="rel-target">Person</span></div>
+          <div class="onto-rel"><span class="rel-type">PART_OF</span> &larr; <span class="rel-target">Artifact, Todo</span> <span class="rel-note">(contributions)</span></div>
+          <div class="onto-rel"><span class="rel-type">RELATES_TO</span> &rarr; <span class="rel-target">Quest</span> <span class="rel-note">(quest links)</span></div>
+        </div>
+      </div>
+
+      <!-- Todo -->
+      <div class="onto-card">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-todo">T</div>
+          <div class="onto-node-name">Todo</div>
+        </div>
+        <div class="onto-node-desc">Personal task item. Created by /todo, optionally linked to a quest.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Properties</div>
+          <div class="onto-prop">id, text, status <span class="dim">(open/blocked/deferred/done/cancelled)</span></div>
+          <div class="onto-prop">created, completed, priority, topics[], source</div>
+          <div class="onto-prop">blockedBy, deferredUntil, lastNote</div>
+        </div>
+        <div class="onto-rels">
+          <div class="onto-props-label">Relationships</div>
+          <div class="onto-rel"><span class="rel-type">BY</span> &rarr; <span class="rel-target">Person</span></div>
+          <div class="onto-rel"><span class="rel-type">PART_OF</span> &rarr; <span class="rel-target">Quest</span></div>
+          <div class="onto-rel"><span class="rel-type">REVIEWED</span> &larr; <span class="rel-target">CheckIn</span></div>
+        </div>
+      </div>
+
+      <!-- QuestionSet -->
+      <div class="onto-card">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-question">?</div>
+          <div class="onto-node-name">QuestionSet</div>
+        </div>
+        <div class="onto-node-desc">Async question from one person to another. Created by /ask.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Properties</div>
+          <div class="onto-prop">id, questions[], status <span class="dim">(pending/answered)</span></div>
+          <div class="onto-prop">context, answers, created</div>
+        </div>
+        <div class="onto-rels">
+          <div class="onto-props-label">Relationships</div>
+          <div class="onto-rel"><span class="rel-type">ASKED_BY</span> &rarr; <span class="rel-target">Person</span></div>
+          <div class="onto-rel"><span class="rel-type">ASKED_TO</span> &rarr; <span class="rel-target">Person</span></div>
+          <div class="onto-rel"><span class="rel-type">PART_OF</span> &rarr; <span class="rel-target">Quest</span></div>
+        </div>
+      </div>
+
+      <!-- Project -->
+      <div class="onto-card">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-project">Pj</div>
+          <div class="onto-node-name">Project</div>
+        </div>
+        <div class="onto-node-desc">Named workstream (LACE, Tristero, Egregore). Sessions link to it via ABOUT.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Properties</div>
+          <div class="onto-prop">name, description, status</div>
+        </div>
+        <div class="onto-rels">
+          <div class="onto-props-label">Relationships</div>
+          <div class="onto-rel"><span class="rel-type">ABOUT</span> &larr; <span class="rel-target">Session</span></div>
+          <div class="onto-rel"><span class="rel-type">INVOLVES</span> &rarr; <span class="rel-target">Person</span></div>
+        </div>
+      </div>
+
+      <!-- CheckIn -->
+      <div class="onto-card">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-checkin">C</div>
+          <div class="onto-node-name">CheckIn</div>
+        </div>
+        <div class="onto-node-desc">Snapshot of a /todo check review. Tracks items done, blocked, evolved, deferred.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Properties</div>
+          <div class="onto-prop">id, date, summary, totalItems</div>
+          <div class="onto-prop">itemsDone, itemsProgressing, itemsBlocked, itemsEvolved, itemsDeferred</div>
+        </div>
+        <div class="onto-rels">
+          <div class="onto-props-label">Relationships</div>
+          <div class="onto-rel"><span class="rel-type">BY</span> &rarr; <span class="rel-target">Person</span></div>
+          <div class="onto-rel"><span class="rel-type">REVIEWED</span> &rarr; <span class="rel-target">Todo</span></div>
+        </div>
+      </div>
+
+      <!-- Spirit -->
+      <div class="onto-card">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-spirit">Sp</div>
+          <div class="onto-node-name">Spirit</div>
+        </div>
+        <div class="onto-node-desc">Org identity and culture. Captured through /reflect and onboarding.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Properties</div>
+          <div class="onto-prop">name, description, values</div>
+        </div>
+      </div>
+
+      <!-- System: Org + TelegramUser -->
+      <div class="onto-card" style="border-color: #333;">
+        <div class="onto-node-header">
+          <div class="onto-node-icon oni-org">Sy</div>
+          <div class="onto-node-name dim">System Nodes</div>
+        </div>
+        <div class="onto-node-desc">Global nodes exempt from org scoping. Not tenant-isolated.</div>
+        <div class="onto-props">
+          <div class="onto-props-label">Org</div>
+          <div class="onto-prop">id <span class="dim">(slug)</span>, name, github_org, api_key</div>
+        </div>
+        <div class="onto-props">
+          <div class="onto-props-label">TelegramUser</div>
+          <div class="onto-prop">telegramId, username, firstName</div>
+          <div class="onto-rel"><span class="rel-type">IDENTIFIES</span> &rarr; <span class="rel-target">Person</span> <span class="rel-note">(cross-org Telegram &rarr; graph link)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SECTION 4: QUERY SECURITY PIPELINE          -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="security">
+    <div class="section-label">Query Security Pipeline</div>
+    <p class="section-desc">
+      Every Cypher query from bin/graph.sh passes through this pipeline before reaching Neo4j.
+    </p>
+
+    <div class="sec-flow">
+      <div class="sec-step">
+        <div class="sec-step-num">1</div>
+        <div class="sec-step-content">
+          <div class="sec-step-title">Auth</div>
+          <div class="sec-step-detail">validate_api_key() &mdash; extract org slug from <span class="teal">ek_{slug}_{hex}</span> key. Check against Supabase hash (or in-memory fallback). Returns org config.</div>
+        </div>
+      </div>
+      <div class="sec-step">
+        <div class="sec-step-num">2</div>
+        <div class="sec-step-content">
+          <div class="sec-step-title">Guard</div>
+          <div class="sec-step-detail">
+            <span class="red">Blocks:</span> DELETE, DETACH, DROP, REMOVE, CREATE INDEX/CONSTRAINT, unallowlisted CALL, unlabeled node patterns <span class="dim">(bypass scoping)</span><br>
+            <span class="red">Rejects:</span> <code>org:</code> in statement, <code>_org</code> or <code>org</code> in parameters <span class="dim">(client can't set org)</span>
+          </div>
+        </div>
+      </div>
+      <div class="sec-step">
+        <div class="sec-step-num">3</div>
+        <div class="sec-step-content">
+          <div class="sec-step-title">Rate Limit</div>
+          <div class="sec-step-detail">120 requests per 60-second sliding window, per org. Raises RateLimitError.</div>
+        </div>
+      </div>
+      <div class="sec-step">
+        <div class="sec-step-num">4</div>
+        <div class="sec-step-content">
+          <div class="sec-step-title">Org Scope Injection</div>
+          <div class="sec-step-detail">
+            inject_org_scope() transforms every labeled node pattern:<br>
+            <span class="dim">MATCH (p:Person {name: $name})</span> &rarr; <span class="green">MATCH (p:Person {name: $name, org: $_org})</span><br>
+            System labels <span class="dim">(Org, TelegramUser)</span> are skipped. Parameter <span class="green">_org = slug</span> added server-side.
+          </div>
+        </div>
+      </div>
+      <div class="sec-step">
+        <div class="sec-step-num">5</div>
+        <div class="sec-step-content">
+          <div class="sec-step-title">Audit + Execute</div>
+          <div class="sec-step-detail">
+            Log metadata <span class="dim">(org, query type, length &mdash; no content)</span>. POST to Neo4j via httpx with basic auth.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SECTION 5: COMMANDS BY CATEGORY             -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="commands">
+    <div class="section-label">Commands &amp; What They Touch</div>
+
+    <div class="cmd-category">
+      <div class="cmd-category-label">Workflow</div>
+      <div class="cmd-grid">
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/save</div>
+            <div class="cmd-desc">Commit, push, PR to develop. Syncs artifacts/quests to graph.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-git">git</span><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-memory">memory</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/branch</div>
+            <div class="cmd-desc">Create working branch from description.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-git">git</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/update</div>
+            <div class="cmd-desc">Pull framework from upstream egregore-core + sync repos.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-git">git</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/release</div>
+            <div class="cmd-desc">Merge develop &rarr; main, tag, sync public. Maintainer only.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-git">git</span><span class="cmd-tag tag-notify">notify</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cmd-category">
+      <div class="cmd-category-label">Knowledge</div>
+      <div class="cmd-grid">
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/reflect</div>
+            <div class="cmd-desc">Socratic dialogue &rarr; decision/finding/pattern artifact. Saves to memory/knowledge/.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-memory">memory</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/add</div>
+            <div class="cmd-desc">Ingest artifact from URL or content. System suggests relations.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-memory">memory</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/meeting</div>
+            <div class="cmd-desc">3 Sonnet analysts + Opus synthesis. Extracts rich artifacts from meetings.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-memory">memory</span><span class="cmd-tag tag-api">api</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/ask</div>
+            <div class="cmd-desc">Ask a person or the org. Graph-backed context, async notification.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-notify">notify</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cmd-category">
+      <div class="cmd-category-label">Project Management</div>
+      <div class="cmd-grid">
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/quest</div>
+            <div class="cmd-desc">Create/list/contribute to open-ended explorations. Artifacts link via PART_OF.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-memory">memory</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/todo</div>
+            <div class="cmd-desc">Personal tasks. Add/done/cancel/check. Flows into quests and activity.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/activity</div>
+            <div class="cmd-desc">Flagship dashboard. Sessions, quests, handoffs, todos, trends &mdash; all in one TUI.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-api">api</span><span class="cmd-tag tag-git">git</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/handoff</div>
+            <div class="cmd-desc">End session with summary. Creates Session node, notifies recipient, auto-saves.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-notify">notify</span><span class="cmd-tag tag-memory">memory</span><span class="cmd-tag tag-git">git</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cmd-category">
+      <div class="cmd-category-label">Team</div>
+      <div class="cmd-grid">
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/invite</div>
+            <div class="cmd-desc">GitHub org invitation + Egregore setup link. Creates Person node.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-api">api</span><span class="cmd-tag tag-notify">notify</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/note</div>
+            <div class="cmd-desc">Private notes in .egregore/notes/. Never shared unless promoted.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-local">local</span></div>
+          </div>
+        </div>
+        <div class="cmd-card">
+          <div>
+            <div class="cmd-name">/issue</div>
+            <div class="cmd-desc">Report issues. Auto-captures context, routes to memory/graph/GitHub.</div>
+            <div class="cmd-infra"><span class="cmd-tag tag-graph">graph</span><span class="cmd-tag tag-git">git</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SECTION 6: API ENDPOINTS GROUPED            -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <div class="api-section">
+    <div class="section-label">API Endpoints</div>
+    <p class="section-desc">
+      FastAPI gateway on Railway. All endpoints require <span class="teal">EGREGORE_API_KEY</span> unless noted. 30+ routes grouped by function.
+    </p>
+
+    <div class="api-groups">
+      <div class="api-group">
+        <div class="api-group-name">Graph Queries</div>
+        <div class="api-group-desc">Cypher &rarr; guard &rarr; scope injection &rarr; Neo4j</div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/graph/query</span> <span class="api-note">&mdash; single query</span></div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/graph/batch</span> <span class="api-note">&mdash; 1-20 queries</span></div>
+        <div class="api-endpoint"><span class="api-method get">GET</span> <span class="api-path">/api/graph/schema</span></div>
+        <div class="api-endpoint"><span class="api-method get">GET</span> <span class="api-path">/api/graph/test</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-group-name">Notifications</div>
+        <div class="api-group-desc">Telegram routing &mdash; DM if telegramId exists, fallback to group</div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/notify/send</span> <span class="api-note">&mdash; to person</span></div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/notify/group</span> <span class="api-note">&mdash; to group</span></div>
+        <div class="api-endpoint"><span class="api-method get">GET</span> <span class="api-path">/api/notify/test</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-group-name">Activity</div>
+        <div class="api-group-desc">16 concurrent Neo4j queries &rarr; single JSON response</div>
+        <div class="api-endpoint"><span class="api-method get">GET</span> <span class="api-path">/api/activity/dashboard</span> <span class="api-note">&mdash; sessions, quests, handoffs, todos, trends</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-group-name">Org Lifecycle</div>
+        <div class="api-group-desc">Setup, join, invite &mdash; the onboarding pipeline</div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/org/setup</span> <span class="api-note">&mdash; fork + memory + Neo4j bootstrap</span></div>
+        <div class="api-endpoint"><span class="api-method get">GET</span> <span class="api-path">/api/org/claim/{token}</span> <span class="api-note">&mdash; consume setup token</span></div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/org/join</span> <span class="api-note">&mdash; verify joiner access</span></div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/org/invite</span> <span class="api-note">&mdash; GitHub invite + token</span></div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/org/telegram</span> <span class="api-note">&mdash; bot reports chat_id</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-group-name">Users</div>
+        <div class="api-group-desc">Profile, membership, cross-org identity</div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/user/ensure</span> <span class="api-note">&mdash; upsert to Supabase</span></div>
+        <div class="api-endpoint"><span class="api-method get">GET</span> <span class="api-path">/api/user/profile</span> <span class="api-note">&mdash; GitHub token auth</span></div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/user/profile</span> <span class="api-note">&mdash; update telegram handle</span></div>
+        <div class="api-endpoint"><span class="api-method get">GET</span> <span class="api-path">/api/user/orgs</span> <span class="api-note">&mdash; all user's orgs</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-group-name">Admin</div>
+        <div class="api-group-desc">Ops + waitlist management</div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/admin/reload</span> <span class="api-note">&mdash; refresh ORG_CONFIGS</span></div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/admin/waitlist</span> <span class="api-note">&mdash; signup (no auth)</span></div>
+        <div class="api-endpoint"><span class="api-method get">GET</span> <span class="api-path">/api/admin/waitlist</span> <span class="api-note">&mdash; list entries</span></div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/admin/waitlist/approve</span></div>
+        <div class="api-endpoint"><span class="api-method post">POST</span> <span class="api-path">/api/auth/github/callback</span> <span class="api-note">&mdash; OAuth exchange</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

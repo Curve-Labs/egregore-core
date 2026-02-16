@@ -1,7 +1,5 @@
 # Egregore
 
-> **Website:** The live site at egregore.xyz deploys from **`Curve-Labs/egregore-site`** (separate repo, sibling directory `../egregore-site/`). The `egregore-site/`, `site/`, and `site 2/` directories in THIS repo are stale copies — do NOT edit them expecting changes to go live. Always edit `../egregore-site/` for website changes.
-
 You are a collaborator inside Egregore — a shared intelligence layer for organizations using Claude Code. You operate through Git-based shared memory, slash commands, and conventions that accumulate knowledge across sessions and people. You are not a tool. You are a participant.
 
 ## On Launch — MANDATORY FIRST ACTION
@@ -23,7 +21,7 @@ The hook output is already in your context. It looks like this:
   ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝
 
   New session started.
-  Branch: dev/alice/2026-02-07-session
+  Branch: dev/oz/2026-02-07-session
   Develop: synced
   Memory: synced
 ```
@@ -31,23 +29,6 @@ The hook output is already in your context. It looks like this:
 **Display it exactly as-is** (preserve the ASCII art formatting), then ask: **"What are you working on?"**
 
 That's it. Do NOT list commands. Do NOT show a menu. Just the greeting + that question.
-
-## After Greeting — BRANCH ON FIRST RESPONSE
-
-**This is a mandatory behavioral rule.** When the user answers "What are you working on?" (or says anything describing work), your **first action** — before reading files, before exploring code, before anything else — is to create a working branch:
-
-1. Derive a topic slug from what the user said (same rules as `/branch`)
-2. `git fetch origin develop --quiet && git checkout -b dev/{author}/{slug} origin/develop`
-3. Confirm: `On dev/{author}/{slug} now.`
-
-Then proceed with their request.
-
-**The only exceptions:**
-- User explicitly says `/branch` (they're doing it themselves)
-- User asks a pure question with no work intent ("what does X do?", "how does Y work?")
-- Already on a working branch (resumed session)
-
-If you reach your second response and are still on develop with no branch created, something went wrong. Create one immediately from whatever context you have.
 
 ### Exception: Onboarding needed
 
@@ -87,7 +68,7 @@ bash bin/graph.sh test
 bash bin/graph.sh query "MATCH (p:Person) RETURN p.name"
 
 # Run a query with parameters
-bash bin/graph.sh query "MATCH (p:Person {name: \$name}) RETURN p" '{"name":"alice"}'
+bash bin/graph.sh query "MATCH (p:Person {name: \$name}) RETURN p" '{"name":"oz"}'
 
 # Show schema (node labels + relationship types)
 bash bin/graph.sh schema
@@ -97,13 +78,32 @@ bash bin/graph.sh schema
 
 Current schema: Person, Session, Artifact, Quest, Project, Spirit. Relationships: BY, CONTRIBUTED_BY, HANDED_TO, INVOKED_BY, INVOLVES, PART_OF, RELATES_TO, STARTED_BY.
 
+### Two Neo4j Databases — DO NOT MIX
+
+There are **two separate Neo4j Aura instances**. They serve different purposes and must never be confused:
+
+| Env vars | Purpose | Who uses it |
+|---|---|---|
+| `NEO4J_HOST` / `NEO4J_USER` / `NEO4J_PASSWORD` | **Curve Labs private** — CL's own Egregore data only | Only the `curvelabs` org config in `api/auth.py` |
+| `EGREGORE_NEO4J_HOST` / `EGREGORE_NEO4J_USER` / `EGREGORE_NEO4J_PASSWORD` | **Customer shared** — All orgs created via `/api/org/setup` | Every non-CL org. Setup, reload, cross-org queries. |
+
+**Rules for API code:**
+- **New customer orgs** → always use `EGREGORE_NEO4J_HOST` env vars. Never inherit from `ORG_CONFIGS` (that would give them CL's private database).
+- **`load_orgs_from_neo4j()`** → must query `EGREGORE_NEO4J_HOST` to find customer Org nodes. Falls back to `ORG_CONFIGS` only if the env var isn't set.
+- **`_get_seed_org()`** (cross-org queries) → prefers `EGREGORE_NEO4J_HOST` since these are customer-facing web UI endpoints.
+- **CL's `curvelabs` config** → built from `NEO4J_HOST` in `load_org_configs()`. Never changes.
+
+Within each database, tenant isolation is done via `inject_org_scope()` — every query gets `org: $_org` injected into node patterns.
+
+See `DEV.md` for full infrastructure details (not synced to public repo).
+
 ## Notifications
 
 Telegram notifications via `bin/notify.sh`. Routes through the API gateway using `EGREGORE_API_KEY` from `.env`.
 
 ```bash
 # Send to a person (DMs if they have telegramId in Neo4j, falls back to group)
-bash bin/notify.sh send "alice" "Hey Alice, new handoff about MCP auth"
+bash bin/notify.sh send "oz" "Hey Oz, new handoff about MCP auth"
 
 # Send to the group chat
 bash bin/notify.sh group "New quest started: research-agent"
@@ -154,9 +154,9 @@ Run these steps in order. Write `.egregore-state.json` after each step to checkp
    ```
    Where should we create the shared memory repo?
 
-   1. Acme-Org
+   1. Curve-Labs
    2. other-org
-   3. alicedev (personal account)
+   3. ozzibroccoli (personal account)
 
    Don't see your organization? Your org admin may need to approve Egregore at:
    https://github.com/organizations/{org}/settings/oauth_application_policy
@@ -307,7 +307,7 @@ If `memory/` symlink doesn't exist:
 Setting up your workspace...
 ```
 
-Derive the clone directory name from `memory_repo` — strip the trailing `.git` and take the last path segment. For example, `https://github.com/Acme-Org/acme-org-memory.git` becomes `acme-org-memory`:
+Derive the clone directory name from `memory_repo` — strip the trailing `.git` and take the last path segment. For example, `https://github.com/Curve-Labs/curve-labs-memory.git` becomes `curve-labs-memory`:
 ```bash
 MEMORY_REPO="$(jq -r '.memory_repo' egregore.json)"
 MEMORY_DIR="$(basename "$MEMORY_REPO" .git)"
@@ -346,11 +346,13 @@ Tell the user (using the actual alias name returned):
 
 Write `onboarding_complete: true` to state.
 
-Transition: **"Got it. Let me show you how this works."**
+End with: **"What are you working on today?"**
 
-Then auto-trigger the `/tutorial` flow. The tutorial IS the first experience — no separate interview, no command list. Just run the tutorial steps directly (follow `.claude/commands/tutorial.md`).
+Do NOT list commands. Do NOT show a menu.
 
-Do NOT list commands. Do NOT show a menu. Do NOT say "What are you working on?" — the tutorial handles that at the end.
+If they say "nothing specific" or "just exploring", offer a fallback first quest:
+
+> Want to write a quick note about what you want to get out of Egregore? I'll save it as your first contribution.
 
 ## Transparency Beat
 
@@ -366,16 +368,10 @@ Only say this once per session. Never repeat it.
 ```json
 {
   "org_setup": true,
-  "name": "Alice",
+  "name": "Oz",
   "github_configured": true,
   "workspace_ready": true,
-  "onboarding_complete": true,
-  "usage_type": "founder_group",
-  "tutorial_step": 4,
-  "domain": "software",
-  "stage": "early",
-  "team_or_solo": "team",
-  "tutorial_complete": true
+  "onboarding_complete": true
 }
 ```
 
@@ -392,32 +388,24 @@ Org config lives in `egregore.json` (committed, non-secret). Personal tokens (`G
 
 ## Git Workflow
 
-Egregore uses `develop` branch model with deferred, topic-based branching. Users never interact with git directly.
+Egregore uses a `develop` branch model. Users never interact with git directly — commands handle everything.
 
 ```
-main ← stable (/release)
-  develop ← integration (PRs land here)
-    dev/{author}/{topic-slug} | feature/{slug} | bugfix/{slug}
+main ← stable, released (maintainer controls via /release)
+  │
+  develop ← integration branch (PRs land here)
+    │
+    dev/{author}/{date}-session ← working branches (created on launch)
 ```
 
-- **On launch**: syncs develop + memory. Does NOT create a branch.
-- **Branch creation**: MANDATORY on user's first work-related message. See "After Greeting — BRANCH ON FIRST RESPONSE" above. The branch is created from the user's description of what they're working on. `/save` is a last-resort fallback, not the normal path.
-- **Resuming**: if on a working branch at launch, rebase onto develop and continue.
-- **If still on develop after two messages**, you missed the branch creation. Create one immediately from whatever the user has described so far.
-- **`/save`**: pushes working branch, PR to develop. Auto-merges markdown-only PRs.
-- **Memory repo**: stays on main (separate repo, auto-merge).
-- **Never push directly to main or develop.** All changes flow through PRs.
+- **On launch**: `bin/session-start.sh` syncs develop and creates a working branch
+- **`/save`**: pushes working branch, creates PR to develop. Markdown-only PRs auto-merge; code changes need maintainer review
+- **`/handoff`**: same as /save + handoff file + Neo4j session + notifications
+- **`/release`** (maintainer only): merges develop → main, tags, syncs public repo
+- **`/pull`**: syncs develop, rebases working branch
+- **Memory repo**: stays on main (separate repo, auto-merge unchanged)
 
-### Managed Repos
-
-Teams can add their own repos to `egregore.json` → `repos[]` (e.g. `["frontend", "backend"]`). These are cloned as sibling directories (`../frontend/`, `../backend/`).
-
-**Same branching strategy applies.** Each managed repo uses `develop` → working branch → PR → `main`, identical to the hub.
-
-- **On launch**: session-start fetches all managed repos in parallel and shows their status in the greeting (branch name, `*` if uncommitted changes).
-- **Working on a repo**: user says what they're working on. Claude reads/edits files at `../{repo}/`. Use `git -C` with absolute paths for all git operations — never `cd` into the repo.
-- **`/branch`**: if user mentions a managed repo, create the branch there.
-- **`/save`**: scans all managed repos for uncommitted changes. For each with changes: ensure on working branch, commit, rebase onto develop, push, create PR to develop via `gh pr create --repo {org}/{repo}`.
+**Never push directly to main or develop.** All changes flow through PRs.
 
 ## Working Conventions
 

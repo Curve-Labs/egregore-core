@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Egregore Knowledge Graph</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    color: #c8c8d0;
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 20px 32px 16px;
+    background: linear-gradient(to bottom, #0a0a0f 60%, transparent);
+    pointer-events: none;
+  }
+
+  #header h1 {
+    font-size: 14px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 6px;
+    pointer-events: auto;
+  }
+
+  #header p {
+    font-size: 12px;
+    color: #555;
+  }
+
+  #graph-container {
+    width: 100vw;
+    height: 100vh;
+  }
+
+  svg {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+
+  svg:active {
+    cursor: grabbing;
+  }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed;
+    display: none;
+    background: #161620;
+    border: 1px solid #2a2a3a;
+    border-radius: 8px;
+    padding: 16px 20px;
+    max-width: 360px;
+    font-size: 12px;
+    line-height: 1.6;
+    z-index: 200;
+    pointer-events: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+
+  #tooltip .tt-name {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  #tooltip .tt-desc {
+    color: #999;
+    margin-bottom: 10px;
+  }
+
+  #tooltip .tt-section {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #555;
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+
+  #tooltip .tt-prop {
+    color: #888;
+    font-size: 11px;
+  }
+
+  #tooltip .tt-rel {
+    font-size: 11px;
+    margin: 2px 0;
+  }
+
+  #tooltip .tt-rel-name {
+    font-weight: 600;
+  }
+
+  /* Controls */
+  #controls {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+  }
+
+  .ctrl-btn {
+    background: #161620;
+    border: 1px solid #2a2a3a;
+    color: #888;
+    font-family: inherit;
+    font-size: 11px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .ctrl-btn:hover {
+    background: #1e1e2e;
+    color: #ccc;
+    border-color: #444;
+  }
+
+  .ctrl-btn.active {
+    background: #1a1a2e;
+    border-color: #555;
+    color: #ddd;
+  }
+
+  /* Legend */
+  #legend {
+    position: fixed;
+    top: 80px;
+    right: 24px;
+    z-index: 100;
+    background: #161620;
+    border: 1px solid #2a2a3a;
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 11px;
+  }
+
+  #legend h3 {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 10px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 5px 0;
+    cursor: pointer;
+    opacity: 1;
+    transition: opacity 0.2s;
+  }
+
+  .legend-item:hover {
+    opacity: 0.8;
+  }
+
+  .legend-item.dimmed {
+    opacity: 0.3;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-label {
+    color: #999;
+  }
+
+  /* Edge labels */
+  .edge-label {
+    font-size: 9px;
+    fill: #444;
+    pointer-events: none;
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+  }
+
+  /* Instructions */
+  #instructions {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: #444;
+    text-align: center;
+    z-index: 100;
+    pointer-events: none;
+    transition: opacity 1s;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>Knowledge Graph</h1>
+  <p>Interactive ontology — drag nodes, hover for details, scroll to zoom</p>
+</div>
+
+<div id="graph-container">
+  <svg id="graph"></svg>
+</div>
+
+<div id="tooltip"></div>
+
+<div id="legend">
+  <h3>Node Types</h3>
+</div>
+
+<div id="controls">
+  <button class="ctrl-btn" onclick="resetZoom()">Reset View</button>
+  <button class="ctrl-btn" id="labelsToggle" onclick="toggleLabels()">Hide Labels</button>
+  <button class="ctrl-btn" id="edgeToggle" onclick="toggleEdgeLabels()">Hide Edge Labels</button>
+</div>
+
+<div id="instructions">Drag nodes to rearrange — scroll to zoom — hover for details</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────
+
+const nodeColors = {
+  Person:       '#a06cd5',
+  Session:      '#5da05d',
+  Artifact:     '#d4a24e',
+  Quest:        '#4e9fd4',
+  Todo:         '#d45e5e',
+  QuestionSet:  '#c97dd4',
+  Project:      '#7a9ec2',
+  CheckIn:      '#5eb89e',
+  Meeting:      '#d48f5e',
+  Spirit:       '#8e8ed4',
+  Org:          '#999',
+  TelegramUser: '#6bb5c9',
+};
+
+const nodes = [
+  {
+    id: 'Person', group: 'core', r: 38,
+    desc: 'Team member. Created during onboarding or /invite.',
+    props: ['name', 'joined', 'telegramId', 'telegramUsername'],
+    created: '/onboarding, /invite, session-start.sh'
+  },
+  {
+    id: 'Session', group: 'core', r: 34,
+    desc: 'A work session. Created by /handoff with summary, topic, and optional recipient.',
+    props: ['id', 'date', 'topic', 'summary', 'filePath', 'handoffStatus (pending/read/done)', 'handoffReadDate', 'handoffResponse'],
+    created: '/handoff'
+  },
+  {
+    id: 'Artifact', group: 'core', r: 34,
+    desc: 'Knowledge unit — decision, finding, pattern, or archive. Created by /reflect, /add, /meeting.',
+    props: ['id', 'title', 'type (decision/finding/pattern/archive)', 'summary', 'filePath', 'topics[]', 'created'],
+    created: '/reflect, /add, /meeting, /archive'
+  },
+  {
+    id: 'Quest', group: 'core', r: 32,
+    desc: 'Open-ended exploration. Artifacts and todos link to it via PART_OF.',
+    props: ['id (slug)', 'title', 'description', 'status (active/paused/complete)', 'created', 'priority', 'topics[]'],
+    created: '/quest'
+  },
+  {
+    id: 'Todo', group: 'core', r: 28,
+    desc: 'Personal task item. Optionally linked to a quest.',
+    props: ['id', 'text', 'status (open/blocked/deferred/done/cancelled)', 'created', 'completed', 'priority', 'topics[]', 'blockedBy', 'deferredUntil'],
+    created: '/todo'
+  },
+  {
+    id: 'Project', group: 'core', r: 26,
+    desc: 'Named workstream (LACE, Tristero, Egregore). Sessions link via ABOUT.',
+    props: ['name', 'description', 'status'],
+    created: 'manual'
+  },
+  {
+    id: 'QuestionSet', group: 'secondary', r: 24,
+    desc: 'Async question from one person to another.',
+    props: ['id', 'questions[]', 'status (pending/answered)', 'context', 'answers', 'created'],
+    created: '/ask'
+  },
+  {
+    id: 'CheckIn', group: 'secondary', r: 24,
+    desc: 'Snapshot of a /todo check review. Tracks items done, blocked, evolved, deferred.',
+    props: ['id', 'date', 'summary', 'totalItems', 'itemsDone', 'itemsProgressing', 'itemsBlocked', 'itemsEvolved', 'itemsDeferred'],
+    created: '/todo check'
+  },
+  {
+    id: 'Meeting', group: 'secondary', r: 24,
+    desc: 'Meeting record from Granola. 3 Sonnet analysts + Opus synthesis.',
+    props: ['id', 'title', 'date', 'granolaDocId', 'tone', 'artifactCount'],
+    created: '/meeting'
+  },
+  {
+    id: 'Spirit', group: 'secondary', r: 20,
+    desc: 'Org identity and culture. Captured through /reflect and onboarding.',
+    props: ['name', 'description', 'values'],
+    created: '/reflect'
+  },
+  {
+    id: 'Org', group: 'system', r: 22,
+    desc: 'Global node — one per org. NOT tenant-isolated.',
+    props: ['id (slug)', 'name', 'github_org', 'telegram_chat_id'],
+    created: '/api/org/setup'
+  },
+  {
+    id: 'TelegramUser', group: 'system', r: 22,
+    desc: 'Global cross-org identity. NOT tenant-isolated.',
+    props: ['telegramId', 'username', 'firstName'],
+    created: '/api/user/profile'
+  }
+];
+
+const links = [
+  // Person relationships
+  { source: 'Session',      target: 'Person', label: 'BY',             desc: 'Session author' },
+  { source: 'Session',      target: 'Person', label: 'HANDED_TO',     desc: 'Handoff recipient' },
+  { source: 'Artifact',     target: 'Person', label: 'CONTRIBUTED_BY', desc: 'Artifact creator' },
+  { source: 'Quest',        target: 'Person', label: 'STARTED_BY',    desc: 'Quest initiator' },
+  { source: 'Todo',         target: 'Person', label: 'BY',             desc: 'Todo owner' },
+  { source: 'CheckIn',      target: 'Person', label: 'BY',             desc: 'Check-in author' },
+  { source: 'QuestionSet',  target: 'Person', label: 'ASKED_BY',      desc: 'Question asker' },
+  { source: 'QuestionSet',  target: 'Person', label: 'ASKED_TO',      desc: 'Question recipient' },
+  { source: 'Meeting',      target: 'Person', label: 'INVOLVES',      desc: 'Meeting attendee' },
+  { source: 'TelegramUser', target: 'Person', label: 'IDENTIFIES',    desc: 'Cross-org Telegram link' },
+  { source: 'Project',      target: 'Person', label: 'INVOLVES',      desc: 'Project participant' },
+
+  // Quest relationships
+  { source: 'Artifact',     target: 'Quest',   label: 'PART_OF',      desc: 'Artifact contributes to quest' },
+  { source: 'Todo',         target: 'Quest',   label: 'PART_OF',      desc: 'Todo belongs to quest' },
+  { source: 'Quest',        target: 'Quest',   label: 'RELATES_TO',   desc: 'Quest cross-reference' },
+
+  // Project relationships
+  { source: 'Session',      target: 'Project', label: 'ABOUT',        desc: 'Session context' },
+  { source: 'Quest',        target: 'Project', label: 'RELATES_TO',   desc: 'Quest relates to project' },
+
+  // Artifact relationships
+  { source: 'Artifact',     target: 'Artifact', label: 'RELATES_TO',  desc: 'Cross-reference' },
+  { source: 'Artifact',     target: 'Artifact', label: 'SUPERSEDES',  desc: 'Newer replaces older' },
+  { source: 'Artifact',     target: 'Meeting',  label: 'FROM_MEETING', desc: 'Extracted from meeting' },
+
+  // CheckIn relationships
+  { source: 'CheckIn',      target: 'Todo',    label: 'REVIEWED',     desc: 'Todos reviewed in check-in' },
+
+  // Spirit
+  { source: 'Spirit',       target: 'Person',  label: 'INVOKED_BY',   desc: 'Spirit activated by person' },
+];
+
+// ─── GRAPH SETUP ────────────────────────────────────────────────────
+
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+const svg = d3.select('#graph')
+  .attr('width', width)
+  .attr('height', height);
+
+// Zoom
+const g = svg.append('g');
+
+const zoom = d3.zoom()
+  .scaleExtent([0.3, 4])
+  .on('zoom', (e) => g.attr('transform', e.transform));
+
+svg.call(zoom);
+
+// Arrow markers
+const defs = svg.append('defs');
+
+Object.entries(nodeColors).forEach(([key, color]) => {
+  defs.append('marker')
+    .attr('id', `arrow-${key}`)
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 10)
+    .attr('refY', 0)
+    .attr('markerWidth', 6)
+    .attr('markerHeight', 6)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-4L10,0L0,4')
+    .attr('fill', color)
+    .attr('opacity', 0.6);
+});
+
+// Default arrow
+defs.append('marker')
+  .attr('id', 'arrow-default')
+  .attr('viewBox', '0 -5 10 10')
+  .attr('refX', 10)
+  .attr('refY', 0)
+  .attr('markerWidth', 6)
+  .attr('markerHeight', 6)
+  .attr('orient', 'auto')
+  .append('path')
+  .attr('d', 'M0,-4L10,0L0,4')
+  .attr('fill', '#444')
+  .attr('opacity', 0.6);
+
+// ─── SIMULATION ─────────────────────────────────────────────────────
+
+// Give each link a unique index for curved multi-edges
+const linkCounts = {};
+links.forEach(l => {
+  const key = [l.source, l.target].sort().join('--');
+  linkCounts[key] = (linkCounts[key] || 0) + 1;
+  l.linkIndex = linkCounts[key];
+  l.linkKey = key;
+});
+// Add total count
+links.forEach(l => {
+  l.linkTotal = linkCounts[l.linkKey];
+});
+
+const simulation = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+    // Longer distance for self-links and busy nodes
+    if (d.source === d.target || d.source.id === d.target.id) return 200;
+    return 160;
+  }).strength(0.4))
+  .force('charge', d3.forceManyBody().strength(-800))
+  .force('center', d3.forceCenter(width / 2, height / 2))
+  .force('collision', d3.forceCollide().radius(d => d.r + 30))
+  .force('x', d3.forceX(width / 2).strength(0.03))
+  .force('y', d3.forceY(height / 2).strength(0.03));
+
+// ─── DRAW ───────────────────────────────────────────────────────────
+
+// Links
+const linkGroup = g.append('g').attr('class', 'links');
+
+const link = linkGroup.selectAll('path')
+  .data(links)
+  .enter().append('path')
+  .attr('fill', 'none')
+  .attr('stroke', d => {
+    const c = nodeColors[d.source.id || d.source] || nodeColors[d.target.id || d.target];
+    return c || '#333';
+  })
+  .attr('stroke-opacity', 0.25)
+  .attr('stroke-width', 1.5)
+  .attr('marker-end', d => {
+    const key = d.target.id || d.target;
+    return `url(#arrow-${nodeColors[key] ? key : 'default'})`;
+  });
+
+// Edge labels
+const edgeLabelGroup = g.append('g').attr('class', 'edge-labels');
+
+const edgeLabel = edgeLabelGroup.selectAll('text')
+  .data(links)
+  .enter().append('text')
+  .attr('class', 'edge-label')
+  .text(d => d.label);
+
+// Node groups
+const nodeGroup = g.append('g').attr('class', 'nodes');
+
+const node = nodeGroup.selectAll('g')
+  .data(nodes)
+  .enter().append('g')
+  .attr('cursor', 'pointer')
+  .call(d3.drag()
+    .on('start', dragStart)
+    .on('drag', dragging)
+    .on('end', dragEnd));
+
+// Glow filter
+defs.append('filter')
+  .attr('id', 'glow')
+  .append('feGaussianBlur')
+  .attr('stdDeviation', 4)
+  .attr('result', 'blur');
+
+// Node circles — outer glow
+node.append('circle')
+  .attr('r', d => d.r + 4)
+  .attr('fill', d => nodeColors[d.id])
+  .attr('opacity', 0.08)
+  .attr('filter', 'url(#glow)');
+
+// Node circles — main
+node.append('circle')
+  .attr('r', d => d.r)
+  .attr('fill', '#0a0a0f')
+  .attr('stroke', d => nodeColors[d.id])
+  .attr('stroke-width', 2)
+  .attr('class', 'node-circle');
+
+// Node labels
+node.append('text')
+  .attr('text-anchor', 'middle')
+  .attr('dy', d => d.group === 'system' ? '0.35em' : '-0.2em')
+  .attr('fill', d => nodeColors[d.id])
+  .attr('font-size', d => d.r > 30 ? '13px' : d.r > 24 ? '11px' : '10px')
+  .attr('font-weight', 700)
+  .attr('class', 'node-label')
+  .text(d => d.id);
+
+// Node sub-labels (created by)
+node.filter(d => d.group !== 'system')
+  .append('text')
+  .attr('text-anchor', 'middle')
+  .attr('dy', '1.2em')
+  .attr('fill', '#555')
+  .attr('font-size', '8px')
+  .attr('class', 'node-label node-sublabel')
+  .text(d => d.created);
+
+// System badge
+node.filter(d => d.group === 'system')
+  .append('text')
+  .attr('text-anchor', 'middle')
+  .attr('dy', '1.4em')
+  .attr('fill', '#555')
+  .attr('font-size', '7px')
+  .attr('letter-spacing', '1px')
+  .attr('class', 'node-label')
+  .text('SYSTEM');
+
+// ─── INTERACTIONS ───────────────────────────────────────────────────
+
+const tooltip = d3.select('#tooltip');
+let showLabels = true;
+let showEdgeLabels = true;
+
+node.on('mouseover', function(event, d) {
+  // Highlight connected
+  const connected = new Set();
+  connected.add(d.id);
+  links.forEach(l => {
+    const sid = l.source.id || l.source;
+    const tid = l.target.id || l.target;
+    if (sid === d.id) connected.add(tid);
+    if (tid === d.id) connected.add(sid);
+  });
+
+  node.transition().duration(200)
+    .attr('opacity', n => connected.has(n.id) ? 1 : 0.15);
+
+  link.transition().duration(200)
+    .attr('stroke-opacity', l => {
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      return (sid === d.id || tid === d.id) ? 0.6 : 0.04;
+    })
+    .attr('stroke-width', l => {
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      return (sid === d.id || tid === d.id) ? 2.5 : 1;
+    });
+
+  edgeLabel.transition().duration(200)
+    .attr('opacity', l => {
+      const sid = l.source.id || l.source;
+      const tid = l.target.id || l.target;
+      return (sid === d.id || tid === d.id) ? 1 : 0.1;
+    });
+
+  // Tooltip
+  const rels = links.filter(l => {
+    const sid = l.source.id || l.source;
+    const tid = l.target.id || l.target;
+    return sid === d.id || tid === d.id;
+  });
+
+  let html = `<div class="tt-name" style="color:${nodeColors[d.id]}">${d.id}</div>`;
+  html += `<div class="tt-desc">${d.desc}</div>`;
+
+  if (d.props.length) {
+    html += `<div class="tt-section">Properties</div>`;
+    html += d.props.map(p => `<div class="tt-prop">${p}</div>`).join('');
+  }
+
+  if (rels.length) {
+    html += `<div class="tt-section">Relationships</div>`;
+    rels.forEach(r => {
+      const sid = r.source.id || r.source;
+      const tid = r.target.id || r.target;
+      const other = sid === d.id ? tid : sid;
+      const dir = sid === d.id ? '→' : '←';
+      const color = nodeColors[other] || '#888';
+      html += `<div class="tt-rel">${dir} <span class="tt-rel-name" style="color:${color}">${r.label}</span> ${dir === '→' ? '→' : '←'} <span style="color:${color}">${other}</span> <span style="color:#555;font-size:10px">${r.desc}</span></div>`;
+    });
+  }
+
+  tooltip.html(html).style('display', 'block');
+
+  // Position tooltip
+  const tx = event.clientX + 20;
+  const ty = event.clientY - 20;
+  tooltip
+    .style('left', Math.min(tx, width - 380) + 'px')
+    .style('top', Math.max(ty, 10) + 'px');
+})
+.on('mousemove', function(event) {
+  const tx = event.clientX + 20;
+  const ty = event.clientY - 20;
+  tooltip
+    .style('left', Math.min(tx, width - 380) + 'px')
+    .style('top', Math.max(ty, 10) + 'px');
+})
+.on('mouseout', function() {
+  node.transition().duration(300).attr('opacity', 1);
+  link.transition().duration(300)
+    .attr('stroke-opacity', 0.25)
+    .attr('stroke-width', 1.5);
+  edgeLabel.transition().duration(300)
+    .attr('opacity', showEdgeLabels ? 0.7 : 0);
+  tooltip.style('display', 'none');
+});
+
+// ─── LEGEND ─────────────────────────────────────────────────────────
+
+const legend = d3.select('#legend');
+const groups = { 'Core': 'core', 'Secondary': 'secondary', 'System': 'system' };
+
+Object.entries(groups).forEach(([label, group]) => {
+  const groupNodes = nodes.filter(n => n.group === group);
+  groupNodes.forEach(n => {
+    const item = legend.append('div').attr('class', 'legend-item')
+      .on('click', () => highlightNode(n.id));
+    item.append('div').attr('class', 'legend-dot')
+      .style('background', nodeColors[n.id]);
+    item.append('span').attr('class', 'legend-label').text(n.id);
+  });
+});
+
+function highlightNode(id) {
+  const n = nodes.find(n => n.id === id);
+  if (!n) return;
+
+  // Center on node
+  const transform = d3.zoomTransform(svg.node());
+  const x = -n.x * transform.k + width / 2;
+  const y = -n.y * transform.k + height / 2;
+  svg.transition().duration(600)
+    .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(transform.k));
+
+  // Flash the node
+  node.filter(d => d.id === id)
+    .select('.node-circle')
+    .transition().duration(200)
+    .attr('stroke-width', 5)
+    .transition().duration(400)
+    .attr('stroke-width', 2);
+
+  // Trigger hover effect
+  const fakeEvent = { clientX: width / 2, clientY: height / 2 };
+  node.filter(d => d.id === id).dispatch('mouseover', { detail: fakeEvent });
+  setTimeout(() => {
+    node.filter(d => d.id === id).dispatch('mouseout');
+  }, 2000);
+}
+
+// ─── TICK ───────────────────────────────────────────────────────────
+
+simulation.on('tick', () => {
+  // Curved links for multi-edges
+  link.attr('d', d => {
+    const sx = d.source.x, sy = d.source.y;
+    const tx = d.target.x, ty = d.target.y;
+
+    // Self-referencing
+    if (d.source.id === d.target.id) {
+      const r = d.source.r + 30;
+      return `M${sx - 8},${sy - d.source.r}
+              A${r},${r} 0 1,1 ${sx + 8},${sy - d.source.r}`;
+    }
+
+    const dx = tx - sx, dy = ty - sy;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    // Offset endpoints to sit on circle edge
+    const sr = d.source.r + 6;
+    const tr = d.target.r + 12;
+    const x1 = sx + (dx / dist) * sr;
+    const y1 = sy + (dy / dist) * sr;
+    const x2 = tx - (dx / dist) * tr;
+    const y2 = ty - (dy / dist) * tr;
+
+    if (d.linkTotal === 1) {
+      return `M${x1},${y1} L${x2},${y2}`;
+    }
+
+    // Curve for parallel edges
+    const offset = (d.linkIndex - (d.linkTotal + 1) / 2) * 30;
+    const mx = (x1 + x2) / 2 - (dy / dist) * offset;
+    const my = (y1 + y2) / 2 + (dx / dist) * offset;
+    return `M${x1},${y1} Q${mx},${my} ${x2},${y2}`;
+  });
+
+  // Edge labels at midpoint
+  edgeLabel
+    .attr('x', d => {
+      if (d.source.id === d.target.id) return d.source.x;
+      const mx = (d.source.x + d.target.x) / 2;
+      if (d.linkTotal > 1) {
+        const dx = d.target.x - d.source.x;
+        const dy = d.target.y - d.source.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const offset = (d.linkIndex - (d.linkTotal + 1) / 2) * 30;
+        return mx - (dy / dist) * offset * 0.5;
+      }
+      return mx;
+    })
+    .attr('y', d => {
+      if (d.source.id === d.target.id) return d.source.y - d.source.r - 40;
+      const my = (d.source.y + d.target.y) / 2;
+      if (d.linkTotal > 1) {
+        const dx = d.target.x - d.source.x;
+        const dy = d.target.y - d.source.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const offset = (d.linkIndex - (d.linkTotal + 1) / 2) * 30;
+        return my + (dx / dist) * offset * 0.5;
+      }
+      return my;
+    })
+    .attr('text-anchor', 'middle');
+
+  // Node positions
+  node.attr('transform', d => `translate(${d.x}, ${d.y})`);
+});
+
+// ─── DRAG ───────────────────────────────────────────────────────────
+
+function dragStart(event, d) {
+  if (!event.active) simulation.alphaTarget(0.3).restart();
+  d.fx = d.x;
+  d.fy = d.y;
+}
+
+function dragging(event, d) {
+  d.fx = event.x;
+  d.fy = event.y;
+}
+
+function dragEnd(event, d) {
+  if (!event.active) simulation.alphaTarget(0);
+  d.fx = null;
+  d.fy = null;
+}
+
+// ─── CONTROLS ───────────────────────────────────────────────────────
+
+function resetZoom() {
+  svg.transition().duration(600)
+    .call(zoom.transform, d3.zoomIdentity
+      .translate(width / 2, height / 2)
+      .scale(0.9)
+      .translate(-width / 2, -height / 2));
+
+  // Release all fixed nodes
+  nodes.forEach(n => { n.fx = null; n.fy = null; });
+  simulation.alpha(0.5).restart();
+}
+
+function toggleLabels() {
+  showLabels = !showLabels;
+  d3.selectAll('.node-label').transition().duration(200)
+    .attr('opacity', showLabels ? 1 : 0);
+  d3.selectAll('.node-sublabel').transition().duration(200)
+    .attr('opacity', showLabels ? 1 : 0);
+  document.getElementById('labelsToggle').textContent = showLabels ? 'Hide Labels' : 'Show Labels';
+}
+
+function toggleEdgeLabels() {
+  showEdgeLabels = !showEdgeLabels;
+  edgeLabel.transition().duration(200)
+    .attr('opacity', showEdgeLabels ? 0.7 : 0);
+  document.getElementById('edgeToggle').textContent = showEdgeLabels ? 'Hide Edge Labels' : 'Show Edge Labels';
+}
+
+// Fade instructions
+setTimeout(() => {
+  document.getElementById('instructions').style.opacity = '0';
+}, 5000);
+
+// Resize
+window.addEventListener('resize', () => {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  svg.attr('width', w).attr('height', h);
+  simulation.force('center', d3.forceCenter(w / 2, h / 2));
+  simulation.alpha(0.3).restart();
+});
+</script>
+</body>
+</html>

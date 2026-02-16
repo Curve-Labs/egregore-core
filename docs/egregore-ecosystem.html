@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Egregore Ecosystem</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    color: #c8c8d0;
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 48px 40px;
+  }
+
+  h1 {
+    font-size: 14px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    font-size: 11px;
+    color: #444;
+    margin-bottom: 56px;
+    letter-spacing: 2px;
+  }
+
+  /* ── Section headers ── */
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1a1a24;
+  }
+
+  /* ── Repo boxes ── */
+  .repos-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 1fr;
+    gap: 0;
+    align-items: start;
+    margin-bottom: 48px;
+  }
+
+  .repo-box {
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 24px;
+    background: #0d0d14;
+    position: relative;
+  }
+
+  .repo-box.private { border-color: #2a1a3a; }
+  .repo-box.public { border-color: #1a2a1a; }
+
+  .repo-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .repo-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e0e0e8;
+  }
+
+  .repo-badge {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+
+  .badge-private {
+    background: #1a0a2a;
+    color: #a06cd5;
+    border: 1px solid #2a1a3a;
+  }
+
+  .badge-public {
+    background: #0a1a0a;
+    color: #5da05d;
+    border: 1px solid #1a2a1a;
+  }
+
+  .repo-org {
+    font-size: 11px;
+    color: #555;
+    margin-bottom: 16px;
+  }
+
+  .repo-desc {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  /* ── File trees ── */
+  .file-tree {
+    font-size: 11px;
+    line-height: 1.8;
+  }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+  }
+
+  .file-icon {
+    width: 14px;
+    text-align: center;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .file-name { color: #888; }
+  .file-name.dir { color: #7a9ec2; }
+  .file-name.excluded { color: #444; text-decoration: line-through; }
+
+  .file-desc {
+    color: #444;
+    font-size: 10px;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .file-group-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #444;
+    margin-top: 14px;
+    margin-bottom: 4px;
+    padding-top: 10px;
+    border-top: 1px solid #151520;
+  }
+
+  /* ── Sync arrow ── */
+  .sync-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-top: 60px;
+    gap: 8px;
+  }
+
+  .arrow-line {
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(90deg, #2a1a3a, #1a2a1a);
+    position: relative;
+  }
+
+  .arrow-line::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: -4px;
+    width: 0;
+    height: 0;
+    border-left: 8px solid #1a2a1a;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+  }
+
+  .arrow-label {
+    font-size: 9px;
+    color: #555;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  .arrow-sublabel {
+    font-size: 8px;
+    color: #383840;
+    letter-spacing: 1px;
+  }
+
+  /* ── Exclusion list ── */
+  .exclusion-box {
+    border: 1px dashed #1a1a24;
+    border-radius: 6px;
+    padding: 16px;
+    margin-top: 16px;
+    background: #08080c;
+  }
+
+  .exclusion-title {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #553333;
+    margin-bottom: 10px;
+  }
+
+  .exclusion-item {
+    font-size: 10px;
+    color: #553333;
+    line-height: 1.8;
+    padding-left: 12px;
+    position: relative;
+  }
+
+  .exclusion-item::before {
+    content: '×';
+    position: absolute;
+    left: 0;
+    color: #663333;
+  }
+
+  /* ── Flow section ── */
+  .flow-section {
+    margin-top: 56px;
+  }
+
+  .flow-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 24px;
+  }
+
+  .flow-card {
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 24px;
+    background: #0d0d14;
+  }
+
+  .flow-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #c8c8d0;
+    margin-bottom: 4px;
+  }
+
+  .flow-desc {
+    font-size: 10px;
+    color: #555;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+
+  .flow-steps {
+    list-style: none;
+    counter-reset: step;
+  }
+
+  .flow-step {
+    counter-increment: step;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid #111118;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .flow-step:first-child { border-top: none; }
+
+  .flow-step::before {
+    content: counter(step);
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #151520;
+    border: 1px solid #222230;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: #666;
+    margin-top: 1px;
+  }
+
+  .flow-step-text { color: #888; }
+
+  .cmd {
+    color: #7a9ec2;
+    background: #0a0f18;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+  }
+
+  .highlight { color: #a06cd5; }
+  .green { color: #5da05d; }
+
+  /* ── Infrastructure ── */
+  .infra-section {
+    margin-top: 56px;
+  }
+
+  .infra-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .infra-card {
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 20px;
+    background: #0d0d14;
+    text-align: center;
+  }
+
+  .infra-icon {
+    font-size: 20px;
+    margin-bottom: 10px;
+    opacity: 0.7;
+  }
+
+  .infra-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #c8c8d0;
+    margin-bottom: 4px;
+  }
+
+  .infra-detail {
+    font-size: 10px;
+    color: #555;
+    line-height: 1.5;
+  }
+
+  .infra-host {
+    font-size: 9px;
+    color: #383840;
+    margin-top: 6px;
+    word-break: break-all;
+  }
+
+  /* ── Data flow diagram ── */
+  .dataflow {
+    margin-top: 56px;
+  }
+
+  .dataflow-diagram {
+    margin-top: 24px;
+    padding: 32px;
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    background: #0d0d14;
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: pre;
+    overflow-x: auto;
+    color: #666;
+  }
+
+  .dataflow-diagram .node { color: #888; }
+  .dataflow-diagram .arrow { color: #444; }
+  .dataflow-diagram .label { color: #555; font-style: italic; }
+  .dataflow-diagram .infra { color: #7a9ec2; }
+  .dataflow-diagram .private { color: #a06cd5; }
+  .dataflow-diagram .public { color: #5da05d; }
+
+  /* ── Naming note ── */
+  .naming-note {
+    margin-top: 56px;
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    padding: 24px;
+    background: #0d0d14;
+  }
+
+  .naming-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 11px;
+  }
+
+  .naming-table th {
+    text-align: left;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #444;
+    padding: 8px 16px 8px 0;
+    border-bottom: 1px solid #1a1a24;
+    font-weight: 500;
+  }
+
+  .naming-table td {
+    padding: 10px 16px 10px 0;
+    border-bottom: 1px solid #111118;
+    vertical-align: top;
+  }
+
+  .naming-table td:first-child {
+    color: #888;
+    white-space: nowrap;
+  }
+
+  .naming-table td:nth-child(2) {
+    color: #666;
+  }
+
+  .naming-table td:nth-child(3) {
+    color: #555;
+    font-size: 10px;
+  }
+
+  .suggestion {
+    color: #7a9ec2;
+    font-size: 10px;
+  }
+
+  /* ── Architecture diagram (CSS boxes + SVG) ── */
+  .arch {
+    margin-top: 24px;
+    border: 1px solid #1a1a28;
+    border-radius: 8px;
+    background: #0d0d14;
+    padding: 40px 32px 32px;
+    position: relative;
+  }
+
+  .arch-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 40px;
+  }
+
+  .arch-col-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #777;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  .arch-box {
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 18px 20px;
+    background: #0a0a10;
+    position: relative;
+  }
+
+  .arch-box.dev { border-color: #3d2a55; }
+  .arch-box.dist { border-color: #2a3d2a; }
+  .arch-box.inst { border-color: #2a3350; }
+
+  .arch-box-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e0e0e8;
+    margin-bottom: 2px;
+  }
+
+  .arch-box-subtitle {
+    font-size: 11px;
+    color: #777;
+    margin-bottom: 12px;
+  }
+
+  .arch-box-desc {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 14px;
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  .arch-file-group {
+    margin-bottom: 12px;
+  }
+
+  .arch-file-group:last-child { margin-bottom: 0; }
+
+  .arch-file-group-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #1a1a28;
+  }
+
+  .arch-file {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.7;
+    padding-left: 10px;
+    position: relative;
+  }
+
+  .arch-file::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 8px;
+    width: 4px;
+    height: 4px;
+    border-radius: 1px;
+    background: #555;
+  }
+
+  .arch-file.dir { color: #7a9ec2; }
+  .arch-file.excluded { color: #775555; text-decoration: line-through; text-decoration-color: #554444; }
+  .arch-file.excluded::before { background: #664444; }
+
+  /* ── Arrows between columns ── */
+  .arch-arrows {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .arch-arrow-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    position: absolute;
+  }
+
+  .arch-arrow-label {
+    font-size: 12px;
+    color: #aaa;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  .arch-arrow-sublabel {
+    font-size: 10px;
+    color: #666;
+    letter-spacing: 1px;
+  }
+
+  .arch-arrow-line {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .arch-arrow-shaft {
+    width: 60px;
+    height: 2px;
+    background: #555;
+  }
+
+  .arch-arrow-shaft.gradient-purple-green {
+    background: linear-gradient(90deg, #a06cd5, #5da05d);
+  }
+
+  .arch-arrow-shaft.gradient-green-blue {
+    background: linear-gradient(90deg, #5da05d, #7a9ec2);
+  }
+
+  .arch-arrow-shaft.dashed {
+    background: none;
+    border-top: 2px dashed #7a9ec2;
+  }
+
+  .arch-arrow-head {
+    width: 0;
+    height: 0;
+    border-left: 8px solid #555;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+  }
+
+  .arch-arrow-head.green { border-left-color: #5da05d; }
+  .arch-arrow-head.blue { border-left-color: #7a9ec2; }
+  .arch-arrow-head.reverse {
+    border-left: none;
+    border-right: 8px solid #7a9ec2;
+  }
+
+  /* ── Infrastructure bar ── */
+  .arch-infra {
+    border: 1px solid #2a2218;
+    border-radius: 6px;
+    padding: 20px 24px;
+    background: #0c0b08;
+    position: relative;
+  }
+
+  .arch-infra-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #c8c8d0;
+    margin-bottom: 4px;
+  }
+
+  .arch-infra-sublabel {
+    font-size: 10px;
+    color: #666;
+    margin-bottom: 16px;
+  }
+
+  .arch-infra-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .arch-infra-item {
+    border: 1px solid #1a1812;
+    border-radius: 4px;
+    padding: 12px 14px;
+    background: #0a0908;
+  }
+
+  .arch-infra-item-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #c29a5a;
+    margin-bottom: 6px;
+  }
+
+  .arch-infra-item-detail {
+    font-size: 10px;
+    color: #888;
+    line-height: 1.6;
+  }
+
+  /* ── Vertical connection ── */
+  .arch-vert-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 0;
+  }
+
+  .arch-vert-connector .line {
+    width: 1px;
+    height: 24px;
+    background: #222;
+  }
+
+  .arch-vert-connector .label {
+    font-size: 9px;
+    color: #444;
+    letter-spacing: 1px;
+  }
+
+  .arch-vert-group {
+    display: flex;
+    gap: 40px;
+    padding: 12px 0;
+  }
+
+  .arch-vert-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .arch-vert-item .line {
+    width: 2px;
+    height: 24px;
+  }
+
+  .arch-vert-item .line.purple-line { background: #a06cd5; }
+  .arch-vert-item .line.blue-line { background: #7a9ec2; }
+
+  .arch-vert-item .label {
+    font-size: 11px;
+    color: #999;
+    letter-spacing: 1px;
+  }
+
+  .arch-vert-item .arrow-down {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #333;
+  }
+
+  .arch-vert-item .arrow-down.purple-arrow { border-top-color: #a06cd5; }
+  .arch-vert-item .arrow-down.blue-arrow { border-top-color: #7a9ec2; }
+
+  /* ── Horizontal flow arrows (between repo boxes) ── */
+  .arch-flow-row {
+    display: grid;
+    grid-template-columns: 1fr 120px 1fr 120px 1fr;
+    gap: 0;
+    align-items: start;
+    margin-bottom: 40px;
+  }
+
+  .arch-flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 0 0;
+    gap: 8px;
+    min-width: 120px;
+  }
+
+  .dim { color: #333; }
+  .purple { color: #a06cd5; }
+  .grn { color: #5da05d; }
+  .blue { color: #7a9ec2; }
+  .orange { color: #c29a5a; }
+  .red { color: #c25a5a; }
+  .white { color: #c8c8d0; }
+  .grey { color: #555; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Egregore Ecosystem</h1>
+  <p class="subtitle">How the pieces fit together</p>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- MASTER DIAGRAM                                   -->
+  <!-- ════════════════════════════════════════════════ -->
+
+  <div class="section-label">Architecture</div>
+
+  <div class="arch">
+
+    <!-- ── Row 1: Three repo boxes with arrows ── -->
+    <div class="arch-flow-row">
+
+      <!-- Column 1: Egregore (private dev repo) -->
+      <div>
+        <div class="arch-col-label">Development</div>
+        <div class="arch-box dev">
+          <div class="arch-box-title purple">Egregore</div>
+          <div class="arch-box-subtitle">Curve-Labs/curve-labs-core &middot; <span class="purple">private</span></div>
+          <div class="arch-box-desc">Monorepo. API, bot, site, CLI, framework, tests &mdash; everything lives here.</div>
+
+          <div class="arch-file-group">
+            <div class="arch-file-group-label">Infrastructure (private)</div>
+            <div class="arch-file dir">api/ <span class="grey">&mdash; FastAPI gateway</span></div>
+            <div class="arch-file dir">telegram-bot/ <span class="grey">&mdash; @egregore_bot</span></div>
+            <div class="arch-file dir">packages/ <span class="grey">&mdash; create-egregore CLI</span></div>
+            <div class="arch-file dir">egregore-site/ <span class="grey">&mdash; React frontend</span></div>
+            <div class="arch-file dir">tests/</div>
+            <div class="arch-file dir">skills/cl-admin/</div>
+            <div class="arch-file">DEV.md, Dockerfile</div>
+          </div>
+
+          <div class="arch-file-group">
+            <div class="arch-file-group-label">Framework (synced to public)</div>
+            <div class="arch-file dir">bin/ <span class="grey">&mdash; graph.sh, notify.sh, session-start.sh</span></div>
+            <div class="arch-file dir">.claude/commands/ <span class="grey">&mdash; 32 slash commands</span></div>
+            <div class="arch-file dir">skills/ <span class="grey">&mdash; shared modules</span></div>
+            <div class="arch-file">CLAUDE.md <span class="grey">&mdash; agent instructions</span></div>
+            <div class="arch-file">README.md, .env.example</div>
+          </div>
+
+          <div class="arch-file-group">
+            <div class="arch-file-group-label">Instance-specific (never synced)</div>
+            <div class="arch-file">egregore.json <span class="grey">&mdash; org config</span></div>
+            <div class="arch-file">.env <span class="grey">&mdash; secrets</span></div>
+            <div class="arch-file">memory/ <span class="grey">&rarr; ../curve-labs-memory</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow: sync-public -->
+      <div class="arch-flow-arrow">
+        <div class="arch-arrow-label">/sync-public</div>
+        <div class="arch-arrow-line">
+          <div class="arch-arrow-shaft gradient-purple-green" style="width: 50px;"></div>
+          <div class="arch-arrow-head green"></div>
+        </div>
+        <div class="arch-arrow-sublabel">one-way rsync</div>
+        <div class="arch-arrow-sublabel">via .syncignore</div>
+      </div>
+
+      <!-- Column 2: egregore-core (public template) -->
+      <div>
+        <div class="arch-col-label">Distribution</div>
+        <div class="arch-box dist">
+          <div class="arch-box-title grn">egregore-core</div>
+          <div class="arch-box-subtitle">Curve-Labs/egregore-core &middot; <span class="grn">public</span></div>
+          <div class="arch-box-desc">Framework template. Users fork this to create instances.</div>
+
+          <div class="arch-file-group">
+            <div class="arch-file-group-label">Framework (identical to source)</div>
+            <div class="arch-file dir">bin/</div>
+            <div class="arch-file dir">.claude/commands/ <span class="grey">&mdash; 30 commands</span></div>
+            <div class="arch-file dir">skills/ <span class="grey">&mdash; no cl-admin</span></div>
+            <div class="arch-file">CLAUDE.md</div>
+            <div class="arch-file">README.md, .env.example</div>
+            <div class="arch-file">egregore.json <span class="grey">&mdash; blank template</span></div>
+          </div>
+
+          <div class="arch-file-group">
+            <div class="arch-file-group-label" style="color: #553333;">Excluded from sync</div>
+            <div class="arch-file excluded">api/, telegram-bot/</div>
+            <div class="arch-file excluded">packages/, egregore-site/</div>
+            <div class="arch-file excluded">tests/, skills/cl-admin/</div>
+            <div class="arch-file excluded">DEV.md, Dockerfile</div>
+            <div class="arch-file excluded">release.md, sync-public.md</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow: fork -->
+      <div class="arch-flow-arrow">
+        <div class="arch-arrow-label">fork</div>
+        <div class="arch-arrow-line">
+          <div class="arch-arrow-shaft gradient-green-blue" style="width: 50px;"></div>
+          <div class="arch-arrow-head blue"></div>
+        </div>
+        <div class="arch-arrow-sublabel" style="margin-top: 12px;">/update</div>
+        <div class="arch-arrow-line">
+          <div class="arch-arrow-head reverse" style="border-right-color: #1a2a3a;"></div>
+          <div class="arch-arrow-shaft dashed" style="width: 50px; border-color: #1a2a3a;"></div>
+        </div>
+        <div class="arch-arrow-sublabel">upstream sync</div>
+      </div>
+
+      <!-- Column 3: User instance -->
+      <div>
+        <div class="arch-col-label">Instances</div>
+        <div class="arch-box inst">
+          <div class="arch-box-title blue">{org}/egregore-core</div>
+          <div class="arch-box-subtitle">User's fork &middot; <span class="blue">private</span></div>
+          <div class="arch-box-desc">A running Egregore. One per organization.</div>
+
+          <div class="arch-file-group">
+            <div class="arch-file-group-label">Framework (from upstream)</div>
+            <div class="arch-file dir">bin/, .claude/commands/</div>
+            <div class="arch-file dir">skills/</div>
+            <div class="arch-file">CLAUDE.md</div>
+          </div>
+
+          <div class="arch-file-group">
+            <div class="arch-file-group-label">Instance-specific (local)</div>
+            <div class="arch-file">egregore.json <span class="grey">&mdash; org config</span></div>
+            <div class="arch-file">.env <span class="grey">&mdash; API key + GitHub token</span></div>
+            <div class="arch-file">memory/ <span class="grey">&rarr; ../{org}-memory</span></div>
+          </div>
+
+          <div class="arch-file-group">
+            <div class="arch-file-group-label">Connections</div>
+            <div class="arch-file">bin/graph.sh <span class="grey">&rarr; API &rarr; Neo4j</span></div>
+            <div class="arch-file">bin/notify.sh <span class="grey">&rarr; API &rarr; Telegram</span></div>
+            <div class="arch-file">/save <span class="grey">&rarr; GitHub PR</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Vertical connectors ── -->
+    <div class="arch-vert-group" style="justify-content: space-around;">
+      <div class="arch-vert-item">
+        <div class="label purple">deploys</div>
+        <div class="line purple-line"></div>
+        <div class="arrow-down purple-arrow"></div>
+      </div>
+      <div style="flex: 1;"></div>
+      <div class="arch-vert-item">
+        <div class="label blue">calls via API key</div>
+        <div class="line blue-line"></div>
+        <div class="arrow-down blue-arrow"></div>
+      </div>
+    </div>
+
+    <!-- ── Row 2: Shared infrastructure ── -->
+    <div class="arch-infra">
+      <div class="arch-infra-label">Shared Infrastructure</div>
+      <div class="arch-infra-sublabel">Railway &middot; serves all orgs &middot; deployed from Egregore monorepo</div>
+
+      <div class="arch-infra-grid">
+        <div class="arch-infra-item">
+          <div class="arch-infra-item-name">API Gateway</div>
+          <div class="arch-infra-item-detail">
+            FastAPI &middot; 30+ routes<br>
+            Tenant-isolated queries<br>
+            Auth via EGREGORE_API_KEY<br>
+            <span style="color: #333;">egregore-production.up.railway.app</span>
+          </div>
+        </div>
+        <div class="arch-infra-item">
+          <div class="arch-infra-item-name">Telegram Bot</div>
+          <div class="arch-infra-item-detail">
+            python-telegram-bot + MCP<br>
+            NL &rarr; Cypher via Haiku<br>
+            1 shared bot, multi-org routing<br>
+            <span style="color: #333;">@egregore_bot</span>
+          </div>
+        </div>
+        <div class="arch-infra-item">
+          <div class="arch-infra-item-name">Neo4j &times;2</div>
+          <div class="arch-infra-item-detail">
+            CL private (AuraDB Free)<br>
+            Customer shared (AuraDB BC)<br>
+            Tenant-scoped via inject_org_scope<br>
+            <span style="color: #333;">2 separate Aura instances</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- REPO DETAILS: side by side                       -->
+  <!-- ════════════════════════════════════════════════ -->
+
+  <div class="section-label" style="margin-top: 56px">Repository Details</div>
+
+  <div class="repos-row">
+    <!-- LEFT: Egregore (private dev repo) -->
+    <div class="repo-box private">
+      <div class="repo-header">
+        <span class="repo-name">Egregore</span>
+        <span class="repo-badge badge-private">private</span>
+      </div>
+      <div class="repo-org">Curve-Labs/curve-labs-core</div>
+      <div class="repo-desc">
+        Development hub. Everything lives here &mdash; infrastructure,
+        framework, tooling, site, bot. The single source of truth.
+      </div>
+
+      <div class="file-tree">
+        <div class="file-group-label">Infrastructure (CL only)</div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">api/</span>
+          <span class="file-desc">FastAPI gateway &mdash; 30+ endpoints</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">telegram-bot/</span>
+          <span class="file-desc">PTB + MCP server</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">packages/</span>
+          <span class="file-desc">create-egregore CLI (npm)</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">egregore-site/</span>
+          <span class="file-desc">React + Vite frontend</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">tests/</span>
+          <span class="file-desc">Integration tests</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">skills/cl-admin/</span>
+          <span class="file-desc">Internal admin skills</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">DEV.md</span>
+          <span class="file-desc">Infra docs (private)</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">Dockerfile</span>
+          <span class="file-desc">Railway deploy</span>
+        </div>
+
+        <div class="file-group-label">Framework (synced to public)</div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">bin/</span>
+          <span class="file-desc">graph.sh, notify.sh, session-start.sh...</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">.claude/commands/</span>
+          <span class="file-desc">32 slash commands</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">skills/</span>
+          <span class="file-desc">Shared skill modules</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">CLAUDE.md</span>
+          <span class="file-desc">Agent instructions (19KB)</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">README.md</span>
+          <span class="file-desc">Setup guide</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">.env.example</span>
+          <span class="file-desc">Token template</span>
+        </div>
+
+        <div class="file-group-label">Instance-specific (never synced)</div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">egregore.json</span>
+          <span class="file-desc">Org config</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">.env</span>
+          <span class="file-desc">Secrets (gitignored)</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x279C;</span>
+          <span class="file-name">memory/</span>
+          <span class="file-desc">Symlink &rarr; ../curve-labs-memory</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- MIDDLE: sync arrow -->
+    <div class="sync-arrow">
+      <div class="arrow-label">/sync-public</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-sublabel">rsync --delete</div>
+      <div class="arrow-sublabel">via .syncignore</div>
+    </div>
+
+    <!-- RIGHT: egregore-core -->
+    <div class="repo-box public">
+      <div class="repo-header">
+        <span class="repo-name">egregore-core</span>
+        <span class="repo-badge badge-public">public</span>
+      </div>
+      <div class="repo-org">Curve-Labs/egregore-core</div>
+      <div class="repo-desc">
+        Public distribution. Users fork this to create Egregore instances.
+        Framework only &mdash; no infrastructure code.
+      </div>
+
+      <div class="file-tree">
+        <div class="file-group-label">Framework (identical to source)</div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">bin/</span>
+          <span class="file-desc">CLI scripts</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">.claude/commands/</span>
+          <span class="file-desc">30 slash commands</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25B8;</span>
+          <span class="file-name dir">skills/</span>
+          <span class="file-desc">Shared skills (no cl-admin)</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">CLAUDE.md</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">README.md</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">.env.example</span>
+        </div>
+        <div class="file-item">
+          <span class="file-icon">&#x25A0;</span>
+          <span class="file-name">egregore.json</span>
+          <span class="file-desc">Template (blank org)</span>
+        </div>
+      </div>
+
+      <div class="exclusion-box">
+        <div class="exclusion-title">Excluded from sync (.syncignore)</div>
+        <div class="exclusion-item">api/ &mdash; backend infrastructure</div>
+        <div class="exclusion-item">telegram-bot/ &mdash; bot service</div>
+        <div class="exclusion-item">packages/ &mdash; create-egregore CLI</div>
+        <div class="exclusion-item">egregore-site/ &mdash; web frontend</div>
+        <div class="exclusion-item">tests/ &mdash; integration tests</div>
+        <div class="exclusion-item">skills/cl-admin/ &mdash; internal admin</div>
+        <div class="exclusion-item">DEV.md &mdash; infra docs</div>
+        <div class="exclusion-item">Dockerfile &mdash; deploy config</div>
+        <div class="exclusion-item">release.md, sync-public.md &mdash; maintainer commands</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- FLOWS                                            -->
+  <!-- ════════════════════════════════════════════════ -->
+
+  <div class="flow-section">
+    <div class="section-label">Flows</div>
+
+    <div class="flow-grid">
+      <!-- Install flow -->
+      <div class="flow-card">
+        <div class="flow-title">New Instance (fork → run)</div>
+        <div class="flow-desc">How someone creates an Egregore for their org</div>
+        <ol class="flow-steps">
+          <li class="flow-step">
+            <span class="flow-step-text">Visit <span class="cmd">egregore-core.netlify.app</span> and sign in with GitHub</span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Pick org, select repos &rarr; API forks <span class="cmd">egregore-core</span> into their org, creates <span class="cmd">{org}-memory</span> repo, bootstraps Neo4j</span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Get a setup token &rarr; run <span class="cmd">npx create-egregore --token st_xxx</span></span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">CLI clones the fork, writes <span class="cmd">.env</span> + <span class="cmd">egregore.json</span>, symlinks <span class="cmd">memory/</span></span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Open folder in terminal &rarr; <span class="cmd">claude</span> &rarr; session-start hook runs &rarr; onboarding begins</span>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Update flow -->
+      <div class="flow-card">
+        <div class="flow-title">Updating (/update)</div>
+        <div class="flow-desc">How instances get framework updates from upstream</div>
+        <ol class="flow-steps">
+          <li class="flow-step">
+            <span class="flow-step-text">User runs <span class="cmd">/update</span> in their Egregore instance</span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Adds <span class="cmd">upstream</span> remote pointing to <span class="cmd">Curve-Labs/egregore-core</span></span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Fetches <span class="cmd">upstream/main</span>, diffs against framework paths: <span class="cmd">bin/</span>, <span class="cmd">.claude/commands/</span>, <span class="cmd">CLAUDE.md</span>, <span class="cmd">skills/</span></span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Checks out updated files, commits <em>"Update Egregore framework from upstream"</em></span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Instance-specific files (<span class="cmd">egregore.json</span>, <span class="cmd">.env</span>, <span class="cmd">memory/</span>) are <strong>never touched</strong></span>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Development flow -->
+      <div class="flow-card">
+        <div class="flow-title">Development (/sync-public)</div>
+        <div class="flow-desc">How changes flow from dev to public</div>
+        <ol class="flow-steps">
+          <li class="flow-step">
+            <span class="flow-step-text">Work happens on <span class="cmd">Egregore</span> branches &rarr; PR to <span class="cmd">develop</span></span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text"><span class="cmd">/release</span> merges develop &rarr; main</span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text"><span class="cmd">/sync-public</span> rsyncs to sibling <span class="cmd">egregore-core/</span> &mdash; <span class="cmd">.syncignore</span> strips private paths</span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Commits and pushes to <span class="cmd">egregore-core main</span> &mdash; users pull via <span class="cmd">/update</span></span>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Bot flow -->
+      <div class="flow-card">
+        <div class="flow-title">Telegram Bot</div>
+        <div class="flow-desc">How the bot fits in (lives in curve-labs-core)</div>
+        <ol class="flow-steps">
+          <li class="flow-step">
+            <span class="flow-step-text">Source lives at <span class="cmd">telegram-bot/</span> inside the Egregore monorepo &mdash; never synced to public</span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Deployed to Railway alongside the API gateway (same app, different service)</span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Shared across all orgs &mdash; routes messages by Telegram chat ID &rarr; Neo4j org lookup</span>
+          </li>
+          <li class="flow-step">
+            <span class="flow-step-text">Instances talk to it via <span class="cmd">bin/notify.sh</span> &rarr; API gateway &rarr; bot &mdash; never directly</span>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- INFRASTRUCTURE                                   -->
+  <!-- ════════════════════════════════════════════════ -->
+
+  <div class="infra-section">
+    <div class="section-label">Shared Infrastructure</div>
+
+    <div class="infra-grid">
+      <div class="infra-card">
+        <div class="infra-icon">&#x2601;</div>
+        <div class="infra-name">API Gateway</div>
+        <div class="infra-detail">
+          FastAPI on Railway<br>
+          30+ routes, tenant-isolated<br>
+          Auth via EGREGORE_API_KEY
+        </div>
+        <div class="infra-host">egregore-production-55f2.up.railway.app</div>
+      </div>
+
+      <div class="infra-card">
+        <div class="infra-icon">&#x1F4AC;</div>
+        <div class="infra-name">Telegram Bot</div>
+        <div class="infra-detail">
+          python-telegram-bot<br>
+          NL &rarr; Cypher via Haiku<br>
+          1 bot serves all orgs
+        </div>
+        <div class="infra-host">@egregore_bot</div>
+      </div>
+
+      <div class="infra-card">
+        <div class="infra-icon">&#x25C9;</div>
+        <div class="infra-name">Neo4j &mdash; CL</div>
+        <div class="infra-detail">
+          AuraDB Free<br>
+          Curve Labs private data<br>
+          NEO4J_HOST env vars
+        </div>
+        <div class="infra-host">c02bbdac.databases.neo4j.io</div>
+      </div>
+
+      <div class="infra-card">
+        <div class="infra-icon">&#x25C9;</div>
+        <div class="infra-name">Neo4j &mdash; Shared</div>
+        <div class="infra-detail">
+          AuraDB Business Critical<br>
+          All customer orgs<br>
+          EGREGORE_NEO4J_HOST vars
+        </div>
+        <div class="infra-host">668bb747.databases.neo4j.io</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- NAMING NOTE                                      -->
+  <!-- ════════════════════════════════════════════════ -->
+
+  <div class="naming-note">
+    <div class="section-label" style="border-bottom: none; margin-bottom: 8px; padding-bottom: 0;">Current Naming</div>
+    <p style="font-size: 11px; color: #555; margin-bottom: 0; line-height: 1.6;">
+      Three repos, three naming conventions. Here's the map.
+    </p>
+
+    <table class="naming-table">
+      <thead>
+        <tr>
+          <th>Repo</th>
+          <th>What it is</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="purple">Egregore</span></td>
+          <td>Private development monorepo &mdash; API, bot, site, CLI, framework, tests</td>
+          <td>GitHub: Curve-Labs/curve-labs-core. Contains everything.</td>
+        </tr>
+        <tr>
+          <td><span class="grn">egregore-core</span></td>
+          <td>Public template &mdash; framework subset users fork to create instances</td>
+          <td>Named for the product. Users see this name.</td>
+        </tr>
+        <tr>
+          <td><span class="blue">@egregore_bot</span></td>
+          <td>Telegram bot &mdash; NL query interface, deployed from <span class="cmd">telegram-bot/</span></td>
+          <td>Underscore (Telegram convention). Source lives inside the Egregore monorepo, not a separate repo.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

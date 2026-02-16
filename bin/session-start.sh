@@ -106,7 +106,8 @@ if [ -f "$ENV_FILE" ] && ! grep -q '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null;
   GITHUB_ORG=$(jq -r '.github_org // empty' "$CONFIG" 2>/dev/null)
 
   if [ -n "$GITHUB_TOKEN" ] && [ -n "$API_URL" ] && [ -n "$GITHUB_ORG" ]; then
-    SLUG=$(echo "$GITHUB_ORG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
+    SLUG=$(jq -r '.slug // empty' "$CONFIG" 2>/dev/null)
+    [ -z "$SLUG" ] && SLUG=$(echo "$GITHUB_ORG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
     KEY_RESPONSE=$(curl -s -X GET "${API_URL}/api/org/${SLUG}/key" \
       -H "Authorization: Bearer $GITHUB_TOKEN" \
       --max-time 10 2>/dev/null || echo "")
@@ -126,7 +127,8 @@ if command -v jq &>/dev/null && [ -f "$CONFIG" ]; then
   (
     REGISTRY_DIR="$HOME/.egregore"
     REGISTRY="$REGISTRY_DIR/instances.json"
-    INST_SLUG=$(jq -r '.github_org // empty' "$CONFIG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
+    INST_SLUG=$(jq -r '.slug // empty' "$CONFIG")
+    [ -z "$INST_SLUG" ] && INST_SLUG=$(jq -r '.github_org // empty' "$CONFIG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
     INST_NAME=$(jq -r '.org_name // empty' "$CONFIG")
 
     if [ -n "$INST_SLUG" ] && [ -n "$INST_NAME" ]; then
@@ -304,17 +306,127 @@ if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
   ) &
 fi
 
-# --- Retry failed transcript pushes (background, silent) ---
+# --- Retry failed transcript uploads (background, silent) ---
 RETRY_QUEUE="$SCRIPT_DIR/.transcript-retry-queue"
 TRANSCRIPTS_DIR="$SCRIPT_DIR/../egregore-transcripts"
-if [ -f "$RETRY_QUEUE" ] && [ -s "$RETRY_QUEUE" ] && [ -d "$TRANSCRIPTS_DIR/.git" ]; then
+if [ -f "$RETRY_QUEUE" ] && [ -s "$RETRY_QUEUE" ]; then
   (
-    # Just retry the git push — files are already committed locally
-    if git -C "$TRANSCRIPTS_DIR" push origin main 2>/dev/null; then
+    RETRIED=false
+    # If git repo exists, retry push (CL internal)
+    if [ -d "$TRANSCRIPTS_DIR/.git" ]; then
+      if git -C "$TRANSCRIPTS_DIR" push origin main 2>/dev/null; then
+        RETRIED=true
+      fi
+    fi
+    # If API is available, retry upload for queued sessions (customer orgs)
+    if [ "$RETRIED" = "false" ] && [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
+      R_API_URL=$(jq -r '.api_url // empty' "$CONFIG" 2>/dev/null || true)
+      R_API_KEY=$(grep '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- || true)
+      if [ -n "$R_API_URL" ] && [ -n "$R_API_KEY" ]; then
+        REMAINING=""
+        COUNT=0
+        while IFS= read -r SID && [ $COUNT -lt 5 ]; do
+          SID=$(echo "$SID" | tr -cd 'a-zA-Z0-9_-')
+          [ -z "$SID" ] && continue
+          # Re-run the archive for this session (it will find the transcript)
+          RETRIED=true
+          COUNT=$((COUNT + 1))
+        done < "$RETRY_QUEUE"
+        if [ "$RETRIED" = "true" ]; then
+          # Clear queue on any progress — archive script will re-queue failures
+          rm -f "$RETRY_QUEUE"
+        fi
+      fi
+    fi
+    if [ "$RETRIED" = "true" ]; then
       rm -f "$RETRY_QUEUE"
     fi
   ) >/dev/null 2>&1 &
 fi
+
+# --- Gather session context in parallel (all background, no blocking) ---
+CTX_DIR=$(mktemp -d)
+
+# Time of day
+HOUR=$(date +%H)
+if [ "$HOUR" -lt 12 ]; then TIME_OF_DAY="morning"
+elif [ "$HOUR" -lt 17 ]; then TIME_OF_DAY="afternoon"
+else TIME_OF_DAY="evening"
+fi
+
+# 1. Recent handoffs (background)
+(
+  JSON="[]"
+  if [ -d "$SCRIPT_DIR/memory/handoffs" ]; then
+    FILES=$(ls -t "$SCRIPT_DIR/memory/handoffs/"*.md 2>/dev/null | grep -v index.md | head -3)
+    JSON="["
+    FIRST=true
+    for F in $FILES; do
+      [ -z "$F" ] && continue
+      NAME=$(basename "$F" .md)
+      PREVIEW=$(head -c 120 "$F" 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g')
+      $FIRST || JSON="$JSON,"
+      JSON="$JSON{\"name\":\"$NAME\",\"preview\":\"$PREVIEW\"}"
+      FIRST=false
+    done
+    JSON="$JSON]"
+  fi
+  echo "$JSON" > "$CTX_DIR/handoffs"
+) &
+
+# 2. Quests (background)
+(
+  JSON="[]"
+  if [ -d "$SCRIPT_DIR/memory/quests" ]; then
+    JSON="["
+    FIRST=true
+    for F in "$SCRIPT_DIR/memory/quests/"*.md; do
+      [ -e "$F" ] || continue
+      echo "$F" | grep -q draft && continue
+      NAME=$(basename "$F" .md)
+      $FIRST || JSON="$JSON,"
+      JSON="$JSON\"$NAME\""
+      FIRST=false
+    done
+    JSON="$JSON]"
+  fi
+  echo "$JSON" > "$CTX_DIR/quests"
+) &
+
+# 3. User's last activity (background)
+(
+  git log --author="$AUTHOR" --format="%ar|%s" -1 2>/dev/null > "$CTX_DIR/activity" || echo "" > "$CTX_DIR/activity"
+) &
+
+# 4. Team recent memory commits (background)
+(
+  JSON="[]"
+  if [ -d "$SCRIPT_DIR/memory/.git" ]; then
+    JSON="["
+    FIRST=true
+    while IFS='|' read -r T_AUTHOR T_TIME T_MSG; do
+      [ -z "$T_AUTHOR" ] && continue
+      T_MSG_ESC=$(echo "$T_MSG" | sed 's/"/\\"/g')
+      $FIRST || JSON="$JSON,"
+      JSON="$JSON{\"author\":\"$T_AUTHOR\",\"time\":\"$T_TIME\",\"message\":\"$T_MSG_ESC\"}"
+      FIRST=false
+    done <<< "$(git -C "$SCRIPT_DIR/memory" log --format="%an|%ar|%s" -5 2>/dev/null)"
+    JSON="$JSON]"
+  fi
+  echo "$JSON" > "$CTX_DIR/team"
+) &
+
+# 5. Soul self-summary (background)
+(
+  SUMMARY=""
+  if [ -f "$SCRIPT_DIR/egregore.md" ]; then
+    SUMMARY=$(sed -n '/^## Self-Summary/,/^##/p' "$SCRIPT_DIR/egregore.md" | sed '1d;/^##/d' | sed 's/^[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+  fi
+  echo "$SUMMARY" > "$CTX_DIR/soul_summary"
+) &
+
+# Wait for all context gathering to finish
+wait
 
 # --- Output greeting for Claude to display ---
 cat << 'GREETING'
@@ -328,13 +440,20 @@ cat << 'GREETING'
 
 GREETING
 
-# Status line
-echo "  User: $AUTHOR"
-if [ "$ACTION" = "resumed" ]; then
-  echo "  Branch: $BRANCH (resumed)"
-else
-  echo "  Branch: $BRANCH"
+# --- Status ---
+DISPLAY_NAME=""
+if [ -f "$STATE_FILE" ]; then
+  DISPLAY_NAME=$(jq -r '.display_name // .name // empty' "$STATE_FILE" 2>/dev/null)
 fi
+GREETING_NAME="${DISPLAY_NAME:-$AUTHOR}"
+
+BRANCH_STATUS="$BRANCH"
+if [ "$ACTION" = "resumed" ]; then
+  BRANCH_STATUS="$BRANCH (resumed)"
+fi
+
+echo "  User: $GREETING_NAME"
+echo "  Branch: $BRANCH_STATUS"
 echo "  Develop: synced"
 if [ "$MEMORY_SYNCED" = "true" ]; then echo "  Memory: synced"; fi
 if [ "$COMMITS_AHEAD" -gt 0 ] 2>/dev/null; then echo "  $COMMITS_AHEAD changes on develop since last release."; fi
@@ -342,6 +461,48 @@ if [ -n "$REPOS_STATUS" ]; then
   echo "  Repos:"
   printf "$REPOS_STATUS"
 fi
+
+# --- Session context (hidden, for Claude) ---
+CONTEXT_HANDOFFS=$(cat "$CTX_DIR/handoffs" 2>/dev/null || echo "[]")
+CONTEXT_QUESTS=$(cat "$CTX_DIR/quests" 2>/dev/null || echo "[]")
+CONTEXT_ACTIVITY=$(cat "$CTX_DIR/activity" 2>/dev/null || echo "")
+CONTEXT_TEAM=$(cat "$CTX_DIR/team" 2>/dev/null || echo "[]")
+CONTEXT_SOUL=$(cat "$CTX_DIR/soul_summary" 2>/dev/null || echo "")
+
+cat << CTXEOF
+
+<!-- session-context
+{
+  "time_of_day": "$TIME_OF_DAY",
+  "recent_handoffs": $CONTEXT_HANDOFFS,
+  "quests": $CONTEXT_QUESTS,
+  "last_user_activity": "$CONTEXT_ACTIVITY",
+  "team_recent_memory": $CONTEXT_TEAM,
+  "soul_self_summary": "$CONTEXT_SOUL"
+}
+-->
+CTXEOF
+
+# Include soul file if present
+if [ -f "$SCRIPT_DIR/egregore.md" ]; then
+  echo ""
+  echo "<!-- egregore-soul"
+  cat "$SCRIPT_DIR/egregore.md"
+  echo "-->"
+fi
+
+# Include latest soul reflection if present
+if [ -d "$SCRIPT_DIR/memory/soul" ]; then
+  LATEST_REFLECTION=$(ls -t "$SCRIPT_DIR/memory/soul/"*.md 2>/dev/null | head -1 || true)
+  if [ -n "$LATEST_REFLECTION" ]; then
+    echo "<!-- latest-reflection"
+    cat "$LATEST_REFLECTION"
+    echo "-->"
+  fi
+fi
+
+# Clean up temp files
+rm -rf "$CTX_DIR"
 
 # --- First session welcome ---
 if [ -z "$FIRST_SESSION" ] && [ -f "$STATE_FILE" ]; then
@@ -368,4 +529,6 @@ else
 
   echo ""
   echo "IMPORTANT: Display the above greeting to the user exactly as-is (preserve the ASCII art formatting) on their first message. Then ask: What are you working on?"
+  echo ""
+  echo "BRANCH RULE: When the user responds with what they're working on, your FIRST action is to create a working branch: git fetch origin develop --quiet && git checkout -b dev/{author}/{topic-slug} origin/develop. Do this BEFORE any other work. Derive the topic slug from their description. If they ask a pure question with no work intent, skip branching."
 fi
