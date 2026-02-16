@@ -7,16 +7,16 @@ Arguments: $ARGUMENTS
 - `/setup` — Full setup (memory + optional projects)
 - `/setup [project]` — Add a specific project later
 
-## CRITICAL: Always use SSH
+## CRITICAL: Always use HTTPS
 
-Repos are private. Always use SSH:
+Repos are private. Always use HTTPS (github-auth.sh sets up credential storage):
 ```bash
-git clone git@github.com:{github_org}/[repo].git
+git clone https://github.com/{github_org}/[repo].git
 ```
 
 **If clone fails:**
 ```
-Can't access repo. Check your SSH keys: ssh -T git@github.com
+Can't access repo. Re-authenticate: bash bin/github-auth.sh
 ```
 
 ## Dynamic config
@@ -44,7 +44,7 @@ Setting up Egregore...
       Checking for $MEMORY_DIR...
 
       IF not exists (as sibling ../$MEMORY_DIR):
-        git clone git@github.com:$GITHUB_ORG/$MEMORY_DIR.git ../$MEMORY_DIR
+        git clone https://github.com/$GITHUB_ORG/$MEMORY_DIR.git ../$MEMORY_DIR
         ✓ Cloned
 
       IF already exists:
@@ -109,7 +109,7 @@ Setting up Tristero...
       Checking for ../backend...
 
       IF not exists:
-        git clone git@github.com:$GITHUB_ORG/backend.git ../backend
+        git clone https://github.com/$GITHUB_ORG/backend.git ../backend
         ✓ Cloned to ../backend
 
       IF already exists:

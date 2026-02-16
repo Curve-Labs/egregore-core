@@ -132,79 +132,107 @@ Save your contributions to Egregore. Pushes working branch, creates PR to develo
      6. User sees: `[repo-name] ✓ Pushed dev/alice/topic-slug → PR #N to develop`
    - **Use `git -C` with absolute paths** — never `cd` into the repo (avoids permission prompts)
 
-## Neo4j Sync Logic (via bin/graph.sh)
+## Neo4j Sync Logic
 
-Run each check with `bash bin/graph.sh query "..."`. Never use MCP.
+### Artifact property contract
 
-```cypher
-// For each file in handoffs/YYYY-MM/*.md, check if Session exists:
-MATCH (s:Session {id: $fileId}) RETURN s.id
-// If null, parse frontmatter and create Session node
+Every Artifact node MUST have: `id`, `title`, `type`, `topics`, `created`. SHOULD have: `filePath`. MAY have: `origin`, `analysis`, `runId`, `confidence`, dimensional properties.
 
-// For each file in artifacts/*.md:
-MATCH (a:Artifact {id: $fileId}) RETURN a.id
-// If null, parse frontmatter and create Artifact node (include topics)
-// If exists, sync topics from frontmatter:
-//   MATCH (a:Artifact {id: $fileId}) SET a.topics = $topics RETURN a.id
+Commands that create artifacts: `/add`, `/reflect`, `/deep-reflect`, `/tutorial`, `/meeting`, `/save` sync. All must set the MUST properties. If a session creates ad-hoc artifacts (e.g., session synthesis), it must follow this contract.
 
-// For each file in knowledge/{decisions,findings,patterns}/*.md:
-MATCH (a:Artifact {id: $fileId}) RETURN a.id
-// If null, parse frontmatter and create Artifact node:
-//   id = filename without extension
-//   type = directory name singularized (decisions → decision, findings → finding, patterns → pattern)
-//   filePath = knowledge/{category}s/{filename}
-//   title, author, date from frontmatter
-
-// For each file in quests/*.md (not index.md, not _template.md):
-MATCH (q:Quest {id: $slug}) RETURN q.id
-// If null, parse frontmatter and create Quest node
-// If exists, sync priority from frontmatter: SET q.priority = coalesce($priority, 0)
+```bash
+RESULT=$(bash bin/sync-graph.sh 2>/dev/null) && echo "OK" || echo "FAILED"
 ```
 
-Parse frontmatter for: author, date, topic/title, project, quests (for artifacts), topics (for artifacts), priority (for quests, default 0).
+The script handles everything: fetches existing IDs from the graph, scans all memory files (handoffs, knowledge/decisions, knowledge/findings, knowledge/patterns, quests), creates missing nodes via MERGE (idempotent), auto-resolves `read` handoffs, and derives quest topics from linked artifacts.
 
-### Auto-resolve read handoffs
+Returns: `{"sessions":N,"artifacts":N,"quests":N,"resolved":N}`
 
-After all sync queries, resolve any `read` handoffs where the user has completed a subsequent session (same criteria as Q_resolve in activity-data.sh):
-
-```cypher
-MATCH (s:Session)-[:HANDED_TO]->(p:Person {name: $me})
-WHERE s.handoffStatus = 'read'
-WITH s, p, coalesce(s.handoffReadDate, s.date) AS sinceDate
-MATCH (later:Session)-[:BY]->(p)
-WHERE later.date > sinceDate
-WITH s, count(later) AS laterSessions WHERE laterSessions > 0
-SET s.handoffStatus = 'done'
-RETURN s.id AS id, s.topic AS topic
-```
-
-If any resolved, report: `[sync] ✓ Resolved N handoffs (read → done)`
-
-### Topic sync on artifacts
-
-When syncing artifact files, parse `topics` from frontmatter (YAML list) and SET on the node:
-
-```cypher
-MATCH (a:Artifact {id: $artifactId})
-SET a.topics = $topics
-```
-
-### Quest topic derivation
-
-After all artifact syncing is complete, derive quest topic signatures from their linked artifacts:
-
-```cypher
-MATCH (q:Quest {status: 'active'})
-OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q)
-WHERE a.topics IS NOT NULL
-UNWIND a.topics AS topic
-WITH q, collect(DISTINCT topic) AS derivedTopics
-SET q.topics = derivedTopics
-```
-
-Run this as the final step of Neo4j sync, after all artifact and quest nodes are synced.
+Parse the result and show:
+- If any counts > 0: `[sync] Synced N sessions, N artifacts, N quests to graph`
+- If resolved > 0, add: `[sync] ✓ Resolved N handoffs (read → done)`
+- If all zeros: `[sync] ✓ Nothing to sync`
+- If script fails: `[sync] Graph offline — will retry on next /save`. Don't block git operations.
 
 This ensures files and graph stay in sync even if earlier commands skipped Neo4j.
+
+### Metadata enrichment for existing artifacts
+
+After all node creation and topic sync, enrich artifacts with missing metadata.
+
+**Topics backfill:**
+
+```cypher
+MATCH (a:Artifact)
+WHERE a.topics IS NULL OR size(a.topics) = 0
+RETURN a.id AS id, a.title AS title, a.type AS type, a.filePath AS filePath
+```
+
+For each artifact returned:
+1. **Has filePath** → read `memory/{filePath}`, parse frontmatter for `topics:`. If found, SET on node.
+2. **Has filePath but no frontmatter topics** → derive 2-4 topic slugs from title (lowercase, exclude stop words like "the/a/an/is/for/and/or/in/of/to", hyphenate compounds). Example: "Egregore Efficiency and Unit Economics" → `["egregore-efficiency", "unit-economics"]`.
+3. **No filePath (ghost artifact)** → derive topics from title only (same method as #2).
+4. Run: `MATCH (a:Artifact {id: $id}) SET a.topics = $topics`
+
+**Type backfill:**
+
+```cypher
+MATCH (a:Artifact) WHERE a.type IS NULL
+RETURN a.id AS id, a.title AS title, a.filePath AS filePath
+```
+
+Derive type from:
+- filePath directory: `decisions/` → `decision`, `findings/` → `finding`, `patterns/` → `pattern`
+- Title cues if no filePath: "confirmed"/"strategy"/"chose"/"decided" → `decision`, "risk"/"crisis"/"discovered"/"observed" → `finding`, "pattern"/"loop"/"recurring"/"tendency" → `pattern`
+- Default: `"finding"`
+- Run: `MATCH (a:Artifact {id: $id}) SET a.type = $type`
+
+Report: `[sync] ✓ Enriched {N} artifacts (topics: {n1}, type: {n2})`
+
+### Timestamp normalization
+
+Normalize null `created` timestamps so sort order is reliable:
+
+```cypher
+MATCH (a:Artifact) WHERE a.created IS NULL
+RETURN a.id AS id, a.filePath AS filePath
+```
+
+For each: extract date from:
+1. Artifact ID if it has `YYYY-MM-DD` prefix (e.g. `2026-02-07-some-title` → `2026-02-07`)
+2. Frontmatter `date:` field (if filePath exists, read the file)
+3. Git log: `git log --format=%aI --diff-filter=A -- "memory/{filePath}" | head -1` (file creation date)
+4. Fallback: use `2026-01-01` (sorts to end, identifiable as backfilled)
+
+Normalize to datetime:
+```cypher
+MATCH (a:Artifact {id: $id}) SET a.created = datetime($isoDateStr + 'T00:00:00Z')
+```
+
+Report: `[sync] ✓ Normalized {N} timestamps`
+
+### Ghost artifact resolution
+
+Resolve filePaths for graph-only artifacts that may have been materialized since creation:
+
+```cypher
+MATCH (a:Artifact) WHERE a.filePath IS NULL AND a.type IS NOT NULL
+RETURN a.id AS id, a.type AS type
+```
+
+For each: search filesystem by convention:
+```bash
+for dir in "knowledge/decisions" "knowledge/findings" "knowledge/patterns" "artifacts"; do
+  [ -f "memory/${dir}/${ID}.md" ] && FOUND="${dir}/${ID}.md" && break
+done
+```
+
+If found: `MATCH (a:Artifact {id: $id}) SET a.filePath = $found`
+If not found: leave null — `/deep-reflect` handles ghost artifacts gracefully via metadata-only evidence entries (see deep-reflect.md Step 3B section 4).
+
+Report: `[sync] ✓ Resolved {N} ghost artifact paths`
+
+**Note:** ~39 of the 53 ghost artifacts genuinely have no file. They're session-extracted insights written to the graph but never materialized as markdown. This is expected — the enrichment steps above ensure they at least have topics, type, and created set.
 
 ## Example
 

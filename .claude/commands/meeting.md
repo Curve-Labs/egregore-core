@@ -456,7 +456,31 @@ Separate **action items** from knowledge artifacts. Actions don't become Artifac
 
 ##### 2. Meeting Intelligence Briefing
 
-Synthesize all agent outputs into a coherent briefing document. Structure:
+Synthesize all agent outputs into a coherent briefing document. The **Meta-Analysis** section is the most important part — it justifies the pipeline's existence. It's what a reader gets that they wouldn't from skimming the transcript or reading the artifact list.
+
+**Meta-Analysis synthesis guidance:**
+
+Write 3-5 paragraphs of opinionated analysis. Not a summary — a reading of the meeting that tells someone something they wouldn't have figured out on their own.
+
+Structure around four lenses:
+
+1. **Heart of the conversation.** Not the agenda — the gravitational center. What were people circling, building toward, or working through? What question was actually being answered, even if nobody framed it that way? First paragraph, get there fast.
+
+2. **What's new.** What emerged that wasn't obvious going in? A shift in thinking, a constraint that surfaced, a convergence nobody declared. If nothing genuinely new emerged, say so — "execution meeting, no new ground" is a valid and useful finding. Don't manufacture novelty.
+
+3. **Actuality frame.** This is where cross-meeting context earns its keep. Given what we know about the team's current state — active quests, recent decisions, open threads from previous meetings, where work has been progressing — where does this meeting land? What does it change, accelerate, or block in the current reality? Connect the meeting's outcomes to the live state of the organization. Reference specific quests, prior decisions, or open threads by name when relevant. If the Continuity Analyst found evolution or recurrence, weave it in here.
+
+4. **Recommended considerations.** Sharp, specific. Not "continue exploring X" — what concretely should happen, who should act, and why it matters now. Distinguish between urgent (blocks other work) and important (shapes direction). If the meeting surfaced tensions without resolving them, name what needs resolving and by whom.
+
+**Register:** A trusted colleague who attended the meeting and is briefing someone who wasn't there. Direct, opinionated, doesn't waste words on obvious things. Prioritizes insight over completeness.
+
+**Anti-patterns:**
+- "The meeting covered several important topics..." → you have nothing to say
+- Restating what's already in the artifact list → the list exists for that
+- Equal weight to everything discussed → prioritize ruthlessly
+- "It would be good to follow up on..." → who, what, by when, or don't say it
+- Ignoring graph context → the actuality frame is what distinguishes this from any summary tool
+- Burying the lead → heart of the conversation goes first, not last
 
 ```markdown
 # Meeting Intelligence: {Title}
@@ -466,9 +490,9 @@ Synthesize all agent outputs into a coherent briefing document. Structure:
 **Source**: Granola ({doc-id})
 **Tone**: {tone description} | Alignment: {score}
 
-## Executive Summary
+## Meta-Analysis
 
-{2-3 sentences — the "so what" of this meeting, synthesized from all agents}
+{3-5 paragraphs — heart of the conversation, what's new, actuality frame, recommended considerations. See guidance above.}
 
 ## Tone & Energy
 
@@ -543,11 +567,17 @@ Record these in the "Internal Tensions" section. These disagreements ARE signal 
 
 #### Step 3f: Present proposal (enhanced format)
 
-Show the merged extractions with multi-dimensional data:
+Show the meta-analysis preview + merged extractions. The preview is 2-3 sentences from the meta-analysis — the "heart" and "what's new" lenses only, condensed. Full meta-analysis goes in the briefing file.
 
 ```
 From "Weekly Sync — Feb 12" (Bob + Alice):
 Tone: exploratory → decisive | Alignment: 0.85
+
+  This meeting was really about settling the local transport question —
+  everything else orbited that decision. The stdio choice unblocks MCP
+  integration but creates a deferred problem for remote servers that
+  nobody named yet. With the onboarding quest stalled since last week,
+  the guided tour finding gives it a concrete next step.
 
   ◉ Decision: Use stdio transport for MCP servers           [0.9]
     "I tested both and stdio is way simpler" — them
@@ -585,6 +615,7 @@ Adjust? (y/edit/skip)
 
 Display rules:
 - Tone summary + alignment score at the top
+- Meta-analysis preview: 2-3 sentences covering "heart" + "what's new" + actuality reference. Indented, italicized feel. Between tone line and first artifact.
 - `[0.9]` confidence score right-aligned after title
 - Evidence quote in quotes with speaker attribution
 - Conviction strength + urgency on one line
@@ -1076,6 +1107,13 @@ Reading meeting...
 
 From "Weekly Sync — Feb 12" (Bob + Alice, Bob):
 Tone: exploratory → decisive | Alignment: 0.85
+
+  This meeting was really about settling the local transport question —
+  everything else orbited that decision. The stdio choice unblocks the
+  MCP integration quest, which has been stalled for two weeks, but
+  creates a deferred problem for remote servers. The pricing
+  conversation drifted from tier-based (Feb 8) to usage-based without
+  anyone explicitly deciding — worth naming that shift.
 
   ◉ Decision: Use stdio transport for MCP servers           [0.9]
     "I tested both and stdio is way simpler" — them

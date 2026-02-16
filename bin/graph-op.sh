@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # Named graph operations — clean interface over raw Cypher.
 # Keeps implementation details out of the TUI.
 #
@@ -16,43 +17,39 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 GS="$SCRIPT_DIR/bin/graph.sh"
 
 OP="${1:-}"
-shift 2>/dev/null
+shift || true
 
 case "$OP" in
 
   mark-read)
-    SID="$1"
-    [ -z "$SID" ] && echo '{"error":"missing session-id"}' && exit 1
+    SID="${1:?missing session-id}"
     bash "$GS" query "
       MATCH (s:Session {id: \$sid})
       SET s.handoffStatus = 'read', s.handoffReadDate = date()
       RETURN s.id AS id, s.topic AS topic
-    " "{\"sid\":\"$SID\"}" 2>/dev/null
+    " "{\"sid\":\"$SID\"}"
     ;;
 
   mark-done)
-    SID="$1"
-    [ -z "$SID" ] && echo '{"error":"missing session-id"}' && exit 1
+    SID="${1:?missing session-id}"
     bash "$GS" query "
       MATCH (s:Session {id: \$sid})
       SET s.handoffStatus = 'done'
       RETURN s.id AS id, s.topic AS topic
-    " "{\"sid\":\"$SID\"}" 2>/dev/null
+    " "{\"sid\":\"$SID\"}"
     ;;
 
   answer-question)
-    QID="$1"
-    [ -z "$QID" ] && echo '{"error":"missing question-set-id"}' && exit 1
+    QID="${1:?missing question-set-id}"
     bash "$GS" query "
       MATCH (qs:QuestionSet {id: \$qid})
       SET qs.status = 'answered'
       RETURN qs.id AS id, qs.topic AS topic
-    " "{\"qid\":\"$QID\"}" 2>/dev/null
+    " "{\"qid\":\"$QID\"}"
     ;;
 
   resolve-handoffs)
-    USER="$1"
-    [ -z "$USER" ] && echo '{"error":"missing username"}' && exit 1
+    USER="${1:?missing username}"
     bash "$GS" query "
       MATCH (s:Session)-[:HANDED_TO]->(p:Person {name: \$user})
       WHERE s.handoffStatus = 'read'
@@ -62,24 +59,21 @@ case "$OP" in
       WITH s, count(later) AS laterSessions WHERE laterSessions > 0
       SET s.handoffStatus = 'done'
       RETURN s.id AS resolved
-    " "{\"user\":\"$USER\"}" 2>/dev/null
+    " "{\"user\":\"$USER\"}"
     ;;
 
   record-focus)
-    SID="$1"
-    SHOWN="$2"
-    SELECTED="$3"
+    SID="${1:?missing session-id}"
+    SHOWN="${2:?missing shown options}"
+    SELECTED="${3:?missing selected option}"
     DISMISSED="${4:-[]}"
-    [ -z "$SID" ] && echo '{"error":"missing session-id"}' && exit 1
-    [ -z "$SHOWN" ] && echo '{"error":"missing shown options"}' && exit 1
-    [ -z "$SELECTED" ] && echo '{"error":"missing selected option"}' && exit 1
     bash "$GS" query "
       MATCH (s:Session {id: \$sid})
       SET s.focusShown = \$shown,
           s.focusSelected = \$selected,
           s.focusDismissed = \$dismissed
       RETURN s.id AS id
-    " "{\"sid\":\"$SID\",\"shown\":$SHOWN,\"selected\":\"$SELECTED\",\"dismissed\":$DISMISSED}" 2>/dev/null
+    " "{\"sid\":\"$SID\",\"shown\":$SHOWN,\"selected\":\"$SELECTED\",\"dismissed\":$DISMISSED}"
     ;;
 
   *)

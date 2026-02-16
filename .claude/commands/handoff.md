@@ -340,64 +340,21 @@ Show progress:
 [2/5] ✓ Index updated
 ```
 
-## Step 5: Create Session node in Neo4j + query artifacts
+## Step 5: Index to Neo4j + query artifacts
 
-### Session creation (with HANDED_TO)
+### Session indexing
 
-Run via `bash bin/graph.sh query "..." '{"param": "value"}'`:
-
-```cypher
-MATCH (p:Person {name: $author})
-CREATE (s:Session {
-  id: $sessionId,
-  date: date($date),
-  topic: $topic,
-  summary: $summary,
-  filePath: $filePath,
-  handoffStatus: 'pending'
-})
-CREATE (s)-[:BY]->(p)
-WITH s
-OPTIONAL MATCH (proj:Project {name: $project})
-FOREACH (_ IN CASE WHEN proj IS NOT NULL THEN [1] ELSE [] END |
-  CREATE (s)-[:ABOUT]->(proj)
-)
-WITH s
-OPTIONAL MATCH (target:Person {name: $recipient})
-FOREACH (_ IN CASE WHEN target IS NOT NULL THEN [1] ELSE [] END |
-  CREATE (s)-[:HANDED_TO]->(target)
-)
-RETURN s.id
+```bash
+RESULT=$(bash bin/index-handoff.sh "memory/handoffs/YYYY-MM/DD-author-topic-slug.md" 2>/dev/null)
 ```
 
-After creating the Session node, resolve any `read` handoffs where the user has completed a subsequent session (same criteria as Q_resolve in activity-data.sh):
+The script handles all graph writes: Session node (MERGE for idempotency), BY/HANDED_TO/ABOUT relationships, and auto-resolve of old `read` handoffs from this author.
 
-```cypher
-MATCH (s:Session)-[:HANDED_TO]->(p:Person {name: $author})
-WHERE s.handoffStatus = 'read' AND s.id <> $sessionId
-WITH s, p, coalesce(s.handoffReadDate, s.date) AS sinceDate
-MATCH (later:Session)-[:BY]->(p)
-WHERE later.date > sinceDate
-WITH s, count(later) AS laterSessions WHERE laterSessions > 0
-SET s.handoffStatus = 'done'
-RETURN s.id AS id, s.topic AS topic
-```
+Returns: `{"sessionId":"...","resolved":N}` or `{"error":"..."}`.
 
-If any resolved, include in progress output: `[3/5] ✓ Session -> knowledge graph (resolved N prior handoffs)`
+If it fails: show "Graph offline — file saved, will sync on next /save". Continue to Step 6.
 
-Where:
-- `$sessionId` = `YYYY-MM-DD-author-topic-slug` (matches filename without extension)
-- `$author` = short name (alice, bob, carol)
-- `$date` = `YYYY-MM-DD`
-- `$topic` = the topic string
-- `$summary` = 1-2 sentence summary
-- `$filePath` = `handoffs/YYYY-MM/DD-author-topic-slug.md`
-- `$project` = project name if identified (can be empty string if none)
-- `$recipient` = recipient short name if specified (can be empty string if none)
-
-If no recipient, pass `$recipient` as empty string — the OPTIONAL MATCH will simply not match and FOREACH won't execute.
-
-**CRITICAL: This step is NOT optional.** Without the Neo4j Session node, the handoff won't appear in `/activity`.
+If resolved > 0, include in progress output: `[3/5] ✓ Session -> knowledge graph (resolved N prior handoffs)`
 
 ### Artifact query
 
