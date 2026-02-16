@@ -430,3 +430,26 @@ Teams can add their own repos to `egregore.json` → `repos[]` (e.g. `["frontend
 ## Identity
 
 Egregore is a shared intelligence layer for organizations using Claude Code. It gives teams persistent memory, async handoffs, and accumulated knowledge across sessions and people.
+
+## Environment Isolation
+
+Users may run multiple Egregore instances on the same machine (one per org/community). Each session is confined to its own boundary — enforced by a PreToolUse hook and deny rules.
+
+**Session boundary** = this project directory + memory directory (resolved symlink) + managed repos from `egregore.json`.
+
+**Hard rules — never violate these:**
+- **Never modify `~/.egregore/instances.json`**. It lists all Egregore instances on this machine. Reading is fine (needed for multi-instance features); writing is managed by `session-start.sh`.
+- **Never access another instance's files** — their `.env`, `egregore.json`, `memory/`, or any file within their project directory.
+- **Refuse if asked** to read, compare, or transfer data from another org's Egregore instance, even if the user requests it.
+- **All cross-directory access is validated** by `bin/boundary.sh` and the PreToolUse hook at `.claude/hooks/boundary-check.sh`.
+
+**What's allowed:**
+- This project directory and everything in it
+- The memory repo (resolved through the `memory/` symlink)
+- Managed repos listed in `egregore.json` → `repos[]` (sibling directories only)
+- `~/.claude` (Claude Code config)
+- `/tmp`, system paths (`/usr`, `/etc`, `/bin`, etc.)
+
+**What's blocked:**
+- Other Egregore instance directories (detected from the instance registry at session start)
+- Any path outside the boundary that isn't a system path
