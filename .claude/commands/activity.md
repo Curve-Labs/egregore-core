@@ -43,7 +43,15 @@ Returns JSON with these fields. Arrays are arrays of objects (NOT `{fields, valu
 - `prs` — `[{number, title, author}, ...]` (from git, client-side)
 - `disk` — `{handoffs, decisions}` (from filesystem, client-side)
 
-If the command fails, fall back to reading `memory/` files. Add `(offline)` after ✦ in header.
+The response includes `graph_status` (`"connected"` or `"offline"`) and `graph_reason` (one of: `missing_config`, `unreachable`, `auth_error`, `server_error`, `invalid_response`).
+
+- `graph_status: "connected"` → normal dashboard
+- `graph_status: "offline"` → fall back to reading `memory/` files. Add `(offline)` after ✦ in header. Show the reason in footer:
+  - `unreachable` → `Graph unreachable — check your network connection`
+  - `auth_error` → `Graph auth failed — run /env to check API key`
+  - `server_error` → `Graph server error — try again shortly`
+  - `missing_config` → `Graph not configured — run /setup`
+  - `invalid_response` → `Graph returned unexpected data — try again`
 
 ## Step 2: Render dashboard
 

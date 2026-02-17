@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+# Framework version — bumped on greeting/startup changes.
+# Used for drift detection across team members.
+FRAMEWORK_VERSION="2"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
@@ -273,6 +277,10 @@ compute_boundary() {
 compute_boundary 2>/dev/null || true
 
 # --- Fetch all remotes in parallel ---
+# Set git transfer timeout so hangs don't block startup indefinitely.
+export GIT_HTTP_LOW_SPEED_LIMIT=1000  # abort if <1KB/s
+export GIT_HTTP_LOW_SPEED_TIME=10     # for 10 seconds
+
 git fetch origin --quiet 2>/dev/null &
 
 # Fetch upstream framework (for update check — non-blocking)
@@ -320,33 +328,39 @@ if git show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; then
   COMMITS_AHEAD=$(git rev-list origin/main..develop --count 2>/dev/null || echo "0")
 fi
 
-# --- Resume working branch or stay on current ---
-# Branch creation is deferred to conversation — Claude creates a topic-based
-# branch (dev/{author}/{topic-slug}) when the user says what they're working on.
-# This avoids meaningless date-only branches and lets PRs have descriptive names.
+# --- Always start from develop ---
+# Every session begins on develop. Claude creates a fresh topic branch
+# (dev/{author}/{topic-slug}) when the user says what they're working on.
+# If we're on a working branch with uncommitted work, save it first.
 ACTION="ready"
-BRANCH="$CURRENT_BRANCH"
+SAVED_BRANCH=""
 
-if [[ "$CURRENT_BRANCH" == dev/* ]] || [[ "$CURRENT_BRANCH" == feature/* ]] || [[ "$CURRENT_BRANCH" == bugfix/* ]]; then
-  # Check if branch is already merged into develop — if so, switch to develop
-  if git merge-base --is-ancestor "$CURRENT_BRANCH" develop 2>/dev/null; then
-    git checkout develop --quiet 2>/dev/null || true
-    BRANCH="develop"
-  else
-    # Unmerged working branch — rebase onto develop to stay current
-    if git rebase develop --quiet 2>/dev/null; then
-      ACTION="resumed"
-    else
-      git rebase --abort 2>/dev/null || true
-      git merge develop --quiet -m "Sync with develop" 2>/dev/null || true
-      ACTION="resumed"
+if [[ "$CURRENT_BRANCH" != "develop" ]]; then
+  # Check for uncommitted work (staged + unstaged + untracked in tracked dirs)
+  if [ -n "$(git status --porcelain 2>/dev/null | head -1)" ]; then
+    # Save uncommitted work so nothing is lost
+    git add -A 2>/dev/null
+    git commit -m "Auto-save: uncommitted work from $CURRENT_BRANCH" --quiet 2>/dev/null || true
+    SAVED_BRANCH="$CURRENT_BRANCH"
+  fi
+
+  # Push the branch if it has unpushed commits (so work is never only local)
+  if [[ "$CURRENT_BRANCH" == dev/* ]] || [[ "$CURRENT_BRANCH" == feature/* ]] || [[ "$CURRENT_BRANCH" == bugfix/* ]]; then
+    LOCAL_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
+    REMOTE_HEAD=$(git rev-parse "origin/$CURRENT_BRANCH" 2>/dev/null || echo "none")
+    if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+      git push origin "$CURRENT_BRANCH" --quiet 2>/dev/null || true
     fi
   fi
-elif [[ "$CURRENT_BRANCH" != "develop" ]]; then
-  # On main or some other branch — switch to develop so we're ready
+
+  # Switch to develop (already updated by fetch origin develop:develop above)
   git checkout develop --quiet 2>/dev/null || true
-  BRANCH="develop"
+else
+  # Already on develop — fetch couldn't update it (checked-out branch), so pull
+  git merge --ff-only origin/develop --quiet 2>/dev/null || true
 fi
+
+BRANCH="develop"
 
 # --- Sync memory ---
 if [ -L "$SCRIPT_DIR/memory" ] && [ -d "$SCRIPT_DIR/memory/.git" ]; then
@@ -616,11 +630,7 @@ if [ -f "$STATE_FILE" ]; then
 fi
 GREETING_NAME="${DISPLAY_NAME:-$AUTHOR}"
 
-BRANCH_STATUS="$BRANCH"
-if [ "$ACTION" = "resumed" ]; then
-  BRANCH_STATUS="$BRANCH (resumed)"
-fi
-BRANCH_STATUS="$BRANCH_STATUS · synced"
+BRANCH_STATUS="$BRANCH · synced"
 if [ "$COMMITS_AHEAD" -gt 0 ] 2>/dev/null; then
   BRANCH_STATUS="$BRANCH_STATUS · $COMMITS_AHEAD ahead"
 fi
@@ -632,16 +642,33 @@ fi
 
 echo "  ◇ $GREETING_NAME        ⎇ $BRANCH_STATUS        $MEMORY_STATUS"
 
+# Show auto-save notice if work was committed from a previous branch
+if [ -n "$SAVED_BRANCH" ]; then
+  echo "  ✓ Auto-saved uncommitted work on $SAVED_BRANCH"
+fi
+
 # Managed repos status
 if [ -n "$REPOS_STATUS" ]; then
   printf "$REPOS_STATUS"
 fi
 
-# Check for upstream framework updates
-UPSTREAM_DIFF=$(git diff HEAD upstream/main -- bin/ .claude/commands/ CLAUDE.md skills/ 2>/dev/null || true)
-if [ -n "$UPSTREAM_DIFF" ]; then
-  UPDATE_COUNT=$(echo "$UPSTREAM_DIFF" | grep -c '^diff --git' 2>/dev/null || echo "0")
-  echo "  ⟳ Framework update available ($UPDATE_COUNT files) — run /update"
+# Auto-apply upstream framework updates (bin/, .claude/commands/, CLAUDE.md, skills/)
+# Only update when upstream has NEW commits we don't have (forward-only).
+# git log HEAD..upstream/main shows commits in upstream that aren't in our history.
+UPSTREAM_NEW=$(git log HEAD..upstream/main --oneline -- bin/ .claude/commands/ CLAUDE.md skills/ 2>/dev/null || true)
+if [ -n "$UPSTREAM_NEW" ]; then
+  UPDATE_COUNT=$(echo "$UPSTREAM_NEW" | wc -l | tr -d ' ')
+  # Check for uncommitted local changes to framework files (protects active development)
+  LOCAL_FRAMEWORK_DIRTY=$(git diff -- bin/ .claude/commands/ CLAUDE.md skills/ 2>/dev/null || true)
+  if [ -n "$LOCAL_FRAMEWORK_DIRTY" ]; then
+    echo "  ⟳ Framework update available — run /update"
+  elif git checkout upstream/main -- bin/ .claude/commands/ CLAUDE.md skills/ 2>/dev/null; then
+    git add bin/ .claude/commands/ CLAUDE.md skills/ 2>/dev/null
+    git commit -m "Auto-update Egregore framework" --quiet 2>/dev/null || true
+    echo "  ✓ Framework updated"
+  else
+    echo "  ⟳ Framework update available — run /update"
+  fi
 fi
 
 echo ""
@@ -658,6 +685,7 @@ cat << CTXEOF
 
 <!-- session-context
 {
+  "framework_version": "$FRAMEWORK_VERSION",
   "time_of_day": "$TIME_OF_DAY",
   "recent_handoffs": $CONTEXT_HANDOFFS,
   "addressed_to_user": $CONTEXT_ADDRESSED,
