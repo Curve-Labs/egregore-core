@@ -2,7 +2,7 @@ End a session with a summary for the next person (or future you). With no argume
 
 ## When to invoke
 
-User says: "I'm done", "wrapping up", "leave notes", "pass this to [name]", "hand off", "done for now", "signing off"
+User says: "I'm done", "wrapping up", "leave a handoff", "pass this to [name]", "hand off", "done for now", "signing off"
 Not this: user wants to push but keep working → `/save`
 
 Topic: $ARGUMENTS

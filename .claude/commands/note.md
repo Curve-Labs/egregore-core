@@ -2,7 +2,7 @@ Save a personal note. Private by default — never shared, never pushed. You cho
 
 ## When to invoke
 
-User says: "jot this down", "note to self", "just thinking out loud", "park this thought", "scratch pad"
+User says: "jot this down", "note to self", "just thinking out loud", "park this thought", "scratch pad", "write this down", "leave notes"
 Not this: insight is ready to share → `/reflect` · want deep analysis → `/deep-reflect`
 
 Arguments: $ARGUMENTS

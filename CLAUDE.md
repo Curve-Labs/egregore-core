@@ -432,6 +432,7 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 
 **Core loop** — `/activity` `/handoff` `/save` `/reflect` `/todo`
 **Knowledge** — `/deep-reflect` `/archive` `/note` `/add` `/meeting`
+**Reading** — `/open` (open/read/show me/display/pull up a file — always verbatim, never summarize)
 **Coordination** — `/ask` `/quest` `/issue` `/invite`
 **Git** — `/branch` `/commit` `/push` `/pr` `/save`
 **Infra** — `/setup` `/update` `/pull` `/env` `/sync-repos` `/release`
@@ -441,6 +442,7 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 - Ending vs continuing: `/handoff` (leaving) vs `/save` (still working)
 - Things to do: `/todo` (personal task) vs `/quest` (team exploration) vs `/issue` (something broken)
 - Questions: `/ask [person]` (async to teammate) vs just asking (agent can answer from context)
+- Reading files: `/open` (show full content verbatim) vs just answering (user asks a question about a file, not to read it)
 
 ## Identity
 
