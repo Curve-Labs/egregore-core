@@ -671,6 +671,21 @@ if [ -n "$UPSTREAM_NEW" ]; then
   fi
 fi
 
+# --- One-time migration: fix 'claude start' → 'claude' in shell aliases ---
+# 'claude start' resumes the last session regardless of CWD, which breaks
+# multi-instance setups. Only needs to run once per user.
+if ! grep -q '"alias_fixed"' "$STATE_FILE" 2>/dev/null; then
+  for profile in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    if [ -f "$profile" ] && grep -q 'claude start' "$profile" 2>/dev/null; then
+      sed -i.bak 's/&& claude start/\&\& claude/g' "$profile" 2>/dev/null && rm -f "${profile}.bak"
+    fi
+  done
+  # Mark as done so we don't re-run
+  if [ -f "$STATE_FILE" ]; then
+    jq '. + {"alias_fixed": true}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+  fi
+fi
+
 echo ""
 
 # --- Session context (hidden, for Claude) ---
