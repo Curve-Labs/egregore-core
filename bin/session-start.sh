@@ -243,6 +243,10 @@ compute_boundary 2>/dev/null || true
 # --- Fetch all remotes in parallel ---
 git fetch origin --quiet 2>/dev/null &
 
+# Fetch upstream framework (for update check — non-blocking)
+git remote add upstream https://github.com/Curve-Labs/egregore-core.git 2>/dev/null || true
+git fetch upstream main --quiet 2>/dev/null &
+
 # Sync memory in parallel
 MEMORY_SYNCED="false"
 if [ -L "$SCRIPT_DIR/memory" ] && [ -d "$SCRIPT_DIR/memory/.git" ]; then
@@ -599,6 +603,13 @@ echo "  ◇ $GREETING_NAME        ⎇ $BRANCH_STATUS        $MEMORY_STATUS"
 # Managed repos status
 if [ -n "$REPOS_STATUS" ]; then
   printf "$REPOS_STATUS"
+fi
+
+# Check for upstream framework updates
+UPSTREAM_DIFF=$(git diff HEAD upstream/main -- bin/ .claude/commands/ CLAUDE.md skills/ 2>/dev/null || true)
+if [ -n "$UPSTREAM_DIFF" ]; then
+  UPDATE_COUNT=$(echo "$UPSTREAM_DIFF" | grep -c '^diff --git' 2>/dev/null || echo "0")
+  echo "  ⟳ Framework update available ($UPDATE_COUNT files) — run /update"
 fi
 
 echo ""

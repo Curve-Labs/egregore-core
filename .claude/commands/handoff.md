@@ -258,16 +258,54 @@ If `$ARGUMENTS` has no clear recipient, show a picker using AskUserQuestion:
 
 If no recipient detected or user picks "General", the handoff is for the team or future self.
 
-## Step 2: Summarize for the recipient
+## Step 2: Brief the recipient
 
-Analyze the conversation context. **Scope to the focal topic** — if the conversation has a clear focal finding, bug, artifact, or decision, summarize *that*, not the entire session. Preserve concrete details: line numbers, file paths, error messages, proposed fixes. The recipient needs to act on this without re-reading the conversation.
+### Scope assessment
 
-If the session covered many topics with no clear focus, summarize broadly.
+Before generating the briefing, consider whether this session covered multiple
+distinct threads of work that a reader might not all need.
+
+This is a judgment call. Most sessions don't need it. Skip it when:
+- The session had one clear focus
+- The user provided a specific topic in `/handoff` arguments that already narrows scope
+- The conversation was short or exploratory
+
+Ask when you'd genuinely be unsure what to include — when the session
+switched between unrelated areas, or when briefing everything would
+produce a handoff where the reader can't tell what to act on first.
+
+If asking: use AskUserQuestion. The options must name the actual threads
+from the conversation — not generic labels. Derive them from what was
+discussed. Always include a "whole session" option. 2-4 options max.
+
+    header: "Scope"
+    question: "{your context-sensitive question}"
+    options:
+      - label: "{thread A — named from conversation}"
+        description: "{what this covers}"
+      - label: "{thread B — named from conversation}"
+        description: "{what this covers}"
+      - label: "Whole session"
+        description: "Hand off everything we discussed"
+
+This counts toward the 1-2 AskUserQuestion budget for the handoff command.
+If the recipient picker in Step 1 already used 1, skip scope assessment.
+
+### Generate briefing
+
+Synthesize the session into a briefing for the recipient (or future reader).
+This is not a transcript — actively interpret what happened, connect it to
+team context (active quests, recent handoffs, known priorities), and tell the
+reader what matters and why.
+
+If a scope was selected above, constrain the briefing to the selected scope.
+Material from unselected threads should not appear.
 
 Produce:
 
-1. **Summary** — 2-3 sentences scoped to the focal topic (or session if broad)
-2. **Key decisions** — any decisions made with rationale
+1. **Briefing** — 2-4 sentences. What happened, why it matters, how it connects
+   to what the team is working on. Situate the work — don't just describe it.
+2. **Key decisions** — any decisions made, with rationale and implications
 3. **Current state** — what's working, in progress, blocked
 4. **Open threads** — unfinished items with enough context to pick up
 5. **Next steps** — clear actions with entry points
@@ -297,9 +335,9 @@ cat > "memory/handoffs/YYYY-MM/DD-author-topic-slug.md" << 'HANDOFFEOF'
 **To**: [recipient, if specified]
 **Project**: [project name from context]
 
-## Session Summary
+## Briefing
 
-[2-3 sentences on what was accomplished]
+[2-4 sentences — what happened, why it matters, how it connects]
 
 ## Key Decisions
 
@@ -420,7 +458,7 @@ bash bin/notify.sh send "$RECIPIENT" "$MESSAGE"
 ```
 Handoff from [Author]: [Topic]
 
-"[1-2 sentence summary from the session]"
+"[2-3 sentence briefing from the session]"
 
 [If artifacts found:]
 Session included N artifacts:
@@ -469,7 +507,7 @@ The separator lines are ALWAYS identical — copy-paste the same 72-char string.
 
 ### Content priority
 
-The session summary is the primary content — what was actually handed off. The progress checklist is already shown incrementally during execution; repeating it wastes space. Collapse progress to a single status line.
+The briefing is the primary content — what was actually handed off. The progress checklist is already shown incrementally during execution; repeating it wastes space. Collapse progress to a single status line.
 
 ### With recipient and artifacts:
 
@@ -519,7 +557,7 @@ The session summary is the primary content — what was actually handed off. The
 - `├───┤` separator between header and content
 - Topic always shown
 - "To:" line only if recipient specified
-- **Session summary** — 2-3 sentences from Step 2, wrapped at ~60 chars. This is the primary content.
+- **Briefing** — 2-4 sentences from Step 2, wrapped at ~60 chars. This is the primary content.
 - Artifacts section (between `├───┤` dividers): `◉` for each artifact. Omit entirely if no artifacts.
 - **Status line** — single line collapsing all progress: `✓ Saved · graphed · pushed` (add `· {Recipient} notified` if recipient)
 - Footer: "Team sees this on /activity."
@@ -560,7 +598,7 @@ Same boundary rules apply — 4 line patterns only, no sub-boxes, 72-char outer 
 ### Receiver TUI rules
 
 - Header: `⇌ HANDOFF FROM [AUTHOR uppercase]` left, `Mon DD` right
-- Summary: wrap at ~60 chars — the primary content
+- Briefing: wrap at ~60 chars — the primary content
 - Open Threads section (between `├───┤` dividers): `○` for each thread. Omit entirely if none.
 - Artifacts section: `◉` for each artifact. Omit entirely if none.
 - Entry points: `→` for file paths, shortened to last 2-3 segments with `...` if needed
@@ -608,6 +646,7 @@ If artifacts exist, skip this step silently.
 | Recipient not a known Person | Warn: "[name] not found in graph — handoff saved but not directed. Create them with /invite?" |
 | No topic in $ARGUMENTS | If open handoffs exist → triage mode (Step 0.5). Otherwise, summarize the session and generate a topic from conversation context |
 | Empty session (nothing happened) | Ask: "Nothing to hand off yet. Want to leave a note instead?" |
+| Scoped briefing is very short | Fine — focused handoffs are better than muddled ones |
 | File already exists at path | Append timestamp to slug to avoid collision |
 
 ## Full example: with recipient
