@@ -258,11 +258,15 @@ If `$ARGUMENTS` has no clear recipient, show a picker using AskUserQuestion:
 
 If no recipient detected or user picks "General", the handoff is for the team or future self.
 
-## Step 2: Summarize the session
+## Step 2: Summarize for the recipient
 
-Analyze the conversation context to produce:
+Analyze the conversation context. **Scope to the focal topic** — if the conversation has a clear focal finding, bug, artifact, or decision, summarize *that*, not the entire session. Preserve concrete details: line numbers, file paths, error messages, proposed fixes. The recipient needs to act on this without re-reading the conversation.
 
-1. **Session summary** — 2-3 sentences on what was accomplished
+If the session covered many topics with no clear focus, summarize broadly.
+
+Produce:
+
+1. **Summary** — 2-3 sentences scoped to the focal topic (or session if broad)
 2. **Key decisions** — any decisions made with rationale
 3. **Current state** — what's working, in progress, blocked
 4. **Open threads** — unfinished items with enough context to pick up
