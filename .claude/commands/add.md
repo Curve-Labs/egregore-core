@@ -1,5 +1,10 @@
 Ingest an artifact with minimal friction. The system suggests relations.
 
+## When to invoke
+
+User says: "check out this link", "found this article", "add this to the knowledge base", "ingest this", shares a URL or paper reference
+Not this: user's own insight → `/reflect` · private thought → `/note`
+
 Arguments: $ARGUMENTS (Optional: URL to fetch, or leave empty for interactive mode)
 
 ## Usage

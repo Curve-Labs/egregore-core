@@ -19,6 +19,16 @@ fi
 API_URL="${EGREGORE_API_URL:-$(jq -r '.api_url // empty' "$CONFIG")}"
 API_KEY="${EGREGORE_API_KEY:-}"
 
+# --- Millisecond timer (macOS + Linux compatible) ---
+_millis() {
+  if command -v gdate &>/dev/null; then
+    gdate +%s%3N
+  else
+    # macOS date doesn't support %N — use python3 fallback
+    python3 -c "import time; print(int(time.time() * 1000))" 2>/dev/null || echo "0"
+  fi
+}
+
 if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
   # === API MODE: Call Egregore API gateway ===
 
@@ -35,6 +45,9 @@ if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
     body=$(jq -n --arg stmt "$cypher" --argjson params "$params" \
       '{statement: $stmt, parameters: $params}')
 
+    local start_ms
+    start_ms=$(_millis)
+
     local response
     response=$(curl -s -X POST "${API_URL}/api/graph/query" \
       -H "Authorization: Bearer $API_KEY" \
@@ -42,12 +55,23 @@ if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
       -d "$body" \
       --max-time 30)
 
+    local end_ms
+    end_ms=$(_millis)
+    local latency_ms=$(( end_ms - start_ms ))
+
     # Check for HTTP-level errors
     if echo "$response" | jq -e '.detail' >/dev/null 2>&1; then
       echo "API error:" >&2
       echo "$response" | jq '.detail' >&2
+      bash "$SCRIPT_DIR/bin/telemetry.sh" emit "error" \
+        "$(jq -n --arg source "graph" --arg error_code "api_error" --argjson latency "$latency_ms" \
+          '{source: $source, error_code: $error_code, latency_ms: $latency}')" 2>/dev/null &
       exit 1
     fi
+
+    # Emit latency telemetry (fire-and-forget)
+    bash "$SCRIPT_DIR/bin/telemetry.sh" emit "graph_query" \
+      "$(jq -n --argjson latency "$latency_ms" '{latency_ms: $latency}')" 2>/dev/null &
 
     echo "$response"
   }

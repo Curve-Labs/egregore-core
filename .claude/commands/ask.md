@@ -1,5 +1,10 @@
 Ask questions — to yourself, the org, or a specific person. Context-aware, graph-backed.
 
+## When to invoke
+
+User says: "ask [name] about", "I need to check with [name]", "can you ask [name]", "question for [name]", "run this by [name]"
+Not this: user is asking the agent a question it can answer from context — just answer directly
+
 Arguments: $ARGUMENTS (Optional: [person] about [topic])
 
 ## Usage

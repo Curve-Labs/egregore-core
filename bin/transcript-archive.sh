@@ -74,6 +74,30 @@ ENDED_AT=$(tail -1 "$TRANSCRIPT_PATH" 2>/dev/null | jq -r '.timestamp // empty' 
 MESSAGE_COUNT=$(wc -l < "$TRANSCRIPT_PATH" 2>/dev/null | tr -d ' ')
 SIZE_BYTES=$(wc -c < "$TRANSCRIPT_PATH" 2>/dev/null | tr -d ' ')
 
+# --- Emit session_end telemetry + flush buffer (background, non-blocking) ---
+(
+  # Calculate duration from transcript timestamps
+  DURATION_MS=0
+  if [ -n "$STARTED_AT" ] && [ -n "$ENDED_AT" ]; then
+    # Parse ISO timestamps to epoch seconds (macOS + Linux compatible)
+    START_EPOCH=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('$STARTED_AT'.replace('Z','+00:00')).timestamp() * 1000))" 2>/dev/null || echo "0")
+    END_EPOCH=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('$ENDED_AT'.replace('Z','+00:00')).timestamp() * 1000))" 2>/dev/null || echo "0")
+    if [ "$START_EPOCH" -gt 0 ] 2>/dev/null && [ "$END_EPOCH" -gt 0 ] 2>/dev/null; then
+      DURATION_MS=$((END_EPOCH - START_EPOCH))
+    fi
+  fi
+
+  # Set identity env vars for telemetry
+  export EGREGORE_USER="$AUTHOR"
+  export EGREGORE_SESSION_ID="$SESSION_ID"
+
+  bash "$SCRIPT_DIR/bin/telemetry.sh" emit "session_end" \
+    "$(jq -n --argjson duration "$DURATION_MS" --argjson messages "${MESSAGE_COUNT:-0}" \
+      '{duration_ms: $duration, message_count: $messages}')" 2>/dev/null || true
+
+  bash "$SCRIPT_DIR/bin/telemetry.sh" flush 2>/dev/null || true
+) &
+
 # --- Gzip to temp file ---
 TMP_FILE="/tmp/egregore-transcript-${SESSION_ID}.jsonl.gz"
 gzip -c "$TRANSCRIPT_PATH" > "$TMP_FILE" 2>/dev/null || exit 0

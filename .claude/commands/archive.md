@@ -2,6 +2,11 @@ Archive Mode
 
 Capture effective prompt patterns — sequences of human steering interventions that produced good AI reasoning — and store them in the shared knowledge base as reusable patterns.
 
+## When to invoke
+
+User says: "that prompt worked well", "save this prompting technique", "archive this steering pattern", "the way I phrased that got great results"
+Not this: insight about the work itself → `/reflect` · private thought → `/note`
+
 Topic: $ARGUMENTS
 
 **Auto-saves.** No need to run `/save` after.
@@ -46,7 +51,7 @@ Execute each with `bash bin/graph.sh query "..." '{"param": "value"}'`.
 **Q1 — Recent sessions (7 days):**
 ```cypher
 MATCH (s:Session)-[:BY]->(p:Person {name: $me})
-WHERE date(s.date) >= date() - duration('P7D')
+WHERE date(left(toString(s.date), 10)) >= date() - duration('P7D')
 RETURN s.topic AS topic, s.date AS date, s.summary AS summary
 ORDER BY s.date DESC LIMIT 5
 ```

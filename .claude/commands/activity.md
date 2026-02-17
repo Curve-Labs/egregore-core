@@ -1,5 +1,10 @@
 Activity dashboard. Display it immediately — no preamble, no narration, no reasoning text. Output the box and nothing else before AskUserQuestion.
 
+## When to invoke
+
+User says: "catch me up", "what's going on", "show dashboard", "where did I leave off", "what happened", "any updates", "what did I miss"
+Not this: if user wants to *do* something specific, route to that command instead
+
 Topic: $ARGUMENTS
 
 ## Step 1: Fetch data

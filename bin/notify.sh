@@ -37,10 +37,14 @@ if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
 
     if echo "$response" | jq -e '.status == "sent"' >/dev/null 2>&1; then
       echo "Sent"
+      bash "$SCRIPT_DIR/bin/telemetry.sh" emit "notification" \
+        '{"type":"send","status":"sent"}' 2>/dev/null &
     else
       local detail
       detail=$(echo "$response" | jq -r '.detail // .status // "unknown error"')
       echo "Failed: $detail"
+      bash "$SCRIPT_DIR/bin/telemetry.sh" emit "notification" \
+        '{"type":"send","status":"failed"}' 2>/dev/null &
     fi
   }
 
@@ -56,10 +60,14 @@ if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
 
     if echo "$response" | jq -e '.status == "sent"' >/dev/null 2>&1; then
       echo "Sent"
+      bash "$SCRIPT_DIR/bin/telemetry.sh" emit "notification" \
+        '{"type":"group","status":"sent"}' 2>/dev/null &
     else
       local detail
       detail=$(echo "$response" | jq -r '.detail // .status // "unknown error"')
       echo "Failed: $detail"
+      bash "$SCRIPT_DIR/bin/telemetry.sh" emit "notification" \
+        '{"type":"group","status":"failed"}' 2>/dev/null &
     fi
   }
 

@@ -83,6 +83,18 @@ if [ -z "$AUTHOR" ]; then
   exit 1
 fi
 
+# --- Export telemetry identity env vars ---
+export EGREGORE_USER="$AUTHOR"
+export EGREGORE_ORG="$(jq -r '.slug // .github_org // empty' "$SCRIPT_DIR/egregore.json" 2>/dev/null || true)"
+export EGREGORE_SESSION_ID="$(date -u +%Y%m%dT%H%M%S)-${AUTHOR}-$$"
+
+# Persist session ID to file so telemetry.sh can read it
+# (env vars from hooks don't propagate into the Claude Code agent)
+SESSION_ID_DIR="$HOME/.egregore"
+mkdir -p "$SESSION_ID_DIR"
+PROJ_HASH=$(echo -n "$SCRIPT_DIR" | md5 2>/dev/null || echo -n "$SCRIPT_DIR" | md5sum 2>/dev/null | cut -d' ' -f1)
+echo "$EGREGORE_SESSION_ID" > "$SESSION_ID_DIR/session-${PROJ_HASH}.id"
+
 # --- Check onboarding state ---
 # If state file doesn't exist, assume onboarding complete (existing team member)
 # State file is only created by onboarding flow for new orgs/users
@@ -631,6 +643,10 @@ if [ -d "$SCRIPT_DIR/memory/soul" ]; then
     echo "-->"
   fi
 fi
+
+# --- Emit session_start telemetry (background, non-blocking) ---
+bash "$SCRIPT_DIR/bin/telemetry.sh" emit "session_start" \
+  "$(jq -n --arg branch "$BRANCH" '{branch: $branch}')" 2>/dev/null &
 
 # Clean up temp files
 rm -rf "$CTX_DIR"

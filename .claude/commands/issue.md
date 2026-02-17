@@ -1,5 +1,10 @@
 Report an issue. Captures context automatically, routes to memory/graph/GitHub.
 
+## When to invoke
+
+User says: "this is broken", "bug in", "something's wrong with", "file an issue", "report a problem", "[command] isn't working"
+Not this: personal task → `/todo` · team exploration → `/quest`
+
 Topic: $ARGUMENTS
 
 **Auto-saves.** No need to run `/save` after (create mode only).
@@ -177,7 +182,7 @@ jq -r '.org_name,.github_org,.slug,.repos[]' egregore.json 2>/dev/null
 **Neo4j — recent session context:**
 ```cypher
 MATCH (s:Session)-[:BY]->(p:Person {name: $me})
-WHERE date(s.date) >= date() - duration('P3D')
+WHERE date(left(toString(s.date), 10)) >= date() - duration('P3D')
 RETURN s.topic, s.date ORDER BY s.date DESC LIMIT 5
 ```
 

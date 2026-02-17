@@ -1,5 +1,10 @@
 Manage personal todos — lightweight intent capture that flows into quests, asks, and activity.
 
+## When to invoke
+
+User says: "I need to remember", "add to my list", "what's on my plate", "mark done", "remind me to", "don't let me forget"
+Not this: team-level exploration → `/quest` · something is broken → `/issue`
+
 Arguments: $ARGUMENTS (Optional: text to add, "done N", "cancel N", quest slug, or "all")
 
 ## Usage

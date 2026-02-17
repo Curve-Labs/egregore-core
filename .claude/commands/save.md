@@ -1,5 +1,10 @@
 Save your contributions to Egregore. Pushes working branch, creates PR to develop.
 
+## When to invoke
+
+User says: "push my work", "sync changes", "commit and push", "save everything", "push this up"
+Not this: user is leaving/done → `/handoff` (which auto-saves)
+
 ## Execution rules
 
 **CRITICAL: Suppress raw output.** Never show raw JSON to the user. All `bin/graph.sh` calls MUST capture output in a variable and only show formatted status lines (e.g. "Synced 2 sessions, 1 artifact to graph").
@@ -87,6 +92,13 @@ Save your contributions to Egregore. Pushes working branch, creates PR to develo
          ```
          Tell the developer: `⚠ Preflight found issues — fix before merging. See violations above.`
        - Preflight never blocks the save — work is always preserved. It warns.
+     - **Cypher query check** — after preflight, detect if changed files contain Cypher blocks:
+       ```bash
+       git diff develop --name-only | xargs grep -l '```cypher' 2>/dev/null | head -1
+       ```
+       If any files contain Cypher blocks, show a non-blocking recommendation:
+       > Changed files contain Cypher queries. Consider running `/test` first.
+       This is advisory only — never blocks the save.
 
 4. **For managed repos** (listed in `egregore.json` → `repos[]`, located at `../{repo}/`):
    - Read the repos list: `jq -r '.repos[]? // empty' egregore.json`

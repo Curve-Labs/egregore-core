@@ -1,5 +1,10 @@
 Manage quests — open-ended explorations that anyone can contribute to.
 
+## When to invoke
+
+User says: "let's explore", "open question", "we should investigate", "start a quest", "what quests are open", "contribute to [quest]"
+Not this: personal task → `/todo` · something is broken → `/issue`
+
 Arguments: $ARGUMENTS (Optional: quest name, or subcommand)
 
 ## Usage
