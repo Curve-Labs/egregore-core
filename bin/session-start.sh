@@ -108,11 +108,27 @@ if [ "$ONBOARDING_COMPLETE" != "true" ]; then
   exit 0
 fi
 
-# --- Auto-provision EGREGORE_API_KEY if missing (background, non-blocking) ---
+# --- Auto-provision or fix EGREGORE_API_KEY (background, non-blocking) ---
 ENV_FILE="$SCRIPT_DIR/.env"
 CONFIG="$SCRIPT_DIR/egregore.json"
 
-if [ -f "$ENV_FILE" ] && ! grep -q '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null; then
+# Check if key is missing OR if the key's slug doesn't match egregore.json slug
+KEY_NEEDS_FIX="false"
+if [ -f "$ENV_FILE" ]; then
+  CURRENT_KEY=$(grep '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2-)
+  EXPECTED_SLUG=$(jq -r '.slug // empty' "$CONFIG" 2>/dev/null)
+  if [ -z "$CURRENT_KEY" ]; then
+    KEY_NEEDS_FIX="true"
+  elif [ -n "$EXPECTED_SLUG" ]; then
+    # Extract slug from key: ek_<slug>_<secret> → <slug>
+    KEY_SLUG=$(echo "$CURRENT_KEY" | cut -d'_' -f2)
+    if [ "$KEY_SLUG" != "$EXPECTED_SLUG" ]; then
+      KEY_NEEDS_FIX="true"
+    fi
+  fi
+fi
+
+if [ "$KEY_NEEDS_FIX" = "true" ]; then
   (
     GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2-)
     API_URL=$(jq -r '.api_url // empty' "$CONFIG" 2>/dev/null)
@@ -128,7 +144,13 @@ if [ -f "$ENV_FILE" ] && ! grep -q '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null;
       if [ -n "$KEY_RESPONSE" ]; then
         FETCHED_KEY=$(echo "$KEY_RESPONSE" | jq -r '.api_key // empty' 2>/dev/null)
         if [ -n "$FETCHED_KEY" ] && [ "$FETCHED_KEY" != "null" ]; then
-          echo "EGREGORE_API_KEY=$FETCHED_KEY" >> "$ENV_FILE"
+          # Replace existing key or append
+          if grep -q '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null; then
+            sed -i.bak "s|^EGREGORE_API_KEY=.*|EGREGORE_API_KEY=$FETCHED_KEY|" "$ENV_FILE"
+            rm -f "$ENV_FILE.bak"
+          else
+            echo "EGREGORE_API_KEY=$FETCHED_KEY" >> "$ENV_FILE"
+          fi
         fi
       fi
     fi
