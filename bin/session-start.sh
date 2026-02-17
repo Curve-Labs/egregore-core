@@ -136,7 +136,10 @@ if [ "$KEY_NEEDS_FIX" = "true" ]; then
 
     if [ -n "$GITHUB_TOKEN" ] && [ -n "$API_URL" ] && [ -n "$GITHUB_ORG" ]; then
       SLUG=$(jq -r '.slug // empty' "$CONFIG" 2>/dev/null)
-      [ -z "$SLUG" ] && SLUG=$(echo "$GITHUB_ORG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
+      if [ -z "$SLUG" ]; then
+        # No slug in egregore.json — cannot safely derive one. Skip key fix.
+        exit 0
+      fi
       KEY_RESPONSE=$(curl -s -X GET "${API_URL}/api/org/${SLUG}/key" \
         -H "Authorization: Bearer $GITHUB_TOKEN" \
         --connect-timeout 5 --max-time 10 2>/dev/null || echo "")
@@ -144,12 +147,16 @@ if [ "$KEY_NEEDS_FIX" = "true" ]; then
       if [ -n "$KEY_RESPONSE" ]; then
         FETCHED_KEY=$(echo "$KEY_RESPONSE" | jq -r '.api_key // empty' 2>/dev/null)
         if [ -n "$FETCHED_KEY" ] && [ "$FETCHED_KEY" != "null" ]; then
-          # Replace existing key or append
-          if grep -q '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null; then
-            sed -i.bak "s|^EGREGORE_API_KEY=.*|EGREGORE_API_KEY=$FETCHED_KEY|" "$ENV_FILE"
-            rm -f "$ENV_FILE.bak"
-          else
-            echo "EGREGORE_API_KEY=$FETCHED_KEY" >> "$ENV_FILE"
+          # Safety: verify the fetched key's slug matches what we expected
+          FETCHED_SLUG=$(echo "$FETCHED_KEY" | cut -d'_' -f2)
+          if [ "$FETCHED_SLUG" = "$SLUG" ]; then
+            # Replace existing key or append
+            if grep -q '^EGREGORE_API_KEY=' "$ENV_FILE" 2>/dev/null; then
+              sed -i.bak "s|^EGREGORE_API_KEY=.*|EGREGORE_API_KEY=$FETCHED_KEY|" "$ENV_FILE"
+              rm -f "$ENV_FILE.bak"
+            else
+              echo "EGREGORE_API_KEY=$FETCHED_KEY" >> "$ENV_FILE"
+            fi
           fi
         fi
       fi
@@ -164,7 +171,10 @@ if command -v jq &>/dev/null && [ -f "$CONFIG" ]; then
     REGISTRY_DIR="$HOME/.egregore"
     REGISTRY="$REGISTRY_DIR/instances.json"
     INST_SLUG=$(jq -r '.slug // empty' "$CONFIG")
-    [ -z "$INST_SLUG" ] && INST_SLUG=$(jq -r '.github_org // empty' "$CONFIG" | tr '[:upper:]' '[:lower:]' | tr -d '-' | tr -d ' ')
+    if [ -z "$INST_SLUG" ]; then
+      # No slug in egregore.json — skip instance registration
+      exit 0
+    fi
     INST_NAME=$(jq -r '.org_name // empty' "$CONFIG")
 
     if [ -n "$INST_SLUG" ] && [ -n "$INST_NAME" ]; then
