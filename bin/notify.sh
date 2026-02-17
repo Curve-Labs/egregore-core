@@ -42,7 +42,11 @@ if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
     else
       local detail
       detail=$(echo "$response" | jq -r '.detail // .status // "unknown error"')
-      echo "Failed: $detail"
+      if echo "$detail" | grep -qi "forbidden\|can't initiate\|bot was blocked"; then
+        echo "Failed: DM not available. Tell $name to message the Egregore bot first (/start)."
+      else
+        echo "Failed: $detail"
+      fi
       bash "$SCRIPT_DIR/bin/telemetry.sh" emit "notification" \
         '{"type":"send","status":"failed"}' 2>/dev/null &
     fi
@@ -90,7 +94,13 @@ if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
     send)
       recipient="${2:?Usage: notify.sh send <name> <message>}"
       message="${3:?Usage: notify.sh send <name> <message>}"
-      send_to_person "$recipient" "$message"
+      result=$(send_to_person "$recipient" "$message")
+      if [[ "$result" == Failed* ]]; then
+        send_to_group "@${recipient}: ${message}"
+        echo "DM failed, sent to group instead. ${result}"
+      else
+        echo "$result"
+      fi
       ;;
     group)
       message="${2:?Usage: notify.sh group <message>}"
@@ -107,7 +117,7 @@ if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
       echo "Usage: notify.sh <command>"
       echo ""
       echo "Commands:"
-      echo "  send <name> <message>   Send to a person (DM or group fallback)"
+      echo "  send <name> <message>   Send DM to a person (auto-fallback to group on failure)"
       echo "  group <message>         Send to the group chat"
       echo "  file <path> [caption]   Send a file to the group chat"
       echo "  test                    Test connection"
