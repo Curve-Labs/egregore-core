@@ -10,7 +10,13 @@ Run a full diagnostic of the Egregore environment. Check every service and depen
 
 ## Procedure
 
-Run all 10 checks below **in order**. Collect results into a `checks` array, then render the diagnostic box.
+Run checks in **3 sequential batches**. Within each batch, checks can run in parallel. **Never run network checks (5-6) in the same parallel batch as local checks (7-10)** — a network timeout will cascade-cancel the siblings.
+
+**Batch 1** (local, fast): Checks 1-4 — config, env, GitHub token, API key slug
+**Batch 2** (network, may timeout): Checks 5-6 — graph, telegram
+**Batch 3** (local + git): Checks 7-10 — memory, git, framework, alias
+
+Collect results into a `checks` array, then render the diagnostic box.
 
 ### Check 1: Config (egregore.json)
 
@@ -72,22 +78,24 @@ Show `valid (slug: {slug})` on pass, `slug mismatch (key={KEY_SLUG}, config={EXP
 ### Check 5: Graph (Neo4j)
 
 ```bash
-bash bin/graph.sh test
+timeout 10 bash bin/graph.sh test 2>&1; echo "EXIT:$?"
 ```
 
 - **Pass** if output contains "Connected"
-- **Fail** if timeout, error, or no "Connected"
+- **Fail** if timeout (exit 124), error, or no "Connected"
 - **Fix**: report "API or network is down. No action needed from you."
 
 ### Check 6: Telegram
 
 ```bash
-bash bin/notify.sh test
+timeout 10 bash bin/notify.sh test 2>&1; echo "EXIT:$?"
 ```
 
 - **Pass** if output contains "connected"
-- **Fail** if timeout or error
+- **Fail** if timeout (exit 124) or error
 - **Fix**: report status. No user action needed — Telegram is optional.
+
+**Important**: Run checks 5 and 6 together in their own batch, separate from all other checks. Append `EXIT:$?` so you always get output even on timeout — this prevents Claude Code from treating it as a tool error.
 
 ### Check 7: Memory repo
 
