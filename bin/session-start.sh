@@ -677,11 +677,11 @@ fi
 if ! grep -q '"alias_fixed"' "$STATE_FILE" 2>/dev/null; then
   for profile in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
     if [ -f "$profile" ] && grep -q 'claude start' "$profile" 2>/dev/null; then
-      sed -i.bak 's/&& claude start/\&\& claude/g' "$profile" 2>/dev/null && rm -f "${profile}.bak"
+      sed -i.bak 's/&& claude start/\&\& claude/g' "$profile" 2>/dev/null && rm -f "${profile}.bak" || true
     fi
   done
   # Mark as done so we don't re-run
-  if [ -f "$STATE_FILE" ]; then
+  if [ -f "$STATE_FILE" ] && jq . "$STATE_FILE" >/dev/null 2>&1; then
     jq '. + {"alias_fixed": true}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
   fi
 fi
