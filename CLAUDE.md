@@ -435,7 +435,7 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 **Reading** — `/open` (open/read/show me/display/pull up a file — always verbatim, never summarize)
 **Coordination** — `/ask` `/quest` `/issue` `/invite`
 **Git** — `/branch` `/commit` `/push` `/pr` `/save`
-**Infra** — `/setup` `/update` `/pull` `/env` `/sync-repos` `/release`
+**Infra** — `/setup` `/update` `/pull` `/env` `/sync-repos` `/release` `/checkup`
 
 **Disambiguation** — when intent is ambiguous between similar commands:
 - Capturing knowledge: `/reflect` (share-ready) vs `/note` (half-baked) vs `/deep-reflect` (cross-reference) vs `/archive` (AI steering patterns)

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -o pipefail
 
 # Framework version — bumped on greeting/startup changes.
 # Used for drift detection across team members.
@@ -7,6 +7,13 @@ FRAMEWORK_VERSION="2"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
+
+# --- Health tracking (rendered as dots in greeting) ---
+HEALTH_GITHUB="skip"
+HEALTH_GIT="skip"
+HEALTH_APIKEY="skip"
+HEALTH_GRAPH="skip"
+HEALTH_TELEGRAM="skip"
 
 # --- Config ---
 STATE_FILE="$SCRIPT_DIR/.egregore-state.json"
@@ -25,6 +32,7 @@ fi
 if [ -n "$STORED_USERNAME" ]; then
   # Identity stored during setup — use it and ensure repo-local git config matches
   AUTHOR="$STORED_USERNAME"
+  HEALTH_GITHUB="ok"
   CURRENT_LOCAL=$(git config --local user.name 2>/dev/null || echo "")
   if [ "$CURRENT_LOCAL" != "$STORED_USERNAME" ]; then
     STORED_NAME=$(jq -r '.github_name // empty' "$STATE_FILE" 2>/dev/null)
@@ -41,6 +49,7 @@ else
       GH_NAME=$(echo "$GH_USER_JSON" | jq -r '.name // empty' 2>/dev/null)
       if [ -n "$GH_LOGIN" ]; then
         AUTHOR="$GH_LOGIN"
+        HEALTH_GITHUB="ok"
         # Set repo-local config and save to state for next time
         git config user.name "${GH_NAME:-$GH_LOGIN}" 2>/dev/null || true
         git config user.email "${GH_LOGIN}@users.noreply.github.com" 2>/dev/null || true
@@ -83,8 +92,8 @@ STATEEOF
 fi
 
 if [ -z "$AUTHOR" ]; then
-  echo '{"error": "git user.name not set. Run: git config user.name \"Your Name\""}'
-  exit 1
+  AUTHOR="unknown"
+  HEALTH_GITHUB="fail"
 fi
 
 # --- Export telemetry identity env vars ---
@@ -130,6 +139,15 @@ if [ -f "$ENV_FILE" ]; then
       KEY_NEEDS_FIX="true"
     fi
   fi
+fi
+
+# Track API key health
+if [ "$KEY_NEEDS_FIX" = "true" ]; then
+  HEALTH_APIKEY="fail"
+elif [ -f "$ENV_FILE" ] && grep -q '^EGREGORE_API_KEY=.' "$ENV_FILE" 2>/dev/null; then
+  HEALTH_APIKEY="ok"
+else
+  HEALTH_APIKEY="fail"
 fi
 
 if [ "$KEY_NEEDS_FIX" = "true" ]; then
@@ -304,63 +322,85 @@ done
 # Wait for all fetches
 wait 2>/dev/null || true
 
-# --- Ensure develop branch exists locally ---
-if ! git show-ref --verify --quiet refs/heads/develop 2>/dev/null; then
-  if git show-ref --verify --quiet refs/remotes/origin/develop 2>/dev/null; then
-    git checkout -b develop origin/develop --quiet 2>/dev/null
-  else
-    # No develop on remote either — create from main
-    git checkout -b develop --quiet 2>/dev/null
-    git push -u origin develop --quiet 2>/dev/null
-  fi
+# --- Git health check ---
+if git show-ref --verify --quiet refs/remotes/origin/develop 2>/dev/null; then
+  HEALTH_GIT="ok"
+else
+  HEALTH_GIT="fail"
 fi
 
-# --- Sync develop (without checkout — safe for concurrent sessions) ---
-CURRENT_BRANCH=$(git branch --show-current)
-
-# Update local develop ref from remote without switching branches
-git fetch origin develop:develop --quiet 2>/dev/null || true
-DEVELOP_SYNCED="true"
-
-# Count commits on develop ahead of main
-COMMITS_AHEAD=0
-if git show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; then
-  COMMITS_AHEAD=$(git rev-list origin/main..develop --count 2>/dev/null || echo "0")
-fi
-
-# --- Always start from develop ---
-# Every session begins on develop. Claude creates a fresh topic branch
-# (dev/{author}/{topic-slug}) when the user says what they're working on.
-# If we're on a working branch with uncommitted work, save it first.
-ACTION="ready"
-SAVED_BRANCH=""
-
-if [[ "$CURRENT_BRANCH" != "develop" ]]; then
-  # Check for uncommitted work (staged + unstaged + untracked in tracked dirs)
-  if [ -n "$(git status --porcelain 2>/dev/null | head -1)" ]; then
-    # Save uncommitted work so nothing is lost
-    git add -A 2>/dev/null
-    git commit -m "Auto-save: uncommitted work from $CURRENT_BRANCH" --quiet 2>/dev/null || true
-    SAVED_BRANCH="$CURRENT_BRANCH"
-  fi
-
-  # Push the branch if it has unpushed commits (so work is never only local)
-  if [[ "$CURRENT_BRANCH" == dev/* ]] || [[ "$CURRENT_BRANCH" == feature/* ]] || [[ "$CURRENT_BRANCH" == bugfix/* ]]; then
-    LOCAL_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
-    REMOTE_HEAD=$(git rev-parse "origin/$CURRENT_BRANCH" 2>/dev/null || echo "none")
-    if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
-      git push origin "$CURRENT_BRANCH" --quiet 2>/dev/null || true
+# --- Setup develop (wrapped — failures set HEALTH_GIT but don't crash) ---
+setup_develop() {
+  # Ensure develop branch exists locally
+  if ! git show-ref --verify --quiet refs/heads/develop 2>/dev/null; then
+    if git show-ref --verify --quiet refs/remotes/origin/develop 2>/dev/null; then
+      git checkout -b develop origin/develop --quiet 2>/dev/null
+    else
+      # No develop on remote either — create from main
+      git checkout -b develop --quiet 2>/dev/null
+      git push -u origin develop --quiet 2>/dev/null
     fi
   fi
 
-  # Switch to develop (already updated by fetch origin develop:develop above)
-  git checkout develop --quiet 2>/dev/null || true
-else
-  # Already on develop — fetch couldn't update it (checked-out branch), so pull
-  git merge --ff-only origin/develop --quiet 2>/dev/null || true
-fi
+  # Sync develop (without checkout — safe for concurrent sessions)
+  CURRENT_BRANCH=$(git branch --show-current)
 
-BRANCH="develop"
+  # Update local develop ref from remote without switching branches
+  git fetch origin develop:develop --quiet 2>/dev/null || true
+  DEVELOP_SYNCED="true"
+
+  # Count commits on develop ahead of main
+  COMMITS_AHEAD=0
+  if git show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; then
+    COMMITS_AHEAD=$(git rev-list origin/main..develop --count 2>/dev/null || echo "0")
+  fi
+
+  # Always start from develop
+  # Every session begins on develop. Claude creates a fresh topic branch
+  # (dev/{author}/{topic-slug}) when the user says what they're working on.
+  # If we're on a working branch with uncommitted work, save it first.
+  ACTION="ready"
+  SAVED_BRANCH=""
+
+  if [[ "$CURRENT_BRANCH" != "develop" ]]; then
+    # Check for uncommitted work (staged + unstaged + untracked in tracked dirs)
+    if [ -n "$(git status --porcelain 2>/dev/null | head -1)" ]; then
+      # Save uncommitted work so nothing is lost
+      git add -A 2>/dev/null
+      git commit -m "Auto-save: uncommitted work from $CURRENT_BRANCH" --quiet 2>/dev/null || true
+      SAVED_BRANCH="$CURRENT_BRANCH"
+    fi
+
+    # Push the branch if it has unpushed commits (so work is never only local)
+    if [[ "$CURRENT_BRANCH" == dev/* ]] || [[ "$CURRENT_BRANCH" == feature/* ]] || [[ "$CURRENT_BRANCH" == bugfix/* ]]; then
+      LOCAL_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
+      REMOTE_HEAD=$(git rev-parse "origin/$CURRENT_BRANCH" 2>/dev/null || echo "none")
+      if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+        git push origin "$CURRENT_BRANCH" --quiet 2>/dev/null || true
+      fi
+    fi
+
+    # Switch to develop (already updated by fetch origin develop:develop above)
+    git checkout develop --quiet 2>/dev/null || true
+  else
+    # Already on develop — fetch couldn't update it (checked-out branch), so pull
+    git merge --ff-only origin/develop --quiet 2>/dev/null || true
+  fi
+
+  BRANCH="develop"
+}
+
+# Initialize defaults used by setup_develop
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+DEVELOP_SYNCED="false"
+COMMITS_AHEAD=0
+ACTION="ready"
+SAVED_BRANCH=""
+BRANCH="${CURRENT_BRANCH:-develop}"
+
+if ! setup_develop 2>/dev/null; then
+  HEALTH_GIT="fail"
+fi
 
 # --- Sync memory ---
 if [ -L "$SCRIPT_DIR/memory" ] && [ -d "$SCRIPT_DIR/memory/.git" ]; then
@@ -488,7 +528,7 @@ if [ -f "$RETRY_QUEUE" ] && [ -s "$RETRY_QUEUE" ]; then
   ) >/dev/null 2>&1 &
 fi
 
-# --- Gather session context in parallel (all background, no blocking) ---
+# --- Gather session context + service health in parallel (all background, no blocking) ---
 CTX_DIR=$(mktemp -d)
 
 # Time of day
@@ -588,8 +628,32 @@ fi
   echo "$JSON" > "$CTX_DIR/addressed"
 ) &
 
-# Wait for all context gathering to finish
+# 7. Graph health (background — zero added latency, runs in parallel)
+(
+  if bash "$SCRIPT_DIR/bin/graph.sh" test 2>/dev/null | grep -q "Connected"; then
+    echo "ok"
+  else
+    echo "fail"
+  fi
+) > "$CTX_DIR/graph_health" 2>/dev/null &
+
+# 8. Telegram health (background)
+(
+  if bash "$SCRIPT_DIR/bin/notify.sh" test 2>/dev/null | grep -q "connected"; then
+    echo "ok"
+  else
+    echo "fail"
+  fi
+) > "$CTX_DIR/telegram_health" 2>/dev/null &
+
+# Wait for all context gathering + health checks to finish
 wait
+
+# --- Read service health results ---
+GRAPH_RESULT=$(cat "$CTX_DIR/graph_health" 2>/dev/null || echo "")
+if [ -n "$GRAPH_RESULT" ]; then HEALTH_GRAPH="$GRAPH_RESULT"; fi
+TELEGRAM_RESULT=$(cat "$CTX_DIR/telegram_health" 2>/dev/null || echo "")
+if [ -n "$TELEGRAM_RESULT" ]; then HEALTH_TELEGRAM="$TELEGRAM_RESULT"; fi
 
 # --- Output greeting for Claude to display ---
 cat << 'GREETING'
@@ -642,6 +706,32 @@ fi
 
 echo "  ◇ $GREETING_NAME        ⎇ $BRANCH_STATUS        $MEMORY_STATUS"
 
+# --- Health dots ---
+health_symbol() {
+  case "$1" in
+    ok)   printf "✓" ;;
+    fail) printf "✗" ;;
+    *)    printf "—" ;;
+  esac
+}
+
+HEALTH_LINE="  ●"
+HEALTH_LINE="$HEALTH_LINE github $(health_symbol "$HEALTH_GITHUB")"
+HEALTH_LINE="$HEALTH_LINE  git $(health_symbol "$HEALTH_GIT")"
+HEALTH_LINE="$HEALTH_LINE  api-key $(health_symbol "$HEALTH_APIKEY")"
+HEALTH_LINE="$HEALTH_LINE  graph $(health_symbol "$HEALTH_GRAPH")"
+HEALTH_LINE="$HEALTH_LINE  telegram $(health_symbol "$HEALTH_TELEGRAM")"
+echo "$HEALTH_LINE"
+
+# Show /checkup hint if anything failed
+HAS_FAILURE="false"
+for h in "$HEALTH_GITHUB" "$HEALTH_GIT" "$HEALTH_APIKEY" "$HEALTH_GRAPH" "$HEALTH_TELEGRAM"; do
+  if [ "$h" = "fail" ]; then HAS_FAILURE="true"; break; fi
+done
+if [ "$HAS_FAILURE" = "true" ]; then
+  echo "  ⚠ Issues detected — run /checkup to diagnose and fix"
+fi
+
 # Show auto-save notice if work was committed from a previous branch
 if [ -n "$SAVED_BRANCH" ]; then
   echo "  ✓ Auto-saved uncommitted work on $SAVED_BRANCH"
@@ -671,18 +761,20 @@ if [ -n "$UPSTREAM_NEW" ]; then
   fi
 fi
 
-# --- One-time migration: fix 'claude start' → 'claude' in shell aliases ---
-# 'claude start' resumes the last session regardless of CWD, which breaks
-# multi-instance setups. Only needs to run once per user.
-if ! grep -q '"alias_fixed"' "$STATE_FILE" 2>/dev/null; then
+# --- One-time migration: fix aliases to use 'claude "start"' ---
+# v1: 'claude start' → 'claude' (cross-instance bug)
+# v2: 'claude' → 'claude "start"' (blank prompt — auto-sends first message)
+ALIAS_VERSION=$(jq -r '.alias_version // 0' "$STATE_FILE" 2>/dev/null || echo "0")
+if [ "$ALIAS_VERSION" -lt 2 ] 2>/dev/null; then
   for profile in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
-    if [ -f "$profile" ] && grep -q 'claude start' "$profile" 2>/dev/null; then
-      sed -i.bak 's/&& claude start/\&\& claude/g' "$profile" 2>/dev/null && rm -f "${profile}.bak" || true
+    if [ -f "$profile" ] && grep -q "$SCRIPT_DIR" "$profile" 2>/dev/null; then
+      # Replace any egregore alias pointing to this directory with the correct command
+      # Handles: && claude start, && claude, && claude "start" (idempotent)
+      sed -i.bak "s|&& claude start|\\&\\& claude \"start\"|g; s|&& claude'|\\&\\& claude \"start\"'|g" "$profile" 2>/dev/null && rm -f "${profile}.bak" || true
     fi
   done
-  # Mark as done so we don't re-run
   if [ -f "$STATE_FILE" ] && jq . "$STATE_FILE" >/dev/null 2>&1; then
-    jq '. + {"alias_fixed": true}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+    jq '. + {"alias_fixed": true, "alias_version": 2}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
   fi
 fi
 
@@ -733,6 +825,9 @@ fi
 # --- Emit session_start telemetry (background, non-blocking) ---
 bash "$SCRIPT_DIR/bin/telemetry.sh" emit "session_start" \
   "$(jq -n --arg branch "$BRANCH" '{branch: $branch}')" 2>/dev/null &
+
+# --- Health check-in (background, non-blocking) ---
+bash "$SCRIPT_DIR/bin/startup-check.sh" >/dev/null 2>&1 &
 
 # Clean up temp files
 rm -rf "$CTX_DIR"
