@@ -29,6 +29,11 @@ if [ -f "$STATE_FILE" ]; then
   STORED_USERNAME=$(jq -r '.github_username // empty' "$STATE_FILE" 2>/dev/null)
 fi
 
+DISPLAY_NAME_STATE=""
+if [ -f "$STATE_FILE" ]; then
+  DISPLAY_NAME_STATE=$(jq -r '.display_name // empty' "$STATE_FILE" 2>/dev/null)
+fi
+
 if [ -n "$STORED_USERNAME" ]; then
   # Identity stored during setup — use it and ensure repo-local git config matches
   AUTHOR="$STORED_USERNAME"
@@ -466,22 +471,29 @@ if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
             GH_USERNAME_STATE=$(jq -r '.github_username // empty' "$STATE_FILE" 2>/dev/null)
             GH_FULLNAME_STATE=$(jq -r '.github_name // empty' "$STATE_FILE" 2>/dev/null)
           fi
+          # Use display_name for p.name when set, otherwise fall back to github username
+          GRAPH_NAME="${DISPLAY_NAME_STATE:-$AUTHOR}"
           PERSON_PARAMS=$(jq -n \
-            --arg name "$AUTHOR" \
+            --arg name "$GRAPH_NAME" \
             --arg github "${GH_USERNAME_STATE:-$AUTHOR}" \
             --arg fullName "${GH_FULLNAME_STATE:-}" \
-            '{name: $name, github: $github, fullName: $fullName}')
+            --arg hasDisplayName "$([ -n "$DISPLAY_NAME_STATE" ] && echo "true" || echo "false")" \
+            '{name: $name, github: $github, fullName: $fullName, hasDisplayName: $hasDisplayName}')
           bash "$SCRIPT_DIR/bin/graph.sh" query \
-            "MERGE (p:Person {github: \$github}) ON CREATE SET p.name = \$name SET p.fullName = CASE WHEN \$fullName <> '' THEN \$fullName ELSE p.fullName END WITH p MATCH (o:Org {id: \$_org}) MERGE (p)-[:MEMBER_OF]->(o) RETURN p.name" \
+            "MERGE (p:Person {github: \$github}) ON CREATE SET p.name = \$name SET p.fullName = CASE WHEN \$fullName <> '' THEN \$fullName ELSE p.fullName END SET p.name = CASE WHEN \$hasDisplayName = 'true' THEN \$name ELSE p.name END WITH p MATCH (o:Org {id: \$_org}) MERGE (p)-[:MEMBER_OF]->(o) RETURN p.name" \
             "$PERSON_PARAMS" 2>/dev/null || true
 
           # Sync user + membership to Supabase (non-blocking, non-fatal)
           SB_API_URL=$(jq -r '.api_url // empty' "$CONFIG" 2>/dev/null)
           if [ -n "$SB_API_URL" ]; then
+            SB_BODY="{\"github_username\":\"${GH_USERNAME_STATE:-$AUTHOR}\",\"github_name\":\"${GH_FULLNAME_STATE:-}\"}"
+            if [ -n "$DISPLAY_NAME_STATE" ]; then
+              SB_BODY=$(echo "$SB_BODY" | jq --arg dn "$DISPLAY_NAME_STATE" '. + {display_name: $dn}')
+            fi
             curl -sf "${SB_API_URL}/api/user/ensure" \
               -H "Authorization: Bearer $API_KEY" \
               -H "Content-Type: application/json" \
-              -d "{\"github_username\":\"${GH_USERNAME_STATE:-$AUTHOR}\",\"github_name\":\"${GH_FULLNAME_STATE:-}\"}" \
+              -d "$SB_BODY" \
               --max-time 5 >/dev/null 2>&1 || true
           fi
 
@@ -492,7 +504,7 @@ if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
           fi
 
           if [ "$AUTO_CAPTURE" = "true" ]; then
-            SESSION_CYPHER="MATCH (p:Person) WHERE toLower(p.name) = \$author
+            SESSION_CYPHER="MATCH (p:Person) WHERE p.github = \$github OR toLower(p.name) = \$author
               MERGE (s:Session {id: \$sid})
               ON CREATE SET s.date = date(\$date), s.branch = \$branch,
                 s.startedAt = datetime(), s.status = 'active'
@@ -500,9 +512,10 @@ if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
             SESSION_PARAMS=$(jq -n \
               --arg sid "$EGREGORE_SESSION_ID" \
               --arg author "$(echo "$AUTHOR" | tr '[:upper:]' '[:lower:]')" \
+              --arg github "${GH_USERNAME_STATE:-$AUTHOR}" \
               --arg branch "$BRANCH" \
               --arg date "$(date +%Y-%m-%d)" \
-              '{sid: $sid, author: $author, branch: $branch, date: $date}')
+              '{sid: $sid, author: $author, github: $github, branch: $branch, date: $date}')
 
             # WAL first (guaranteed persistence)
             bash "$SCRIPT_DIR/bin/graph-wal.sh" append "$SESSION_CYPHER" "$SESSION_PARAMS" 2>/dev/null || true

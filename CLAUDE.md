@@ -367,6 +367,8 @@ Only say this once per session. Never repeat it.
 {
   "org_setup": true,
   "name": "Alice",
+  "display_name": "alice",
+  "github_username": "alicedev",
   "github_configured": true,
   "workspace_ready": true,
   "onboarding_complete": true,
@@ -433,6 +435,7 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 **Core loop** — `/activity` `/dashboard` `/handoff` `/wrap` `/save` `/reflect` `/todo`
 **Knowledge** — `/deep-reflect` `/archive` `/note` `/add` `/meeting` `/ingest`
 **Reading** — `/open` (open/read/show me/display/pull up a file — always verbatim, never summarize)
+**Identity** — `/me` (view profile or set display name)
 **Coordination** — `/ask` `/quest` `/issue` `/invite`
 **Git** — `/branch` `/commit` `/push` `/pr` `/save`
 **Infra** — `/setup` `/update` `/pull` `/env` `/sync-repos` `/release` `/checkup`
@@ -445,6 +448,7 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 - Questions: `/ask [person]` (async to teammate) vs just asking (agent can answer from context)
 - Reading files: `/open` (show full content verbatim) vs just answering (user asks a question about a file, not to read it)
 - Ingesting content: `/ingest meeting` (team meeting from Granola) vs `/ingest user-interview` (research session / onboarding call) vs "process the call" (ambiguous — ask which type)
+- Identity: `/me` (view profile or set display name) — "who am I", "call me oz", "change my name"
 
 ## Socratic Questioning (MANDATORY)
 

@@ -13,7 +13,7 @@ Check every service and dependency, render a TUI diagnostic box, and auto-fix wh
 Run checks in **3 sequential batches**. Within each batch, checks can run in parallel. **Never run network checks (5-6) in the same parallel batch as local checks (7-10)** — a network timeout will cascade-cancel the siblings.
 
 **Batch 1** (local, fast): Checks 1-4 — config, env, GitHub token, API key slug
-**Batch 2** (network, may timeout): Checks 5-6 — graph, telegram
+**Batch 2** (network, may timeout): Checks 3b, 5-6 — identity (Person node), graph, telegram
 **Batch 3** (local + git): Checks 7-10 — memory, git, framework, alias
 
 Collect results into a `checks` array, then render the diagnostic box.
@@ -54,6 +54,21 @@ curl -s -H "Authorization: token $TOKEN" https://api.github.com/user --max-time 
 - **Fix**: run `bash bin/github-auth.sh`
 
 Show `authenticated as {login}` on pass.
+
+### Check 3b: Identity (Person node)
+
+```bash
+AUTHOR=$(jq -r '.github_username // empty' .egregore-state.json 2>/dev/null)
+DISPLAY_NAME=$(jq -r '.display_name // empty' .egregore-state.json 2>/dev/null)
+RESULT=$(bash bin/graph.sh query "MATCH (p:Person {github: \$gh}) RETURN p.name AS name, p.github AS github" "{\"gh\":\"$AUTHOR\"}" 2>/dev/null)
+```
+
+- **Pass** if Person node exists and `p.name` matches local `display_name` (or `github_username` if no display_name set)
+- **Warn** if Person node exists but `p.name` doesn't match local `display_name` (drift between local state and graph)
+- **Fail** if no Person node found for this github username
+- **Fix** for warn: run `/me {display_name}` to re-sync. For fail: next session start will create it automatically.
+
+Show `known as {p.name} ({p.github})` on pass, `drift: local={display_name}, graph={p.name}` on warn.
 
 ### Check 4: API key slug
 
@@ -169,8 +184,11 @@ After collecting all results, render a diagnostic box. Use exactly this format:
 │  ✓ egregore.json valid (slug: {slug}, org: {org_name})              │
 │  ✓ .env configured ({N} keys present)                               │
 │                                                                      │
-│  SERVICES                                                            │
+│  IDENTITY                                                            │
 │  ✓ GitHub — authenticated as {login}                                │
+│  ✓ Person — known as {name} ({github})                              │
+│                                                                      │
+│  SERVICES                                                            │
 │  ✓ API key — valid (slug: {slug})                                   │
 │  ✓ Graph — connected                                                │
 │  ✓ Telegram — connected                                             │
@@ -203,12 +221,13 @@ For failures, add a `→` line immediately after showing what Claude will do:
 After rendering the box, **automatically fix** what you can:
 
 1. **GitHub token expired** → run `bash bin/github-auth.sh` and report result
-2. **API key mismatch** → fetch correct key from API and update `.env`
-3. **Memory not linked** → run `/setup`
-4. **Git diverged** → run `/pull`
-5. **Framework outdated** → run `/update`
-6. **Shell alias missing** → run `bash bin/ensure-shell-function.sh`
-7. **Graph/Telegram down** → just report. No user action.
+2. **Identity drift** → re-sync: `bash bin/graph.sh query "MATCH (p:Person {github: \$gh}) SET p.name = \$name RETURN p.name" "{\"gh\":\"$AUTHOR\",\"name\":\"$DISPLAY_NAME\"}"` (only if local `display_name` is set)
+3. **API key mismatch** → fetch correct key from API and update `.env`
+4. **Memory not linked** → run `/setup`
+5. **Git diverged** → run `/pull`
+6. **Framework outdated** → run `/update`
+7. **Shell alias missing** → run `bash bin/ensure-shell-function.sh`
+8. **Graph/Telegram down** → just report. No user action.
 
 After fixing, re-check the fixed items and report:
 ```
