@@ -76,8 +76,12 @@ case "$OP" in
     " "{\"sid\":\"$SID\",\"shown\":$SHOWN,\"selected\":\"$SELECTED\",\"dismissed\":$DISMISSED}"
     ;;
 
+  wal-status)
+    bash "$SCRIPT_DIR/bin/graph-wal.sh" status
+    ;;
+
   *)
-    echo '{"error":"unknown operation: '"$OP"'","operations":["mark-read","mark-done","answer-question","resolve-handoffs","record-focus"]}'
+    echo '{"error":"unknown operation: '"$OP"'","operations":["mark-read","mark-done","answer-question","resolve-handoffs","record-focus","wal-status"]}'
     exit 1
     ;;
 

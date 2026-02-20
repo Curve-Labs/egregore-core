@@ -95,7 +95,7 @@ bash bin/graph.sh schema
 
 **Always use `bin/graph.sh`** for Neo4j queries — never construct curl calls to Neo4j directly. The script reads `api_url` from `egregore.json` and `EGREGORE_API_KEY` from `.env`, then routes queries through the API gateway.
 
-Current schema: Person, Session, Artifact, Quest, Project, Spirit. Relationships: BY, CONTRIBUTED_BY, HANDED_TO, INVOKED_BY, INVOLVES, PART_OF, RELATES_TO, STARTED_BY.
+Current schema: Person, Session, Artifact, Quest, Project, Spirit, Interview. Relationships: BY, CONDUCTED_BY, CONTRIBUTED_BY, FROM_INTERVIEW, HANDED_TO, INVOKED_BY, INVOLVES, PART_OF, RELATES_TO, STARTED_BY.
 
 ## Notifications
 
@@ -192,8 +192,8 @@ Run these steps in order. Write `.egregore-state.json` after each step to checkp
    ```bash
    git clone "https://github.com/$GITHUB_ORG/$GITHUB_ORG-memory.git" "../$GITHUB_ORG-memory"
    cd "../$GITHUB_ORG-memory"
-   mkdir -p people handoffs knowledge/decisions knowledge/patterns
-   touch people/.gitkeep handoffs/.gitkeep knowledge/decisions/.gitkeep knowledge/patterns/.gitkeep
+   mkdir -p people handoffs knowledge/decisions knowledge/patterns knowledge/findings research/interviews research/participants
+   touch people/.gitkeep handoffs/.gitkeep knowledge/decisions/.gitkeep knowledge/patterns/.gitkeep knowledge/findings/.gitkeep research/interviews/.gitkeep research/participants/.gitkeep
    git add -A && git commit -m "Initialize memory structure" && git push
    cd -
    ```
@@ -430,8 +430,8 @@ Teams can add their own repos to `egregore.json` → `repos[]` (e.g. `["frontend
 
 When a user describes intent that maps to a command, invoke it — don't wait for them to type the slash. Each command file has a `## When to invoke` section with trigger phrases and disambiguation. Load the command to get the full spec.
 
-**Core loop** — `/activity` `/handoff` `/save` `/reflect` `/todo`
-**Knowledge** — `/deep-reflect` `/archive` `/note` `/add` `/meeting`
+**Core loop** — `/activity` `/dashboard` `/handoff` `/wrap` `/save` `/reflect` `/todo`
+**Knowledge** — `/deep-reflect` `/archive` `/note` `/add` `/meeting` `/ingest`
 **Reading** — `/open` (open/read/show me/display/pull up a file — always verbatim, never summarize)
 **Coordination** — `/ask` `/quest` `/issue` `/invite`
 **Git** — `/branch` `/commit` `/push` `/pr` `/save`
@@ -439,10 +439,35 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 
 **Disambiguation** — when intent is ambiguous between similar commands:
 - Capturing knowledge: `/reflect` (share-ready) vs `/note` (half-baked) vs `/deep-reflect` (cross-reference) vs `/archive` (AI steering patterns)
-- Ending vs continuing: `/handoff` (leaving) vs `/save` (still working)
+- Personal status: `/dashboard` (what did I work on) vs `/activity` (what's happening org-wide)
+- Ending vs continuing: `/wrap` (personal closure) vs `/handoff` (leaving notes for others) vs `/save` (still working)
 - Things to do: `/todo` (personal task) vs `/quest` (team exploration) vs `/issue` (something broken)
 - Questions: `/ask [person]` (async to teammate) vs just asking (agent can answer from context)
 - Reading files: `/open` (show full content verbatim) vs just answering (user asks a question about a file, not to read it)
+- Ingesting content: `/ingest meeting` (team meeting from Granola) vs `/ingest user-interview` (research session / onboarding call) vs "process the call" (ambiguous — ask which type)
+
+## Socratic Questioning (MANDATORY)
+
+**Trigger phrases**: "ask me questions", "ask me about", "ask user questions", "question me", "help me think through", "I want to be asked about", or any variant where the user requests to be questioned rather than told.
+
+**This is top priority.** When a user asks to be questioned, ALWAYS use the AskUserQuestion tool. Never just list questions as text — the tool creates structured, answerable prompts that drive the conversation forward.
+
+**How it works:**
+
+1. **First batch**: If the user specifies a topic, derive 2-4 questions from it. If not, use the model's intuition + graph context to surface the most important tensions. Each question gets 2-4 options drawn from real context (graph data, conversation history, codebase state), never generic.
+
+2. **Iterative deepening**: Each subsequent batch of questions is informed by the user's previous answers. The model's read of where the interesting tension lives guides what to ask next. Don't follow a fixed script — let the user's responses reshape the inquiry.
+
+3. **Convergence**: Questions should narrow toward a decision, finding, or pattern. When the user's answers start converging on something concrete, propose it: "It sounds like the decision is X — is that right?" Then route to `/reflect` (if it's an insight) or just confirm (if it's a direction).
+
+4. **Bitter lesson alignment**: The model's intuition about what's important IS the heuristic for question selection. Don't pre-plan all questions — generate each batch from the evolving context. More signal from previous answers = better questions.
+
+**Rules:**
+- Max 4 questions per AskUserQuestion call (tool limit)
+- Max 2-4 options per question, always context-specific
+- Use `multiSelect: true` when choices aren't mutually exclusive
+- After 4-5 rounds, synthesize what's emerged and propose next steps
+- If a clear decision crystallizes, offer to capture it via `/reflect`
 
 ## Identity
 

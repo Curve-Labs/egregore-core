@@ -1,4 +1,4 @@
-Manage personal todos — lightweight intent capture that flows into quests, asks, and activity.
+Manage personal todos.
 
 ## When to invoke
 

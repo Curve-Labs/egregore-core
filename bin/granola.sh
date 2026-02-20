@@ -227,6 +227,94 @@ cmd_get() {
     }'
 }
 
+cmd_search() {
+  check_cache
+
+  local query="${1:-}"
+  if [ -z "$query" ]; then
+    echo "Usage: granola.sh search <query> [--folders \"Folder1,Folder2\"]" >&2
+    exit 1
+  fi
+  shift
+
+  local folders=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --folders)
+        folders="$2"
+        shift 2
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  # If no folders specified, read configured folders from state file
+  local state_file
+  state_file="$(cd "$(dirname "$0")/.." && pwd)/.egregore-state.json"
+  if [ -z "$folders" ] && [ -f "$state_file" ]; then
+    folders=$(jq -r '.granola_folders // [] | join(",")' "$state_file")
+  fi
+
+  local state
+  state=$(get_state)
+
+  if [ -n "$folders" ]; then
+    # Search within specified folders
+    echo "$state" | jq --arg query "$query" --arg folders "$folders" '
+      ($folders | split(",") | map(gsub("^\\s+|\\s+$"; ""))) as $folder_names |
+      .documentLists as $lists |
+      .documentListsMetadata as $meta |
+      .documents as $docs |
+
+      # Get doc IDs from matching folders
+      [
+        $meta | to_entries[] |
+        select(.value.title as $t | $folder_names | any(. == $t)) |
+        .key
+      ] as $folder_ids |
+
+      [
+        $folder_ids[] |
+        . as $fid |
+        ($lists[$fid] // [])[] |
+        . as $did |
+        $docs[$did] // empty |
+        select(.deleted_at == null) |
+        select(
+          (.title // "" | ascii_downcase | contains($query | ascii_downcase)) or
+          ([(.people.attendees // [])[] | (.details.person.name.fullName // .email // "") | ascii_downcase] | any(contains($query | ascii_downcase)))
+        ) |
+        {
+          id: .id,
+          title: .title,
+          date: .created_at,
+          attendees: [(.people.attendees // [])[] | .details.person.name.fullName // .email]
+        }
+      ] | unique_by(.id) | sort_by(.date) | reverse
+    '
+  else
+    # Search all documents
+    echo "$state" | jq --arg query "$query" '
+      [.documents | to_entries[] | .value |
+        select(.deleted_at == null) |
+        select(
+          (.title // "" | ascii_downcase | contains($query | ascii_downcase)) or
+          ([(.people.attendees // [])[] | (.details.person.name.fullName // .email // "") | ascii_downcase] | any(contains($query | ascii_downcase)))
+        ) |
+        {
+          id: .id,
+          title: .title,
+          date: .created_at,
+          attendees: [(.people.attendees // [])[] | .details.person.name.fullName // .email]
+        }
+      ] | sort_by(.date) | reverse
+    '
+  fi
+}
+
 # --- Main ---
 
 case "${1:-help}" in
@@ -244,6 +332,10 @@ case "${1:-help}" in
     shift
     cmd_get "$@"
     ;;
+  search)
+    shift
+    cmd_search "$@"
+    ;;
   help|*)
     echo "Usage: granola.sh <command>"
     echo ""
@@ -253,5 +345,6 @@ case "${1:-help}" in
     echo "  list [--folder X] [--since DATE] [--exclude id1,id2]"
     echo "                                         List meetings as JSON"
     echo "  get <doc-id>                           Full meeting data"
+    echo "  search <query> [--folders X,Y]         Search by title/attendee across folders"
     ;;
 esac

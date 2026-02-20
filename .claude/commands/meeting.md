@@ -1,4 +1,6 @@
-Ingest meeting knowledge from Granola. Uses a multi-dimensional analysis pipeline with 3 analyst agents + Opus synthesis to extract rich, high-dimensional artifacts from meetings.
+Import and analyze a meeting from Granola.
+
+Uses a multi-dimensional analysis pipeline with 3 analyst agents + Opus synthesis to extract rich, high-dimensional artifacts from meetings.
 
 Arguments: $ARGUMENTS (Optional: "sync" for batch mode, "backfill" to re-process historical meetings, or search term to find a specific meeting)
 
@@ -31,6 +33,17 @@ Cross-meeting context — 5 parallel Neo4j queries → graph context
 ```
 
 Panel-first: Opus reads the panel summary (cheap, high-signal). Sonnet agents handle the transcript (expensive, noisy). Opus synthesizes the agent outputs — never reads the transcript directly.
+
+## Cost & Resource Budget
+
+Target per meeting:
+- **Bash calls**: ~8-12 (granola fetch, graph batches, file writes, git)
+- **Task agents**: 3 Sonnet (parallel, inline — NOT background)
+- **AskUserQuestion**: 0-1 (only for unknown attendees without email)
+- **Graph batches**: 2-3 (1 context read, 1-2 artifact write batches at <=20 queries each)
+- **Token-heavy**: Substance + Dynamics agents receive full transcript (~6K words each)
+
+For sync mode (N meetings): multiply agent count by N, but batch graph writes across meetings.
 
 ## What to do
 
@@ -79,7 +92,7 @@ Build exclude list (comma-separated IDs), then fetch from each configured folder
 bash bin/granola.sh list --folder "FolderName" --exclude "id1,id2,..."
 ```
 
-If `$ARGUMENTS` is a search term (not "sync", not "backfill", and not empty), filter results by title match.
+If `$ARGUMENTS` is a search term (not "sync", not "backfill", and not empty), use `bash bin/granola.sh search "$ARGUMENTS"` to find matches across configured folders (faster than listing each folder individually).
 
 ### Step 2: Select meetings
 
@@ -115,58 +128,28 @@ bash bin/granola.sh get <doc-id>
 
 Parse the output JSON. You now have: `panel_text`, `transcript_text`, `transcript_structured`, `title`, `date`, `attendees`.
 
-#### Step 3b: Load cross-meeting context (5 parallel Neo4j queries)
+#### Step 3b: Load cross-meeting context (single batch call)
 
-Run ALL 5 queries in parallel via `bash bin/graph.sh query "..."`. These feed the analyst agents.
+Run ALL 5 queries in a **single `bash bin/graph-batch.sh` call** (1 network round-trip instead of 5). Parse `results[0]` through `results[4]`.
 
-**Q1 — Recent meeting artifacts (30d):**
-```cypher
-MATCH (a:Artifact)
-WHERE a.origin STARTS WITH 'granola:'
-AND a.created >= datetime() - duration('P30D')
-RETURN a.id, a.title, a.type, a.topics, a.meetingTitle, a.meetingDate, a.confidence
-ORDER BY a.created DESC LIMIT 15
+```bash
+bash bin/graph-batch.sh '[
+  {"statement": "MATCH (a:Artifact) WHERE a.origin STARTS WITH '"'"'granola:'"'"' AND a.created >= datetime() - duration('"'"'P30D'"'"') RETURN a.id, a.title, a.type, a.topics, a.meetingTitle, a.meetingDate, a.confidence ORDER BY a.created DESC LIMIT 15"},
+  {"statement": "MATCH (a:Artifact) WHERE a.origin STARTS WITH '"'"'granola:'"'"' AND a.openQuestions IS NOT NULL RETURN a.title, a.openQuestions, a.meetingTitle, a.meetingDate ORDER BY a.created DESC LIMIT 10"},
+  {"statement": "MATCH (a:Artifact) WHERE a.origin STARTS WITH '"'"'granola:'"'"' AND a.created >= datetime() - duration('"'"'P60D'"'"') UNWIND a.topics AS topic WITH topic, count(DISTINCT a.meetingTitle) AS meetingCount, collect(DISTINCT a.meetingTitle)[..5] AS meetings WHERE meetingCount >= 2 RETURN topic, meetingCount, meetings ORDER BY meetingCount DESC LIMIT 10"},
+  {"statement": "MATCH (newer:Artifact)-[:SUPERSEDES]->(older:Artifact) WHERE newer.created >= datetime() - duration('"'"'P60D'"'"') RETURN newer.title AS current, older.title AS previous, newer.topics, newer.meetingTitle ORDER BY newer.created DESC LIMIT 10"},
+  {"statement": "MATCH (q:Quest {status: '"'"'active'"'"'}) WHERE q.topics IS NOT NULL RETURN q.id, q.title, q.topics"}
+]'
 ```
 
-**Q2 — Open questions from previous meetings:**
-```cypher
-MATCH (a:Artifact)
-WHERE a.origin STARTS WITH 'granola:'
-AND a.openQuestions IS NOT NULL
-RETURN a.title, a.openQuestions, a.meetingTitle, a.meetingDate
-ORDER BY a.created DESC LIMIT 10
-```
+Result mapping:
+- `results[0]` → Q1: Recent meeting artifacts (30d)
+- `results[1]` → Q2: Open questions from previous meetings
+- `results[2]` → Q3: Topic recurrence (60d)
+- `results[3]` → Q4: Decision evolution chains
+- `results[4]` → Q5: Active quests (for topic linking)
 
-**Q3 — Topic recurrence across meetings (60d):**
-```cypher
-MATCH (a:Artifact)
-WHERE a.origin STARTS WITH 'granola:'
-AND a.created >= datetime() - duration('P60D')
-UNWIND a.topics AS topic
-WITH topic, count(DISTINCT a.meetingTitle) AS meetingCount,
-     collect(DISTINCT a.meetingTitle)[..5] AS meetings
-WHERE meetingCount >= 2
-RETURN topic, meetingCount, meetings
-ORDER BY meetingCount DESC LIMIT 10
-```
-
-**Q4 — Decision evolution chains:**
-```cypher
-MATCH (newer:Artifact)-[:SUPERSEDES]->(older:Artifact)
-WHERE newer.created >= datetime() - duration('P60D')
-RETURN newer.title AS current, older.title AS previous,
-       newer.topics, newer.meetingTitle
-ORDER BY newer.created DESC LIMIT 10
-```
-
-**Q5 — Active quests (for topic linking):**
-```cypher
-MATCH (q:Quest {status: 'active'})
-WHERE q.topics IS NOT NULL
-RETURN q.id, q.title, q.topics
-```
-
-**If any query fails**, continue with whatever context succeeded. Cross-meeting context is enrichment, not required.
+**If the batch call fails**, continue without cross-meeting context. It's enrichment, not required.
 
 #### Step 3c: Pass 0 — Panel scaffold (Opus, inline)
 
@@ -196,16 +179,21 @@ Don't extract trivia. Only knowledge worth preserving.
 
 #### Step 3d: Dispatch 3 analyst agents (parallel, Sonnet)
 
-Spawn **3 Sonnet sub-agents** in parallel using the Task tool with `model: "sonnet"` and `subagent_type: "general-purpose"`.
+Spawn **3 Sonnet sub-agents** in parallel using the Task tool with `model: "sonnet"` and `subagent_type: "general-purpose"`. **Do NOT use `run_in_background: true`** — run them as standard parallel Task calls so results are returned directly in the tool response. Background agents have unreliable output file retrieval, causing retry overhead.
 
 **Resolve attendee names** before dispatching. Read the attendee map:
 ```bash
 jq -r '.attendee_map // {}' .egregore-state.json
 ```
 
-For each attendee from the meeting data, look up their graph name in the map. If an attendee is NOT in the map:
-1. Prompt the user via AskUserQuestion: "New attendee: {name}. What's their short name for the graph?"
-2. Save the mapping to `.egregore-state.json` under `attendee_map`.
+For each attendee from the meeting data, look up their graph name in the map. If an attendee is NOT in the map, auto-derive from email before asking:
+
+1. **If attendee has email**: derive short name = email local part before `@` (e.g., `bartu@gizatech.xyz` → `bartu`)
+2. **Check graph**: `MATCH (p:Person) WHERE p.name = $derived RETURN p` — if person exists, auto-map silently
+3. **If name is clean** (alphanumeric, not generic like "info" or "admin"): auto-map and show confirmation line (no AskUserQuestion): `Auto-mapped: {full name} → {derived} (from email)`
+4. **Only use AskUserQuestion if**: no email available, email local part is ambiguous/generic, or multiple candidates exist
+
+Save all new mappings to `.egregore-state.json` under `attendee_map`.
 
 Use `"me"` for the user (from `.egregore-state.json` → `name`) and `"them"` for other attendees in speaker attribution.
 
@@ -745,7 +733,11 @@ Omit sections that have no data.
 
 #### Step 4c: Batch Neo4j operations
 
-Build a JSON array of queries for a single `bash bin/graph-batch.sh` call.
+Build a JSON array of queries for `bash bin/graph-batch.sh` calls.
+
+**Batch limit: API accepts max 20 queries per `graph-batch.sh` call.** Count total queries before executing. If >20, split into chunks of <=20 and execute sequentially. Recommended split:
+- **Batch 1** (nodes): Meeting node + INVOLVES relationships + Artifact nodes (typically <=15)
+- **Batch 2** (edges): FROM_MEETING + PART_OF + RELATES_TO + SUPERSEDES relationships
 
 **Meeting node** (new):
 ```json

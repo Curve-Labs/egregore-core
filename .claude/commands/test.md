@@ -1,4 +1,4 @@
-Validate changes before /save. Runs static analysis for known antipatterns and live Cypher query validation.
+Validate changes before /save.
 
 Topic: $ARGUMENTS
 

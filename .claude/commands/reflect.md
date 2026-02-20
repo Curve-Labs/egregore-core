@@ -1,4 +1,6 @@
-Capture insights from your work. The system uses graph context to surface what's worth reflecting on, asks Socratic follow-ups, and auto-classifies what emerges.
+Capture insights from your work — decisions, patterns, and realizations worth keeping.
+
+The system uses graph context to surface what's worth reflecting on, asks Socratic follow-ups, and auto-classifies what emerges.
 
 ## When to invoke
 

@@ -1,4 +1,6 @@
-Activity dashboard. Display it immediately — no preamble, no narration, no reasoning text. Output the box and nothing else before AskUserQuestion.
+See what's happening across the team — recent sessions, handoffs, and open work.
+
+Display it immediately — no preamble, no narration, no reasoning text. Output the box and nothing else before AskUserQuestion.
 
 ## When to invoke
 

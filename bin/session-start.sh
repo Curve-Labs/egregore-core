@@ -484,6 +484,31 @@ if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
               -d "{\"github_username\":\"${GH_USERNAME_STATE:-$AUTHOR}\",\"github_name\":\"${GH_FULLNAME_STATE:-}\"}" \
               --max-time 5 >/dev/null 2>&1 || true
           fi
+
+          # Auto-capture: create personal Session node with status='active'
+          AUTO_CAPTURE="true"
+          if [ -f "$STATE_FILE" ]; then
+            AUTO_CAPTURE=$(jq -r '.auto_capture // "true"' "$STATE_FILE" 2>/dev/null || echo "true")
+          fi
+
+          if [ "$AUTO_CAPTURE" = "true" ]; then
+            SESSION_CYPHER="MATCH (p:Person) WHERE toLower(p.name) = \$author
+              MERGE (s:Session {id: \$sid})
+              ON CREATE SET s.date = date(\$date), s.branch = \$branch,
+                s.startedAt = datetime(), s.status = 'active'
+              MERGE (s)-[:BY]->(p) RETURN s.id"
+            SESSION_PARAMS=$(jq -n \
+              --arg sid "$EGREGORE_SESSION_ID" \
+              --arg author "$(echo "$AUTHOR" | tr '[:upper:]' '[:lower:]')" \
+              --arg branch "$BRANCH" \
+              --arg date "$(date +%Y-%m-%d)" \
+              '{sid: $sid, author: $author, branch: $branch, date: $date}')
+
+            # WAL first (guaranteed persistence)
+            bash "$SCRIPT_DIR/bin/graph-wal.sh" append "$SESSION_CYPHER" "$SESSION_PARAMS" 2>/dev/null || true
+            # Direct write (best effort, immediate)
+            bash "$SCRIPT_DIR/bin/graph.sh" query "$SESSION_CYPHER" "$SESSION_PARAMS" 2>/dev/null || true
+          fi
         fi
       fi
     fi
@@ -527,6 +552,9 @@ if [ -f "$RETRY_QUEUE" ] && [ -s "$RETRY_QUEUE" ]; then
     fi
   ) >/dev/null 2>&1 &
 fi
+
+# --- Drain WAL (background, non-blocking) ---
+bash "$SCRIPT_DIR/bin/graph-wal.sh" drain >/dev/null 2>&1 &
 
 # --- Gather session context + service health in parallel (all background, no blocking) ---
 CTX_DIR=$(mktemp -d)

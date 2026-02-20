@@ -61,4 +61,4 @@ fi
 # Touch cooldown file
 touch "$COOLDOWN_FILE"
 
-echo "Unsaved changes: $PARTS. Mention /save when wrapping up."
+echo "Unsaved changes: $PARTS. /wrap to close session, /save to keep working."

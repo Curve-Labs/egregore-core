@@ -1,4 +1,4 @@
-Eval framework — pipeline evaluation and comparison. Routes to subcommands or shows overview.
+Evaluate and compare pipeline outputs.
 
 Arguments: $ARGUMENTS
 

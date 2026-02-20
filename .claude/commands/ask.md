@@ -1,4 +1,4 @@
-Ask questions — to yourself, the org, or a specific person. Context-aware, graph-backed.
+Ask a question — to a teammate, the org, or just think out loud.
 
 ## When to invoke
 

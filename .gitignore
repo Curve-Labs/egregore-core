@@ -22,6 +22,9 @@ mcp.shared.*.json
 # User state
 .egregore-state.json
 
+# Runtime files (session-specific, never commit)
+.transcript-retry-queue
+
 # Personal notes — never shared, never committed
 .egregore/notes/
 

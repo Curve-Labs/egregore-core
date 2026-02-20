@@ -96,6 +96,9 @@ SIZE_BYTES=$(wc -c < "$TRANSCRIPT_PATH" 2>/dev/null | tr -d ' ')
       '{duration_ms: $duration, message_count: $messages}')" 2>/dev/null || true
 
   bash "$SCRIPT_DIR/bin/telemetry.sh" flush 2>/dev/null || true
+
+  # Drain graph WAL on session end
+  bash "$SCRIPT_DIR/bin/graph-wal.sh" drain 2>/dev/null || true
 ) &
 
 # --- Gzip to temp file ---

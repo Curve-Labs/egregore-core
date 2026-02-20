@@ -1,4 +1,4 @@
-First-time setup for Egregore. Sets up shared memory first, projects are optional.
+First-time setup for Egregore.
 
 Arguments: $ARGUMENTS
 

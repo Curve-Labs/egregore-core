@@ -1,4 +1,4 @@
-Interactive walkthrough of Egregore's core loop. Auto-runs after onboarding; run anytime to revisit.
+Interactive walkthrough of Egregore's core loop.
 
 Arguments: $ARGUMENTS
 

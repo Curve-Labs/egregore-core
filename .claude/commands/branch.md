@@ -1,4 +1,4 @@
-Create a working branch from the user's description of what they're working on.
+Create a working branch from what you're working on.
 
 Description: $ARGUMENTS
 

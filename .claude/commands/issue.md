@@ -1,4 +1,4 @@
-Report an issue. Captures context automatically, routes to memory/graph/GitHub.
+Report an issue. Captures context and routes to the right place.
 
 ## When to invoke
 

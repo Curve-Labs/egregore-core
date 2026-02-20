@@ -106,6 +106,66 @@ while IFS= read -r -d '' hfile; do
   fi
 done < <(find "$MEMORY/handoffs" -name '*.md' -not -name 'index.md' -not -name 'index.md.bak' -not -name '.gitkeep' -print0 2>/dev/null)
 
+# --- Step 2b: Scan wraps ---
+if [ -d "$MEMORY/wraps" ]; then
+  while IFS= read -r -d '' wfile; do
+    fname="$(basename "$wfile" .md)"
+    dirmonth="$(basename "$(dirname "$wfile")")"
+    # Read session ID from wrap file metadata (matches auto-capture ID)
+    sid="$(grep -m1 '^\*\*Session\*\*:' "$wfile" 2>/dev/null | sed 's/\*\*Session\*\*:[[:space:]]*//' || true)"
+    # Fallback: derive from filename (pre-wrap files without Session metadata)
+    if [ -z "$sid" ]; then
+      if [[ "$dirmonth" =~ ^[0-9]{4}-[0-9]{2}$ ]]; then
+        day="${fname%%-*}"
+        rest="${fname#*-}"
+        sid="${dirmonth}-${day}-${rest}"
+      else
+        sid="$fname"
+      fi
+    fi
+
+    if ! id_exists "$sid" "$EXISTING_SESSIONS"; then
+      # Parse wrap metadata
+      W_TOPIC="$(grep -m1 '^# Wrap: ' "$wfile" 2>/dev/null | sed 's/^# Wrap: //' || true)"
+      [ -z "$W_TOPIC" ] && W_TOPIC="$fname"
+
+      W_AUTHOR="$(grep -m1 '^\*\*Author\*\*:' "$wfile" 2>/dev/null | sed 's/\*\*Author\*\*:[[:space:]]*//' || true)"
+      W_AUTHOR_HANDLE="$(echo "$W_AUTHOR" | awk '{print tolower($1)}')"
+      [ -z "$W_AUTHOR_HANDLE" ] && W_AUTHOR_HANDLE="unknown"
+
+      W_DATE="$(grep -m1 '^\*\*Date\*\*:' "$wfile" 2>/dev/null | sed 's/\*\*Date\*\*:[[:space:]]*//' || true)"
+      [ -z "$W_DATE" ] && W_DATE="$(echo "$fname" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}' || echo "")"
+      [ -z "$W_DATE" ] && W_DATE="${dirmonth}-${fname%%-*}"
+
+      W_BRANCH="$(grep -m1 '^\*\*Branch\*\*:' "$wfile" 2>/dev/null | sed 's/\*\*Branch\*\*:[[:space:]]*//' || true)"
+
+      W_SUMMARY="$(awk '/^## Summary/{found=1; next} found && /^[^#]/ && !/^[[:space:]]*$/{print; exit}' "$wfile" 2>/dev/null || true)"
+      [ -z "$W_SUMMARY" ] && W_SUMMARY="$W_TOPIC"
+
+      REL_PATH="wraps/${dirmonth}/${fname}.md"
+
+      CYPHER="MATCH (p:Person) WHERE toLower(p.name) = \$author
+        MERGE (s:Session {id: \$sid})
+        ON CREATE SET s.date = date(\$date), s.topic = \$topic, s.summary = \$summary,
+          s.filePath = \$filePath, s.status = 'wrapped', s.branch = \$branch
+        MERGE (s)-[:BY]->(p)
+        RETURN s.id"
+
+      PARAMS=$(jq -n \
+        --arg sid "$sid" \
+        --arg author "$W_AUTHOR_HANDLE" \
+        --arg date "${W_DATE:-2026-01-01}" \
+        --arg topic "$W_TOPIC" \
+        --arg summary "$W_SUMMARY" \
+        --arg filePath "$REL_PATH" \
+        --arg branch "$W_BRANCH" \
+        '{sid: $sid, author: $author, date: $date, topic: $topic, summary: $summary, filePath: $filePath, branch: $branch}')
+
+      bash "$SCRIPT_DIR/bin/graph.sh" query "$CYPHER" "$PARAMS" >/dev/null 2>&1 && SESSIONS=$((SESSIONS + 1)) || true
+    fi
+  done < <(find "$MEMORY/wraps" -name '*.md' -not -name '.gitkeep' -print0 2>/dev/null)
+fi
+
 # --- Step 3: Scan artifacts and knowledge files ---
 # Covers: memory/knowledge/decisions/*.md, memory/knowledge/findings/*.md, memory/knowledge/patterns/*.md
 for dir in "$MEMORY/knowledge/decisions" "$MEMORY/knowledge/findings" "$MEMORY/knowledge/patterns"; do

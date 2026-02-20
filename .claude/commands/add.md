@@ -1,4 +1,4 @@
-Ingest an artifact with minimal friction. The system suggests relations.
+Add a document, link, or artifact to shared memory.
 
 ## When to invoke
 

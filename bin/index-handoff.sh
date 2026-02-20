@@ -182,6 +182,15 @@ RESPONSE=$(bash "$SCRIPT_DIR/bin/graph-batch.sh" "$BATCH_JSON" 2>/dev/null) || {
   exit 1
 }
 
+# --- Mark auto-captured personal Session as handed_off ---
+PROJ_HASH=$(echo -n "$SCRIPT_DIR" | md5 2>/dev/null || echo -n "$SCRIPT_DIR" | md5sum 2>/dev/null | cut -d' ' -f1)
+CURRENT_SID=$(cat "$HOME/.egregore/session-${PROJ_HASH}.id" 2>/dev/null || echo "")
+if [ -n "$CURRENT_SID" ]; then
+  bash "$SCRIPT_DIR/bin/graph.sh" query \
+    "MATCH (s:Session {id: \$sid}) SET s.status = 'handed_off' RETURN s.id" \
+    "{\"sid\":\"$CURRENT_SID\"}" 2>/dev/null || true
+fi
+
 # --- Parse response ---
 RESOLVED=$(echo "$RESPONSE" | jq -r '.results[1].values[0][0] // 0' 2>/dev/null || echo "0")
 

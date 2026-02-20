@@ -1,3 +1,5 @@
+Deep analysis — cross-reference an insight against your knowledge base.
+
 Evidence-based deep analysis with signal-aware ontology. Iterative retrieval + multi-sample Opus reasoning over actual artifact content. Surfaces *signals* — any structurally significant relationship between the candidate insight and the existing knowledge base.
 
 ## When to invoke

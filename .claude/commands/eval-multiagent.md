@@ -1,4 +1,4 @@
-Multi-agent pipeline evaluation. Run configs, tournament-compare outputs, generate reports.
+Run multi-agent pipeline evaluations and compare results.
 
 Arguments: $ARGUMENTS
 

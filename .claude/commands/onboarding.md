@@ -1,6 +1,6 @@
-# Onboarding Guide
+Welcome a new user to this Egregore.
 
-Welcome a new user to this Egregore. Auto-detects what's already set up and skips it.
+Auto-detects what's already set up and skips it.
 
 ## Step 1: Read identity
 

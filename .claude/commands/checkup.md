@@ -1,6 +1,6 @@
-# Checkup
+Run diagnostics on your Egregore environment.
 
-Run a full diagnostic of the Egregore environment. Check every service and dependency, render a TUI diagnostic box, and auto-fix what you can.
+Check every service and dependency, render a TUI diagnostic box, and auto-fix what you can.
 
 ## When to invoke
 

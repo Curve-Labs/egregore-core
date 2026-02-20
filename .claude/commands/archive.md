@@ -1,6 +1,6 @@
-Archive Mode
+Capture effective prompt patterns and store them as reusable knowledge.
 
-Capture effective prompt patterns — sequences of human steering interventions that produced good AI reasoning — and store them in the shared knowledge base as reusable patterns.
+Sequences of human steering interventions that produced good AI reasoning — stored in the shared knowledge base as reusable patterns.
 
 ## When to invoke
 

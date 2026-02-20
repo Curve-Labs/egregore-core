@@ -1,4 +1,6 @@
-Open and display a file's full content. Never summarize — show everything verbatim.
+Open and display a file's full content.
+
+Never summarize — show everything verbatim.
 
 ## When to invoke
 

@@ -1,4 +1,4 @@
-Analyze quest drift and suggest restructuring. Runs sensemaking dialogue — always, no cooldown.
+Analyze quest drift and suggest restructuring.
 
 Arguments: $ARGUMENTS
 
