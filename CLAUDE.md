@@ -51,7 +51,7 @@ If you reach your second response and are still on develop with no branch create
 
 ### Exception: Onboarding needed
 
-If the hook output contains `"onboarding_complete": false` instead of the greeting, the user is new or mid-onboarding. Route to the Onboarding Steps below instead of showing the greeting.
+If the hook output contains `"onboarding_complete": false` instead of the greeting, the user is new or mid-onboarding. Invoke `/onboarding` instead of showing the greeting.
 
 ---
 
@@ -116,241 +116,12 @@ bash bin/notify.sh test
 
 ---
 
-## Onboarding Steps
+## Onboarding
 
-Run these steps in order. Write `.egregore-state.json` after each step to checkpoint progress. If any step's state is already satisfied, skip it.
+When `onboarding_complete` is false in `.egregore-state.json`, invoke `/onboarding`.
+The command handles the full flow: verify → welcome → harvest → consent → orient → complete.
 
-### Step 0: Organization Setup
-
-**Detection logic — check two things to determine the user's role:**
-
-1. Does `egregore.json` have a non-empty `org_name`? (`jq -r '.org_name // empty' egregore.json`)
-2. Does `.env` exist with a non-empty `GITHUB_TOKEN`?
-
-| `org_name` | `.env` | Route |
-|---|---|---|
-| Empty or missing | — | **Founder path** (Path A below) |
-| Set | Missing or empty | **Joiner path** (Path B below) |
-| Set | Has token | Skip to Step 1 |
-
-#### Path A: Founder — creating a new organization
-
-`egregore.json` exists but `org_name` is empty. This user is setting up Egregore for their team.
-
-1. Authenticate with GitHub. Say: **"I'm opening your browser — authorize Egregore and I'll handle the rest."** Then run:
-   ```bash
-   bash bin/github-auth.sh
-   ```
-   This opens the browser for GitHub Device Flow auth, polls for approval, and saves the token to `.env`. Wait for it to exit 0 before continuing. If it fails, show the error and stop.
-
-2. Read the token and fetch their orgs and username in parallel:
-   ```bash
-   TOKEN=$(grep '^GITHUB_TOKEN=' .env | cut -d'=' -f2-)
-   curl -s -H "Authorization: token $TOKEN" https://api.github.com/user/orgs
-   curl -s -H "Authorization: token $TOKEN" https://api.github.com/user
-   ```
-
-3. Present a numbered list: their orgs first, then their personal account at the end. Example:
-   ```
-   Where should we create the shared memory repo?
-
-   1. Acme-Org
-   2. other-org
-   3. alicedev (personal account)
-
-   Don't see your organization? Your org admin may need to approve Egregore at:
-   https://github.com/organizations/{org}/settings/oauth_application_policy
-   ```
-
-4. User picks a number. Determine the `github_org` (the org login, or username for personal). If the user says their org is missing, help them with the approval URL — replace `{org}` with their org name.
-
-5. Fork egregore-core into the chosen org (or personal account):
-   - **For an org:**
-     ```bash
-     curl -s -H "Authorization: token $TOKEN" \
-       -X POST https://api.github.com/repos/Curve-Labs/egregore-core/forks \
-       -d '{"organization":"'"$GITHUB_ORG"'"}'
-     ```
-   - **For personal account:**
-     ```bash
-     curl -s -H "Authorization: token $TOKEN" \
-       -X POST https://api.github.com/repos/Curve-Labs/egregore-core/forks
-     ```
-   This creates `{org}/egregore-core`. Forking is async — poll `GET /repos/{org}/egregore-core` until it exists (retry a few times with 2s sleep).
-
-6. Create the memory repo `{org}-memory` (private, with a description):
-   - **For an org:** `POST /orgs/{org}/repos`
-   - **For personal account:** `POST /user/repos`
-   ```bash
-   curl -s -H "Authorization: token $TOKEN" \
-     -d '{"name":"'"$GITHUB_ORG"'-memory","private":true,"description":"Egregore shared memory","auto_init":true}' \
-     https://api.github.com/orgs/$GITHUB_ORG/repos
-   ```
-   (Use `/user/repos` and omit `/orgs/$GITHUB_ORG` for personal accounts.)
-
-7. Clone memory directly to sibling directory and initialize. Do NOT clone to `/tmp` — clone to the final location so there's one clone, one location:
-   ```bash
-   git clone "https://github.com/$GITHUB_ORG/$GITHUB_ORG-memory.git" "../$GITHUB_ORG-memory"
-   cd "../$GITHUB_ORG-memory"
-   mkdir -p people handoffs knowledge/decisions knowledge/patterns knowledge/findings research/interviews research/participants
-   touch people/.gitkeep handoffs/.gitkeep knowledge/decisions/.gitkeep knowledge/patterns/.gitkeep knowledge/findings/.gitkeep research/interviews/.gitkeep research/participants/.gitkeep
-   git add -A && git commit -m "Initialize memory structure" && git push
-   cd -
-   ```
-   If `../$GITHUB_ORG-memory` already exists, `cd` into it and `git pull` instead of cloning.
-
-8. Update `egregore.json` with org-specific fields (non-secret config only):
-   ```bash
-   jq --arg org_name "$ORG_NAME" \
-      --arg github_org "$GITHUB_ORG" \
-      --arg memory_repo "https://github.com/$GITHUB_ORG/$GITHUB_ORG-memory.git" \
-      '.org_name = $org_name | .github_org = $github_org | .memory_repo = $memory_repo' \
-      egregore.json > tmp.$$.json && mv tmp.$$.json egregore.json
-   ```
-   **Note:** `api_url` is already set. `api_key` goes in `.env` (gitignored), NOT in `egregore.json`.
-
-9. Initialize git and connect to the fork. The zip has no `.git` — we create one now:
-   ```bash
-   git init
-   git remote add origin "https://github.com/$GITHUB_ORG/egregore-core.git"
-   git fetch origin
-   git reset origin/main
-   ```
-   This points HEAD at the fork's history while keeping local files untouched. Then commit and push the new config:
-   ```bash
-   git add egregore.json
-   git commit -m "Configure egregore for $ORG_NAME"
-   git push -u origin main
-   ```
-
-10. Test the graph connection:
-    ```bash
-    bash bin/graph.sh test
-    ```
-    If it fails, check network connectivity. The Neo4j instance is shared — no setup needed.
-
-11. Save `org_setup: true` to `.egregore-state.json`. Continue to Step 1.
-
-#### Path B: Joiner — joining an existing organization
-
-`egregore.json` has `org_name` set (inherited from the fork/clone) but `.env` is missing or incomplete. This user is joining a team that already set up Egregore.
-
-**Note:** If the joiner used `npx create-egregore` or the install script, `.env` already has `GITHUB_TOKEN` and `EGREGORE_API_KEY`. In that case, verify and skip to Step 1.
-
-1. Read the org config and greet them:
-   ```bash
-   jq -r '.org_name' egregore.json
-   ```
-   > **"Welcome to Egregore for {org_name}! Let's get you set up."**
-
-2. Authenticate with GitHub (if `GITHUB_TOKEN` not in `.env`). Say: **"I'm opening your browser — authorize Egregore and I'll handle the rest."** Then run:
-   ```bash
-   bash bin/github-auth.sh
-   ```
-   Wait for it to exit 0. If it fails, show the error and stop.
-
-3. Check for `EGREGORE_API_KEY` in `.env`. If missing, tell the user to ask their team admin for the API key, then add it:
-   ```bash
-   echo "EGREGORE_API_KEY=ek_..." >> .env
-   ```
-
-4. Test access to the memory repo:
-   ```bash
-   MEMORY_REPO="$(jq -r '.memory_repo' egregore.json)"
-   GITHUB_ORG="$(jq -r '.github_org' egregore.json)"
-   # Handle both bare name and full URL formats
-   if echo "$MEMORY_REPO" | grep -q '^http'; then
-     MEMORY_URL="$MEMORY_REPO"
-   else
-     MEMORY_URL="https://github.com/$GITHUB_ORG/$MEMORY_REPO.git"
-   fi
-   git ls-remote "$MEMORY_URL" HEAD 2>&1
-   ```
-
-5. **Works** → test graph connection:
-   ```bash
-   bash bin/graph.sh test
-   ```
-   Then continue to Step 1.
-
-6. **Fails** → help debug. Common causes:
-   - Not a collaborator on the repo → tell them to ask their team for access
-   - Token expired → re-run `bash bin/github-auth.sh`
-   - Missing API key → ask team admin
-   Do NOT try to create SSH keys. Do NOT loop more than twice. If still failing, say what's wrong and let the user fix it.
-
-7. Save `org_setup: true` to `.egregore-state.json`. Continue to Step 1.
-
-### Step 1: Name
-
-This step is handled by the greeting in Path 1 above. When the user responds with their name, save it to `.egregore-state.json` as `name`.
-
-### Step 2: GitHub Auth
-
-Read `memory_repo` from `egregore.json`. (Step 0 guarantees this exists by now.)
-
-Test git access:
-```bash
-git ls-remote "$(jq -r '.memory_repo' egregore.json)" HEAD 2>&1
-```
-
-- **Works** → skip to Step 3
-- **Fails** → re-run auth: say **"Let me re-authorize — I'm opening your browser."** and run `bash bin/github-auth.sh`. If it still fails after auth, help debug (repo access, token scopes). Do NOT try to create SSH keys. Do not loop more than twice.
-
-Save `github_configured: true` to state.
-
-### Step 3: Workspace Setup
-
-If `memory/` symlink doesn't exist:
-
-```
-Setting up your workspace...
-```
-
-Derive the clone directory name from `memory_repo` — strip the trailing `.git` and take the last path segment. For example, `https://github.com/Acme-Org/acme-org-memory.git` becomes `acme-org-memory`:
-```bash
-MEMORY_REPO="$(jq -r '.memory_repo' egregore.json)"
-MEMORY_DIR="$(basename "$MEMORY_REPO" .git)"
-```
-
-1. Clone memory: `git clone "$MEMORY_REPO" "../$MEMORY_DIR"` (if `../$MEMORY_DIR` doesn't already exist)
-2. Link it: `ln -s "../$MEMORY_DIR" memory`
-3. Create person file — the memory repo is outside the project, so the Write tool will trigger a permission prompt. **Use Bash instead** to write the file:
-   ```bash
-   cat > memory/people/{handle}.md << 'EOF'
-   # {Name}
-   Joined: {YYYY-MM-DD}
-   EOF
-   ```
-   Then commit and push from the memory repo:
-   ```bash
-   cd memory && git add -A && git commit -m "Add {handle}" && git push && cd -
-   ```
-
-Save `workspace_ready: true` to state.
-
-### Step 4: Shell alias
-
-Set up the launch command so the user can start Egregore from anywhere:
-
-```bash
-ALIAS_NAME=$(bash bin/ensure-shell-function.sh)
-```
-
-The script detects the user's shell (`$SHELL`), writes to the right profile (`.zshrc`, `.bash_profile`, `.bashrc`, or fish `config.fish`), and outputs the alias name. First install gets `egregore`, subsequent installs get `egregore-{slug}`.
-
-Tell the user (using the actual alias name returned):
-> From now on, just type **`{ALIAS_NAME}`** in any terminal to launch. It syncs everything and shows you where you are.
-
-### Step 5: Complete
-
-Write `onboarding_complete: true` to state.
-
-Transition: **"Got it. Let me show you how this works."**
-
-Then auto-trigger the `/tutorial` flow. The tutorial IS the first experience — no separate interview, no command list. Just run the tutorial steps directly (follow `.claude/commands/tutorial.md`).
-
-Do NOT list commands. Do NOT show a menu. Do NOT say "What are you working on?" — the tutorial handles that at the end.
+Do NOT run onboarding steps inline. The command is the single source of truth.
 
 ## Transparency Beat
 
@@ -372,7 +143,27 @@ Only say this once per session. Never repeat it.
   "github_configured": true,
   "workspace_ready": true,
   "onboarding_complete": true,
-  "usage_type": "founder_group",
+  "usage_type": "joiner_group",
+  "session_tracking": true,
+  "transcript_sharing": true,
+  "telemetry": true,
+  "contact_preference": "all",
+  "onboarding": {
+    "phase": "complete",
+    "type": "joiner",
+    "started_at": "2026-02-20T10:00:00Z",
+    "completed_at": "2026-02-20T10:05:00Z",
+    "harvest_rounds": [
+      {"round": 1, "focus": "identity", "questions": ["name", "role"], "answers": {"name": "Alice", "role": "engineering"}},
+      {"round": 2, "focus": "connection", "questions": ["interest", "style"], "answers": {"interest": "building", "style": "async"}}
+    ],
+    "consent": {
+      "session_tracking": true,
+      "transcript_sharing": true,
+      "telemetry": true,
+      "contact_preference": "all"
+    }
+  },
   "tutorial_step": 4,
   "domain": "software",
   "stage": "early",

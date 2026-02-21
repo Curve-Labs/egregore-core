@@ -14,11 +14,18 @@ This applies to: Step 2 reflect artifacts, Step 3 quests, Step 3 source artifact
 
 Read `.egregore-state.json`. Extract `usage_type`, `tutorial_complete`, and any existing tutorial state (`domain`, `stage`, `team_or_solo`).
 
+**Check for harvest data from `/onboarding`:** If the state file contains `onboarding.harvest_rounds`, the user already answered identity and connection questions during onboarding. Extract and map this data so Step 1 can skip redundant questions:
+- `role` from harvest round 1 → can inform `domain` (e.g., `engineering` → `software`, `research` → `research`)
+- `focus` from harvest round 2 → contextual seed for Step 2 questions
+
+If `domain` is already set in state (from harvest or a previous tutorial run), Step 1 will skip Q1 and use the stored value.
+
 **Detect `usage_type`** if missing:
 1. Check `egregore.json` for `org_name` — if set, it's a group context
 2. Check `.egregore-state.json` for onboarding path clues:
    - Founder who set up the org → `founder_group`
    - Joiner who joined an existing org → `joiner_group`
+   - `onboarding.type` = `"joiner"` → `joiner_group`
    - No org → `personal`
 3. If ambiguous, default to `personal`
 4. Save detected `usage_type` to `.egregore-state.json`
@@ -42,7 +49,11 @@ Save `tutorial_step: 1` to state.
 
 ### Questions
 
-Use AskUserQuestion with 2 sequential questions.
+**Skip logic:** If `domain` already exists in state (set by `/onboarding` harvest or a previous tutorial run), skip Q1 entirely and use the stored value. If `stage` also exists, skip Q2 as well. Jump directly to "Run `/activity`" below.
+
+If `domain` was inferred from harvest `role` (e.g., `engineering` → `software`), confirm briefly: "Based on your role, I'll tailor this to software work." Then skip Q1.
+
+Use AskUserQuestion with 2 sequential questions (only for questions not already answered).
 
 **Q1** — varies by `usage_type`:
 

@@ -15,7 +15,7 @@ Arguments: $ARGUMENTS (Optional: [person] about [topic])
 ## Step 1: Parse & Route
 
 Parse `$ARGUMENTS`:
-- **target**: first word if it matches a known person (query `MATCH (p:Person) RETURN p.name, p.github, p.fullName` — match against any of the three, case-insensitive), else none
+- **target**: first word if it matches a known person name (query `MATCH (p:Person) RETURN p.name`), else none
 - **topic**: everything after "about", or the full argument if no "about"
 
 Strip `@` from names. Both `alice` and `@alice` work.

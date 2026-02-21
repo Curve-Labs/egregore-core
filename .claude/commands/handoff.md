@@ -40,12 +40,11 @@ Derive author handle: lowercase first word of git user.name (e.g. "Alice Smith" 
 
 Query all team members from the graph (suppress raw output, parse names):
 ```bash
-MEMBERS=$(bash bin/graph.sh query "MATCH (p:Person) RETURN p.name AS name, p.github AS github, p.fullName AS fullName" 2>/dev/null)
-echo "$MEMBERS" | jq -r '.values[][] // empty' 2>/dev/null
+MEMBERS=$(bash bin/graph.sh query "MATCH (p:Person) RETURN p.name AS name" 2>/dev/null)
+echo "$MEMBERS" | jq -r '.values[][]' 2>/dev/null
 ```
 
 This returns all Person nodes in the org. Use this list for recipient matching in Step 1.
-Match recipient names case-insensitively against `name`, `github`, or `fullName`.
 
 ## Step 0.5: Triage mode (no arguments + open handoffs)
 
