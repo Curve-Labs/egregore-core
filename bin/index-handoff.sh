@@ -128,7 +128,7 @@ if [ -n "$RECIPIENTS_RAW" ]; then
     [ -z "$R" ] && continue
     HANDED_TO_CYPHER="${HANDED_TO_CYPHER}
 WITH s
-OPTIONAL MATCH (r${i}:Person) WHERE toLower(r${i}.name) = \$recipient${i}
+OPTIONAL MATCH (r${i}:Person) WHERE toLower(r${i}.name) = \$recipient${i} OR r${i}.github = \$recipient${i} OR toLower(r${i}.fullName) = \$recipient${i}
 FOREACH (_ IN CASE WHEN r${i} IS NOT NULL THEN [1] ELSE [] END |
   MERGE (s)-[:HANDED_TO]->(r${i})
 )"
@@ -148,7 +148,7 @@ FOREACH (_ IN CASE WHEN proj IS NOT NULL THEN [1] ELSE [] END |
   PROJECT_PARAM=", \"project\": \"${PROJECT}\""
 fi
 
-Q1_CYPHER="MATCH (p:Person) WHERE toLower(p.name) = \$author
+Q1_CYPHER="MATCH (p:Person) WHERE toLower(p.name) = \$author OR p.github = \$author OR toLower(p.fullName) = \$author
 MERGE (s:Session {id: \$sessionId})
 ON CREATE SET s.date = date(\$date), s.topic = \$topic, s.summary = \$summary, s.filePath = \$filePath, s.handoffStatus = 'pending'
 ON MATCH SET s.topic = \$topic, s.summary = \$summary, s.filePath = \$filePath
@@ -158,7 +158,7 @@ RETURN s.id AS sessionId"
 Q1_PARAMS="{\"sessionId\": \"${SESSION_ID}\", \"author\": \"${AUTHOR_HANDLE}\", \"date\": \"${DATE}\", \"topic\": $(printf '%s' "$TOPIC" | jq -Rs .), \"summary\": $(printf '%s' "$SUMMARY" | jq -Rs .), \"filePath\": \"${REL_PATH}\"${PROJECT_PARAM}${RECIPIENT_PARAMS}}"
 
 # Q2: Auto-resolve old read handoffs from this author
-Q2_CYPHER="MATCH (s:Session)-[:HANDED_TO]->(p:Person) WHERE toLower(p.name) = \$author AND s.handoffStatus = 'read' AND s.id <> \$sessionId
+Q2_CYPHER="MATCH (s:Session)-[:HANDED_TO]->(p:Person) WHERE (toLower(p.name) = \$author OR p.github = \$author OR toLower(p.fullName) = \$author) AND s.handoffStatus = 'read' AND s.id <> \$sessionId
 WITH s, p, coalesce(s.handoffReadDate, s.date) AS sinceDate
 MATCH (later:Session)-[:BY]->(p)
 WHERE later.date > sinceDate

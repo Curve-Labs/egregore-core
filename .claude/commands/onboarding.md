@@ -2,6 +2,29 @@ Welcome a new user to this Egregore.
 
 Deterministic joiner state machine. Every state has explicit entry conditions, actions, exit conditions, and API calls. Execute states literally — no improvisation, no skipping, no reordering.
 
+## Output discipline — CRITICAL
+
+This is a conversation with a new user, not a CI pipeline. The user should see a smooth, friendly flow — not a stream of tool calls and logs.
+
+**Rules:**
+- **Batch all reads at once.** Before each state, read ALL files you'll need in a single parallel tool call. Never read files one at a time between user-facing messages.
+- **Batch all writes at once.** State file update + API call + any other writes = one parallel tool call group. Never interleave writes with user text.
+- **Suppress all command output.** Every bash call must use `2>/dev/null` or capture output to a variable. The user should NEVER see raw JSON, curl output, or git logs.
+- **No narration of internal steps.** Never say "Let me read the config file" or "Saving to state" or "Calling the API." Just do it silently between user-facing messages.
+- **Minimize visible tool calls.** The user sees each tool call as a UI element. Fewer calls = smoother experience. Combine bash commands with `&&`. Read multiple files in one parallel call.
+- **VERIFY should be invisible.** Do all 3 checks in one bash call. If everything passes, say nothing — go straight to WELCOME. Only speak if something fails.
+- **COMPLETE should feel instant.** Run all 7 sub-steps (egregore.md update, memory commit, graph MERGE, Supabase sync, state update, shell alias, telemetry) in 1-2 parallel bash calls. The user should see one message: "You're in."
+
+**What the user should experience:**
+1. Welcome message (2-3 sentences)
+2. Name + role question
+3. Interest + style question
+4. Privacy choices
+5. Activity summary + "how do you want to start?"
+6. "You're in."
+
+Six moments. Everything else is invisible plumbing.
+
 **State machine:**
 ```
 VERIFY → WELCOME → HARVEST_IDENTITY → HARVEST_CONNECTION → CONSENT → ORIENT → COMPLETE
@@ -20,9 +43,17 @@ If `onboarding_complete` is true, say: "You're already set up. Run `/me` to upda
 **Entry:** `onboarding_complete` is false (or missing) in `.egregore-state.json`
 
 **Actions:**
-1. Read `egregore.json` for `org_name`, `github_org`, `api_url`
-2. Read `.env` for `GITHUB_TOKEN`, `EGREGORE_API_KEY`
-3. Check `memory/` symlink exists
+
+Run all checks in a single bash call — the user should see nothing if everything passes:
+```bash
+TOKEN=$(grep '^GITHUB_TOKEN=' .env 2>/dev/null | cut -d'=' -f2-) && \
+APIKEY=$(grep '^EGREGORE_API_KEY=' .env 2>/dev/null | cut -d'=' -f2-) && \
+SYMLINK=$(test -L memory && echo "ok" || echo "") && \
+ORG=$(jq -r '.org_name' egregore.json 2>/dev/null) && \
+echo "token:${TOKEN:+ok} apikey:${APIKEY:+ok} memory:${SYMLINK} org:${ORG}"
+```
+
+Read `egregore.json`, `egregore.md`, and `.egregore-state.json` in parallel (needed for WELCOME) — batch this with the check above so VERIFY and WELCOME file reads happen together.
 
 **Exit conditions:**
 - IF all three checks pass → WELCOME
@@ -46,8 +77,11 @@ If `onboarding_complete` is true, say: "You're already set up. Run `/me` to upda
 **Entry:** VERIFY passed
 
 **Actions:**
-1. Read `egregore.md` → extract `## Identity` and `## Culture` sections
-2. Read `.egregore-state.json` for `github_username`, `github_name`
+
+Files needed: `egregore.md` and `.egregore-state.json`. These should ALREADY be loaded from VERIFY (batch file reads). Do NOT re-read them.
+
+1. Extract `## Identity` and `## Culture` sections from egregore.md (already in context)
+2. Use `github_username`, `github_name` from state (already in context)
 3. Display welcome message:
 
 ```
@@ -151,16 +185,18 @@ questions:
 ```
 
 **API calls:**
+
+Save state AND call the API in parallel — do NOT do these sequentially:
 ```bash
 API_URL="$(jq -r '.api_url' egregore.json)"
 API_KEY="$(grep '^EGREGORE_API_KEY=' .env | cut -d'=' -f2-)"
 curl -sf "${API_URL}/api/user/ensure" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"github_username":"...","github_name":"...","display_name":"..."}'
+  -d '{"github_username":"...","github_name":"...","display_name":"..."}' 2>/dev/null
 ```
 
-**Exit:** → HARVEST_CONNECTION (always)
+**Exit:** → HARVEST_CONNECTION (always). Transition immediately — do NOT output anything between states except the next AskUserQuestion.
 
 ---
 
@@ -170,7 +206,7 @@ curl -sf "${API_URL}/api/user/ensure" \
 
 **Actions:**
 
-Read `egregore.md` → extract `## Collaboration` section. Parse the listed work areas.
+Extract `## Collaboration` section from `egregore.md` — this should ALREADY be in context from WELCOME. Do NOT re-read the file.
 
 **Deriving Q1 options from egregore.md:** Read the `## Collaboration` section. The first 3 bullet points or comma-separated items become option labels. If fewer than 2 items found, use these defaults: "Building / Exploring / Participating."
 
@@ -228,7 +264,7 @@ questions:
 
 **API calls:** None yet (batched at COMPLETE)
 
-**Exit:** → CONSENT (always)
+**Exit:** → CONSENT (always). Transition immediately — do NOT output anything between states except the next AskUserQuestion.
 
 ---
 
@@ -288,7 +324,7 @@ Flat keys are required for backward compatibility — `bin/telemetry.sh` and `bi
 
 **API calls:** None yet (batched at COMPLETE)
 
-**Exit:** → ORIENT (always)
+**Exit:** → ORIENT (always). Save state silently, then transition immediately — do NOT output anything between the user's consent answers and the ORIENT activity summary.
 
 ---
 
@@ -298,22 +334,19 @@ Flat keys are required for backward compatibility — `bin/telemetry.sh` and `bi
 
 **Actions:**
 
-1. Query graph for active quests + recent activity:
+1. Query graph for active quests AND recent handoffs in a single bash call — do NOT make two separate graph queries:
 ```bash
-bash bin/graph.sh query "MATCH (q:Quest {status: 'active'}) OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q) RETURN q.id AS quest, q.title AS title, count(a) AS artifacts ORDER BY count(a) DESC LIMIT 3"
+QUESTS=$(bash bin/graph.sh query "MATCH (q:Quest {status: 'active'}) OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q) RETURN q.id AS quest, q.title AS title, count(a) AS artifacts ORDER BY count(a) DESC LIMIT 3" 2>/dev/null) && \
+HANDOFFS=$(bash bin/graph.sh query "MATCH (s:Session) WHERE s.date IS NOT NULL MATCH (s)-[:BY]->(author:Person) RETURN s.topic AS topic, author.name AS author ORDER BY s.date DESC LIMIT 3" 2>/dev/null) && \
+echo "QUESTS:$QUESTS|||HANDOFFS:$HANDOFFS"
 ```
 
-2. Query for recent handoffs:
-```bash
-bash bin/graph.sh query "MATCH (s:Session) WHERE s.date IS NOT NULL MATCH (s)-[:BY]->(author:Person) RETURN s.topic AS topic, author.name AS author ORDER BY s.date DESC LIMIT 3"
-```
-
-3. Display activity summary:
+2. Display activity summary:
    - IF quests exist: "Here's what's active:" followed by quest list with artifact counts
    - IF handoffs exist: "Recent sessions:" followed by 2-3 recent sessions with authors
    - IF empty: "It's early — you're one of the first here."
 
-4. AskUserQuestion:
+3. AskUserQuestion:
 ```
 questions:
   Q1:
@@ -326,14 +359,14 @@ questions:
         description: "5-minute walkthrough of the core commands"
 ```
 
-5. IF "Jump in":
+4. IF "Jump in":
    Show 1-2 specific suggestions based on harvest answers:
    - IF focus = `building` AND quests exist: "Check out the {quest_title} quest — `/quest {slug}`"
    - IF focus = `exploring`: "Try `/activity` to see what's happening, or `/reflect` to capture your first thought."
    - IF focus = `evaluating`: "Run `/dashboard` to see the system from your perspective."
    → COMPLETE
 
-6. IF "Show me around":
+5. IF "Show me around":
    Invoke `/tutorial` — it will read `domain`, `stage`, `usage_type` from state (already set by session-start.sh + harvest) and skip redundant identity/role questions.
    → COMPLETE (after tutorial finishes)
 
@@ -348,6 +381,8 @@ questions:
 **Entry:** ORIENT completed
 
 **Actions (all executed, no conditionals):**
+
+**Batching:** Run steps 1-4 in parallel (egregore.md update + memory commit + graph MERGE + Supabase sync). Then run steps 5-7 in one parallel call (state update + shell alias + telemetry). The user should see ONE message at the end: "You're in." — not a play-by-play of each step. Suppress ALL output with `2>/dev/null` or variable capture.
 
 ### 1. Update `egregore.md` Members section
 
@@ -376,9 +411,24 @@ cd memory && git add -A && git commit -m "Add {github_username}" && git push && 
 
 ### 3. Create/update Person node in Neo4j
 
+**Important:** The graph has a uniqueness constraint on `(Person.name, Person.org)`. The MERGE must match on `github` to find existing nodes, but must handle the case where another Person already has the same display name. Use a two-step approach:
+
 ```bash
+# Step 1: Check if name is already taken by a different person
 bash bin/graph.sh query \
-  "MERGE (p:Person {github: \$github})
+  "OPTIONAL MATCH (existing:Person {name: \$name, org: \$org})
+   WHERE existing.github <> \$github
+   RETURN existing IS NOT NULL AS taken" \
+  '{"name":"...","org":"...","github":"..."}'
+```
+
+- IF `taken` is true → append github username to make name unique: `"{display_name} ({github_username})"`
+- IF `taken` is false → use display_name as-is
+
+```bash
+# Step 2: MERGE the person node
+bash bin/graph.sh query \
+  "MERGE (p:Person {github: \$github, org: \$org})
    ON CREATE SET p.name = \$name, p.fullName = \$fullName, p.role = \$role,
      p.focus = \$focus, p.workStyle = \$workStyle, p.joined = date(),
      p.sessionTracking = \$sessionTracking, p.transcriptSharing = \$transcriptSharing,
@@ -388,10 +438,10 @@ bash bin/graph.sh query \
      p.transcriptSharing = \$transcriptSharing, p.telemetry = \$telemetry,
      p.contactPreference = \$contactPreference
    RETURN p.name" \
-  '{"github":"...","name":"...","fullName":"...","role":"...","focus":"...","workStyle":"...","sessionTracking":true,"transcriptSharing":true,"telemetry":true,"contactPreference":"all"}'
+  '{"github":"...","org":"...","name":"...","fullName":"...","role":"...","focus":"...","workStyle":"...","sessionTracking":true,"transcriptSharing":true,"telemetry":true,"contactPreference":"all"}'
 ```
 
-Fill all parameter values from state — do NOT leave `"..."` placeholders.
+Read `org_slug` from `egregore.json` → `github_org` field, lowercased and hyphenated (e.g., "Curve-Labs" → use the slug from the API key prefix, or derive from `jq -r '.github_org' egregore.json | tr '[:upper:]' '[:lower:]'`). Fill all parameter values from state — do NOT leave `"..."` placeholders.
 
 ### 4. Sync to Supabase
 
