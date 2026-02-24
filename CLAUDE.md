@@ -39,6 +39,11 @@ That's it. Do NOT list commands. Do NOT show a menu. Just the greeting + that qu
 1. Derive a topic slug from what the user said (same rules as `/branch`)
 2. `git fetch origin develop --quiet && git checkout -b dev/{author}/{slug} origin/develop`
 3. Confirm: `On dev/{author}/{slug} now.`
+4. Update the session in the graph (fire-and-forget, must not delay response):
+   ```bash
+   bash bin/graph-op.sh set-topic "$(cat ~/.egregore/session-*.id 2>/dev/null)" "topic from slug" "dev/author/slug" 2>/dev/null &
+   ```
+   Replace "topic from slug" with the slug words separated by spaces (e.g. `session-naming-bug` → `session naming bug`), and use the actual branch name.
 
 Then proceed with their request.
 
@@ -51,7 +56,7 @@ If you reach your second response and are still on develop with no branch create
 
 ### Exception: Onboarding needed
 
-If the hook output contains `"onboarding_complete": false` instead of the greeting, the user is new or mid-onboarding. Invoke `/onboarding` **immediately and silently** — do NOT add narration like "Onboarding isn't complete yet" or "Let me get you set up." Just invoke the skill. The onboarding command handles the welcome message itself.
+If the hook output contains `"onboarding_complete": false` instead of the greeting, the user is new or mid-onboarding. Invoke `/onboarding` instead of showing the greeting.
 
 ---
 

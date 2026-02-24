@@ -10,6 +10,8 @@ set -euo pipefail
 #   mark-done <session-id>      Mark a handoff as done/resolved
 #   answer-question <set-id>    Mark a question set as answered
 #   resolve-handoffs <user>     Auto-resolve read handoffs with later sessions
+#   set-topic <session-id> <topic> [branch]
+#                               Set topic (and optionally branch) on a Session node
 #   record-focus <session-id> <shown-json> <selected> [dismissed-json]
 #                               Track Focus option selection for adaptive options
 
@@ -62,6 +64,25 @@ case "$OP" in
     " "{\"user\":\"$USER\"}"
     ;;
 
+  set-topic)
+    SID="${1:?missing session-id}"
+    TOPIC="${2:?missing topic}"
+    BRANCH="${3:-}"
+    if [ -n "$BRANCH" ]; then
+      bash "$GS" query "
+        MATCH (s:Session {id: \$sid})
+        SET s.topic = \$topic, s.branch = \$branch
+        RETURN s.id AS id, s.topic AS topic, s.branch AS branch
+      " "{\"sid\":\"$SID\",\"topic\":\"$TOPIC\",\"branch\":\"$BRANCH\"}"
+    else
+      bash "$GS" query "
+        MATCH (s:Session {id: \$sid})
+        SET s.topic = \$topic
+        RETURN s.id AS id, s.topic AS topic
+      " "{\"sid\":\"$SID\",\"topic\":\"$TOPIC\"}"
+    fi
+    ;;
+
   record-focus)
     SID="${1:?missing session-id}"
     SHOWN="${2:?missing shown options}"
@@ -81,7 +102,7 @@ case "$OP" in
     ;;
 
   *)
-    echo '{"error":"unknown operation: '"$OP"'","operations":["mark-read","mark-done","answer-question","resolve-handoffs","record-focus","wal-status"]}'
+    echo '{"error":"unknown operation: '"$OP"'","operations":["mark-read","mark-done","answer-question","resolve-handoffs","set-topic","record-focus","wal-status"]}'
     exit 1
     ;;
 
