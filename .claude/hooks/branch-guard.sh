@@ -70,7 +70,7 @@ is_exempt() {
 
   # Exempt: /tmp/
   case "$resolved" in
-    /tmp/*|/tmp) return 0 ;;
+    /tmp/*|/tmp|/private/tmp/*|/private/tmp) return 0 ;;
   esac
 
   return 1
