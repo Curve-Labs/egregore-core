@@ -77,20 +77,45 @@ is_exempt() {
 }
 
 # --- Helper: check if bash command targets a non-hub repo ---
-# Returns 0 (true) if the git command operates on memory/ or a managed repo
+# Returns 0 (true) if the git command operates on memory/, a managed repo,
+# or any directory outside the hub project.
+# Strategy: extract paths from cd/git-C, resolve them, check if they're
+# outside PROJECT_DIR. If so, it's a different repo — allow it.
 targets_other_repo() {
   local cmd="$1"
 
-  # Memory repo: "cd memory", "cd $PROJECT_DIR/memory", "git -C memory", "git -C $MEMORY_DIR"
-  if echo "$cmd" | grep -qE "(cd\s+[\"']?($PROJECT_DIR/)?memory|git\s+-C\s+[\"']?($PROJECT_DIR/)?memory|git\s+-C\s+[\"']?$MEMORY_DIR)" 2>/dev/null; then
-    return 0
-  fi
+  # Extract directory targets from common patterns:
+  #   cd <path>          →  path
+  #   git -C <path>      →  path
+  #   git -C "<path>"    →  path
+  local paths=""
 
-  # Managed repos: "git -C ../{repo}", "cd ../{repo}"
-  local repos
-  repos=$(jq -r '.repos[]? // empty' "$PROJECT_DIR/egregore.json" 2>/dev/null) || true
-  for repo in $repos; do
-    if echo "$cmd" | grep -qE "(cd\s+[\"']?(\.\./|$PROJECT_DIR/../)$repo|git\s+-C\s+[\"']?(\.\./|$PROJECT_DIR/../)$repo)" 2>/dev/null; then
+  # cd targets (handles: cd path, cd "path", cd 'path')
+  paths="$paths $(echo "$cmd" | grep -oE 'cd\s+["'"'"']?[^ ;&|"'"'"']+' 2>/dev/null | sed 's/^cd\s*["'"'"']*//g')"
+
+  # git -C targets
+  paths="$paths $(echo "$cmd" | grep -oE 'git\s+-C\s+["'"'"']?[^ ;&|"'"'"']+' 2>/dev/null | sed 's/^git\s*-C\s*["'"'"']*//g')"
+
+  for p in $paths; do
+    # Skip empty
+    [ -z "$p" ] && continue
+
+    # Resolve relative paths from PROJECT_DIR
+    if [[ "$p" != /* ]]; then
+      p="$PROJECT_DIR/$p"
+    fi
+
+    # Resolve symlinks
+    local resolved
+    resolved=$(realpath "$p" 2>/dev/null || echo "$p")
+
+    # If it resolves to memory dir — allow
+    if [[ "$resolved" == "$MEMORY_DIR" || "$resolved" == "$MEMORY_DIR/"* ]]; then
+      return 0
+    fi
+
+    # If it's outside the project dir entirely — it's a different repo, allow
+    if [[ "$resolved" != "$PROJECT_DIR" && "$resolved" != "$PROJECT_DIR/"* ]]; then
       return 0
     fi
   done
