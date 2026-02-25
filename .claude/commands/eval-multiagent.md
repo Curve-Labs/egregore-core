@@ -143,9 +143,9 @@ If the config specifies a `prompt_variant` for this slot, use the variant text f
 - Token counts (input + output) from the Task tool response (actual, not estimated)
 - Wall-clock latency (timestamp before and after Task call)
 - Actual cost computed from token counts using model pricing:
-  - Opus: $15/M input, $75/M output
-  - Sonnet: $3/M input, $15/M output
-  - Haiku: $0.80/M input, $4/M output
+  - Opus 4.6: $15/M input, $75/M output
+  - Sonnet 4.6: $3/M input, $15/M output (1M context)
+  - Haiku 4.5: $0.80/M input, $4/M output
 
 **Write outputs** for each config:
 
@@ -741,9 +741,9 @@ Commit and push changes via the `/save` flow:
 ## Notes
 
 ### Model pricing reference (for cost estimation)
-- Opus: $15/M input tokens, $75/M output tokens
-- Sonnet: $3/M input tokens, $15/M output tokens
-- Haiku: $0.80/M input tokens, $4/M output tokens
+- Opus 4.6: $15/M input tokens, $75/M output tokens
+- Sonnet 4.6: $3/M input tokens, $15/M output tokens (1M context)
+- Haiku 4.5: $0.80/M input tokens, $4/M output tokens
 
 ### Spec version gating
 Tournament only compares runs with matching spec version. When the pipeline code changes, bump the version in the eval spec. Old data is preserved for longitudinal tracking but excluded from active tournaments.

@@ -19,7 +19,7 @@ Required for Tristero:
   OPENAI_API_KEY      ✗ missing
 
 Optional:
-  LLM_MODEL           ✓ set (anthropic/claude-3.5-sonnet)
+  LLM_MODEL           ✓ set (anthropic/claude-sonnet-4-6)
 
 To add missing keys:
   1. Get OpenRouter key from: https://openrouter.ai/keys

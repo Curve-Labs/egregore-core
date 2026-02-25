@@ -69,7 +69,7 @@ else
         fi
         if [ -f "$STATE_FILE" ]; then
           jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" --arg ut "$USAGE_TYPE" \
-            '.github_username = $u | .github_name = $n | .name = $n | .onboarding_complete = true | .usage_type = $ut' "$STATE_FILE" > "$STATE_FILE.tmp" \
+            '.github_username = $u | .github_name = $n | if .name == null or .name == "" then .name = $n else . end | if .onboarding_complete == null then .onboarding_complete = true else . end | .usage_type = $ut' "$STATE_FILE" > "$STATE_FILE.tmp" \
             && mv "$STATE_FILE.tmp" "$STATE_FILE"
           FIRST_SESSION="false"
         else
@@ -507,7 +507,7 @@ if [ -f "$CONFIG" ] && [ -f "$ENV_FILE" ]; then
           fi
 
           if [ "$AUTO_CAPTURE" = "true" ]; then
-            SESSION_CYPHER="MATCH (p:Person) WHERE p.github = \$github OR toLower(p.name) = \$author
+            SESSION_CYPHER="MATCH (p:Person {github: \$github})
               MERGE (s:Session {id: \$sid})
               ON CREATE SET s.date = date(\$date), s.branch = \$branch,
                 s.startedAt = datetime(), s.status = 'active'

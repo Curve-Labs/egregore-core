@@ -17,13 +17,13 @@ Arguments: $ARGUMENTS (Optional: search term, file path, or "synthesis" for cros
 
 ## Architecture
 
-Multi-dimensional analysis pipeline with 3 Sonnet analyst agents + Opus synthesis:
+Multi-dimensional analysis pipeline with 3 Sonnet 4.6 analyst agents (1M context) + Opus synthesis:
 
 ```
 Input (transcript) → Pass 0 (Opus, inline): scaffold
 Cross-interview context → 4 Neo4j queries → graph context
                 ┌─────────────────────────────────────────┐
-          JOURNEY (Sonnet)    SENTIMENT (Sonnet)    PRODUCT (Sonnet)
+          JOURNEY (Sonnet 4.6)    SENTIMENT (Sonnet 4.6)    PRODUCT (Sonnet 4.6)
           transcript+scaffold  transcript (fresh)    transcript+scaffold+quests
           friction, aha,       emotions, confusion,  feature discovery,
           task flow, stuck     delight, frustration,  mental models,
@@ -38,10 +38,10 @@ Cross-interview context → 4 Neo4j queries → graph context
 
 Target per interview:
 - **Bash calls**: ~6-10 (source fetch, graph batches, file writes, git)
-- **Task agents**: 3 Sonnet (parallel, inline — NOT background)
+- **Task agents**: 3 Sonnet 4.6 (parallel, inline — NOT background)
 - **AskUserQuestion**: 0-2 (source selection, participant info)
 - **Graph batches**: 2-3 (1 context read, 1-2 artifact write batches at <=20 queries each)
-- **Token-heavy**: Journey + Sentiment agents receive full transcript (~6K words each)
+- **Token-heavy**: Journey + Sentiment agents receive full transcript (Sonnet 4.6's 1M context handles long interviews without truncation)
 
 ## What to do
 
@@ -181,7 +181,7 @@ Don't extract trivia. Only insights worth preserving for product development.
 
 ### Step 3: Dispatch 3 analyst agents (parallel, Sonnet)
 
-Spawn **3 Sonnet sub-agents** in parallel using the Task tool with `model: "sonnet"` and `subagent_type: "general-purpose"`. **Do NOT use `run_in_background: true`** — run them as standard parallel Task calls so results are returned directly.
+Spawn **3 Sonnet 4.6 sub-agents** in parallel using the Task tool with `model: "sonnet"` and `subagent_type: "general-purpose"`. **Do NOT use `run_in_background: true`** — run them as standard parallel Task calls so results are returned directly.
 
 #### Agent 1: Journey Analyst
 
@@ -1004,9 +1004,9 @@ Analyzing interview...
   Pass 0: Scanning transcript...
   Loading cross-interview context (4 queries)...
   Dispatching analysts...
-    → Journey Analyst (Sonnet)...
-    → Sentiment Analyst (Sonnet)...
-    → Product Insights Analyst (Sonnet)...
+    → Journey Analyst (Sonnet 4.6)...
+    → Sentiment Analyst (Sonnet 4.6)...
+    → Product Insights Analyst (Sonnet 4.6)...
   Synthesizing results...
 
 From interview with Sarah (onboarding, 2026-02-19):

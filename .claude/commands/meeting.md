@@ -13,15 +13,15 @@ Arguments: $ARGUMENTS (Optional: "sync" for batch mode, "backfill" to re-process
 
 ## Architecture
 
-Multi-dimensional analysis pipeline with 3 Sonnet analyst agents + Opus synthesis:
+Multi-dimensional analysis pipeline with 3 Sonnet 4.6 analyst agents (1M context) + Opus synthesis:
 
 ```
 Pass 0 (Opus, inline) — Read panel (~2K) → produce scaffold
 Cross-meeting context — 5 parallel Neo4j queries → graph context
                     ┌─────────────────────────────────────┐
                     │                                     │
-              SUBSTANCE (Sonnet)  DYNAMICS (Sonnet)  CONTINUITY (Sonnet)
-              transcript+scaffold  transcript+attendees  panel+graph+scaffold
+              SUBSTANCE (Sonnet 4.6)  DYNAMICS (Sonnet 4.6)  CONTINUITY (Sonnet 4.6)
+              transcript+scaffold  transcript+attendees  transcript+panel+graph+scaffold
               priorities, deps,    tone, energy,         decision evolution,
               events, enrichments  convictions, dynamics  recurrence, patterns
                     │                                     │
@@ -32,16 +32,16 @@ Cross-meeting context — 5 parallel Neo4j queries → graph context
                         → Enriched artifact list
 ```
 
-Panel-first: Opus reads the panel summary (cheap, high-signal). Sonnet agents handle the transcript (expensive, noisy). Opus synthesizes the agent outputs — never reads the transcript directly.
+Panel-first: Opus reads the panel summary (cheap, high-signal). Sonnet 4.6 agents handle the transcript (1M context handles even long meetings without truncation). Opus synthesizes the agent outputs — never reads the transcript directly.
 
 ## Cost & Resource Budget
 
 Target per meeting:
 - **Bash calls**: ~8-12 (granola fetch, graph batches, file writes, git)
-- **Task agents**: 3 Sonnet (parallel, inline — NOT background)
+- **Task agents**: 3 Sonnet 4.6 (parallel, inline — NOT background)
 - **AskUserQuestion**: 0-1 (only for unknown attendees without email)
 - **Graph batches**: 2-3 (1 context read, 1-2 artifact write batches at <=20 queries each)
-- **Token-heavy**: Substance + Dynamics agents receive full transcript (~6K words each)
+- **Token-heavy**: All 3 agents receive full transcript (Sonnet 4.6's 1M context handles long meetings without truncation)
 
 For sync mode (N meetings): multiply agent count by N, but batch graph writes across meetings.
 
@@ -179,7 +179,7 @@ Don't extract trivia. Only knowledge worth preserving.
 
 #### Step 3d: Dispatch 3 analyst agents (parallel, Sonnet)
 
-Spawn **3 Sonnet sub-agents** in parallel using the Task tool with `model: "sonnet"` and `subagent_type: "general-purpose"`. **Do NOT use `run_in_background: true`** — run them as standard parallel Task calls so results are returned directly in the tool response. Background agents have unreliable output file retrieval, causing retry overhead.
+Spawn **3 Sonnet 4.6 sub-agents** in parallel using the Task tool with `model: "sonnet"` and `subagent_type: "general-purpose"`. **Do NOT use `run_in_background: true`** — run them as standard parallel Task calls so results are returned directly in the tool response. Background agents have unreliable output file retrieval, causing retry overhead.
 
 **Resolve attendee names** before dispatching. Read the attendee map:
 ```bash
@@ -334,12 +334,12 @@ Return ONLY valid JSON. No markdown fences, no explanation.
 
 ##### Agent 3: Continuity Analyst
 
-**Input**: panel_text + scaffold from Pass 0 + Q1 results (recent artifacts) + Q2 results (open questions) + Q3 results (topic recurrence) + Q4 results (decision evolution). NO transcript (keeps it cheap and focused).
+**Input**: transcript + panel_text + scaffold from Pass 0 + Q1 results (recent artifacts) + Q2 results (open questions) + Q3 results (topic recurrence) + Q4 results (decision evolution).
 
 **Task tool prompt**:
 
 ```
-You are the Continuity Analyst for a meeting analysis pipeline. Your job is to compare what THIS meeting covers against what the organization already knows. You read the panel summary (not the transcript) and cross-reference it with historical graph data.
+You are the Continuity Analyst for a meeting analysis pipeline. Your job is to compare what THIS meeting covers against what the organization already knows. You read the full transcript, panel summary, and cross-reference with historical graph data. With transcript access, go beyond topic matching — identify specific arguments that echo previous meetings, positions that have shifted in how they're articulated (not just what they conclude), and conversational patterns that repeat across sessions.
 
 ## Panel Summary
 
@@ -348,6 +348,10 @@ You are the Continuity Analyst for a meeting analysis pipeline. Your job is to c
 ## Scaffold (extracted items from this meeting)
 
 {INSERT SCAFFOLD JSON}
+
+## Transcript
+
+{INSERT TRANSCRIPT — use transcript_structured if available, otherwise transcript_text}
 
 ## Recent Meeting Artifacts (30 days)
 
@@ -367,7 +371,7 @@ You are the Continuity Analyst for a meeting analysis pipeline. Your job is to c
 
 ## Instructions
 
-Analyze how this meeting fits into the arc of the organization's recent work. What evolved? What recurred? What threads were picked up or dropped?
+Analyze how this meeting fits into the arc of the organization's recent work. What evolved? What recurred? What threads were picked up or dropped? With transcript access, go beyond topic matching — identify specific arguments that echo previous meetings, positions that shifted in how they're articulated (not just what they conclude), and conversational patterns that repeat across sessions.
 
 Return a JSON object with this structure:
 
@@ -390,6 +394,10 @@ Return a JSON object with this structure:
   "meta_patterns": [
     {"description": "free-form: organizational-level pattern observed across meetings (convergence, oscillation, drift, etc.)"}
   ],
+  "discussion_patterns": [
+    {"description": "free-form: specific conversational pattern connecting to previous meetings — recurring arguments, evolving framing, echoed phrases",
+     "evidence_quote": "...", "connected_meeting": "...", "artifact_id": "..."}
+  ],
   "_raw_notes": "Multi-paragraph prose: your full read on how this meeting fits into the arc of the organization's evolution. Connections, tensions, and trajectories that don't fit the structured fields."
 }
 
@@ -401,6 +409,8 @@ Return a JSON object with this structure:
 4. open_threads: specifically check if any of the "Open Questions from Previous Meetings" were addressed in this meeting's scaffold items.
 5. meta_patterns: look for org-level dynamics (e.g., "pricing keeps being revisited" or "team is converging on agent-first architecture").
 6. The _raw_notes section is where your real analysis lives. Be honest about confidence levels.
+7. Use the transcript to find specific evidence — don't just match topics, match arguments. If a previous meeting discussed "usage-based gating" and this transcript contains the phrase "gate by usage", that's a direct echo worth noting in discussion_patterns.
+8. Compare how positions are articulated, not just what they conclude. A decision that's "reinforced" with new arguments is different from one that's simply repeated.
 
 Return ONLY valid JSON. No markdown fences, no explanation.
 ```
@@ -981,8 +991,8 @@ Triggered by `/meeting backfill`. Re-processes already-ingested meetings with th
 3. **Process each meeting**:
    - Fetch via `bash bin/granola.sh get <doc-id>`
    - Run Pass 0 (scaffold from panel)
-   - Run Substance Analyst (Sonnet sub-agent) — same prompt as Step 3d Agent 1
-   - If Dynamics selected: run Dynamics Analyst (Sonnet sub-agent) — same prompt as Step 3d Agent 2
+   - Run Substance Analyst (Sonnet 4.6 sub-agent) — same prompt as Step 3d Agent 1
+   - If Dynamics selected: run Dynamics Analyst (Sonnet 4.6 sub-agent) — same prompt as Step 3d Agent 2
    - **No Continuity Analyst** (nothing to compare against for backfill)
 
 4. **Patch Neo4j** (idempotent — MERGE, not CREATE):
@@ -1092,9 +1102,9 @@ Reading meeting...
   Pass 0: Scanning panel notes...
   Loading cross-meeting context (5 queries)...
   Dispatching analysts...
-    → Substance Analyst (Sonnet)...
-    → Dynamics Analyst (Sonnet)...
-    → Continuity Analyst (Sonnet)...
+    → Substance Analyst (Sonnet 4.6)...
+    → Dynamics Analyst (Sonnet 4.6)...
+    → Continuity Analyst (Sonnet 4.6)...
   Synthesizing results...
 
 From "Weekly Sync — Feb 12" (Bob + Alice, Bob):
@@ -1213,7 +1223,7 @@ Meeting 1/3: "Weekly Sync — Feb 12"
 ───────────────────────────────────
 
   Pass 0: Scanning panel notes...
-  Dispatching analysts (3x Sonnet)...
+  Dispatching analysts (3x Sonnet 4.6)...
   Synthesizing results...
 
   ◉ Decision: Use stdio transport for MCP servers       [0.9]
@@ -1229,7 +1239,7 @@ Meeting 2/3: "Design Review — Feb 11"
 ───────────────────────────────────
 
   Pass 0: Scanning panel notes...
-  Dispatching analysts (3x Sonnet)...
+  Dispatching analysts (3x Sonnet 4.6)...
   Synthesizing results...
 
   ◉ Finding: Color system needs semantic tokens          [0.9]
