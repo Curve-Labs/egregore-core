@@ -69,7 +69,7 @@ else
         fi
         if [ -f "$STATE_FILE" ]; then
           jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" --arg ut "$USAGE_TYPE" \
-            '.github_username = $u | .github_name = $n | if .name == null or .name == "" then .name = $n else . end | if .onboarding_complete == null then .onboarding_complete = true else . end | .usage_type = $ut' "$STATE_FILE" > "$STATE_FILE.tmp" \
+            '.github_username = $u | .github_name = $n | .name = $n | .onboarding_complete = true | .usage_type = $ut' "$STATE_FILE" > "$STATE_FILE.tmp" \
             && mv "$STATE_FILE.tmp" "$STATE_FILE"
           FIRST_SESSION="false"
         else
@@ -112,6 +112,8 @@ SESSION_ID_DIR="$HOME/.egregore"
 mkdir -p "$SESSION_ID_DIR"
 PROJ_HASH=$(echo -n "$SCRIPT_DIR" | md5 2>/dev/null || echo -n "$SCRIPT_DIR" | md5sum 2>/dev/null | cut -d' ' -f1)
 echo "$EGREGORE_SESSION_ID" > "$SESSION_ID_DIR/session-${PROJ_HASH}.id"
+# Also write project-local file (CLAUDE.md reads this — no glob needed)
+echo "$EGREGORE_SESSION_ID" > "$SCRIPT_DIR/.egregore-session-id"
 
 # --- Check onboarding state ---
 # If state file doesn't exist, assume onboarding complete (existing team member)
