@@ -299,6 +299,9 @@ compute_boundary() {
 # Run boundary computation (non-blocking, but fast — just file I/O)
 compute_boundary 2>/dev/null || true
 
+# --- Ensure pull.rebase is set (prevents "divergent branches" errors) ---
+git config pull.rebase true 2>/dev/null || true
+
 # --- Fetch all remotes in parallel ---
 # Set git transfer timeout so hangs don't block startup indefinitely.
 export GIT_HTTP_LOW_SPEED_LIMIT=1000  # abort if <1KB/s
