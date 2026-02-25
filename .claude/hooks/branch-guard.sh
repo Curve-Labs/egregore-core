@@ -3,9 +3,6 @@
 # Receives tool input JSON on stdin from Claude Code.
 # Exit 0 = allow, exit 2 = block (reason on stderr).
 # Must be fast (<50ms) — no network calls, just path/branch checks.
-#
-# When blocked, the stderr message instructs Claude (not the user) to
-# create a working branch before retrying. The user never sees git.
 
 # No set -e — hook must never accidentally block by crashing
 # If anything fails unexpectedly, fall through to exit 0 (allow)
@@ -32,6 +29,9 @@ fi
 # --- Read author from state file ---
 AUTHOR=$(jq -r '.display_name // .name // "dev"' "$PROJECT_DIR/.egregore-state.json" 2>/dev/null) || AUTHOR="dev"
 
+# --- Resolve memory directory (for exemption checks) ---
+MEMORY_DIR=$(realpath "$PROJECT_DIR/memory" 2>/dev/null || echo "$PROJECT_DIR/memory")
+
 # --- Helper: check if path is exempt from branch guard ---
 is_exempt() {
   local path="$1"
@@ -41,7 +41,7 @@ is_exempt() {
     path="$PROJECT_DIR/$path"
   fi
 
-  # Resolve symlinks for memory/ check
+  # Resolve symlinks
   local resolved
   resolved=$(realpath "$path" 2>/dev/null || echo "$path")
 
@@ -61,12 +61,10 @@ is_exempt() {
   fi
 
   # Exempt: memory/ (resolve symlink to check both the link and target)
-  local memory_resolved
-  memory_resolved=$(realpath "$PROJECT_DIR/memory" 2>/dev/null || echo "$PROJECT_DIR/memory")
   if [[ "$resolved" == "$PROJECT_DIR/memory"/* || "$resolved" == "$PROJECT_DIR/memory" ]]; then
     return 0
   fi
-  if [[ "$resolved" == "$memory_resolved"/* || "$resolved" == "$memory_resolved" ]]; then
+  if [[ "$resolved" == "$MEMORY_DIR"/* || "$resolved" == "$MEMORY_DIR" ]]; then
     return 0
   fi
 
@@ -78,12 +76,30 @@ is_exempt() {
   return 1
 }
 
-# --- Block message (targets Claude, not the user) ---
-BLOCK_MSG="BRANCH GUARD: You are on '$BRANCH' which is a protected branch. You MUST create a working branch before modifying files or committing. Do this now:
-1. Tell the user: \"I need to create a working branch before making changes. What are you working on?\" (or derive a topic from conversation context if already clear)
-2. Run: git fetch origin develop --quiet && git checkout -b dev/${AUTHOR}/{topic-slug} origin/develop
-3. Then retry your operation.
-NEVER tell the user to run git commands — handle it yourself. The user does not interact with git."
+# --- Helper: check if bash command targets a non-hub repo ---
+# Returns 0 (true) if the git command operates on memory/ or a managed repo
+targets_other_repo() {
+  local cmd="$1"
+
+  # Memory repo: "cd memory", "cd $PROJECT_DIR/memory", "git -C memory", "git -C $MEMORY_DIR"
+  if echo "$cmd" | grep -qE "(cd\s+[\"']?($PROJECT_DIR/)?memory|git\s+-C\s+[\"']?($PROJECT_DIR/)?memory|git\s+-C\s+[\"']?$MEMORY_DIR)" 2>/dev/null; then
+    return 0
+  fi
+
+  # Managed repos: "git -C ../{repo}", "cd ../{repo}"
+  local repos
+  repos=$(jq -r '.repos[]? // empty' "$PROJECT_DIR/egregore.json" 2>/dev/null) || true
+  for repo in $repos; do
+    if echo "$cmd" | grep -qE "(cd\s+[\"']?(\.\./|$PROJECT_DIR/../)$repo|git\s+-C\s+[\"']?(\.\./|$PROJECT_DIR/../)$repo)" 2>/dev/null; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# --- Block message (short — Claude knows what to do from CLAUDE.md) ---
+BLOCK_MSG="Protected branch: create a working branch first. Run: git fetch origin develop --quiet && git checkout -b dev/${AUTHOR}/{topic-slug} origin/develop"
 
 # --- Check based on tool type ---
 case "$TOOL_NAME" in
@@ -105,8 +121,12 @@ case "$TOOL_NAME" in
       exit 0
     fi
 
-    # Block git commit and git push on protected branches
-    if echo "$COMMAND" | grep -qE '(^|[;&|]\s*)git\s+(commit|push)' 2>/dev/null; then
+    # Only check commands that contain git commit or git push
+    if echo "$COMMAND" | grep -qE 'git\s+(commit|push)' 2>/dev/null; then
+      # Allow if targeting memory/ or a managed repo (separate repos, own branch model)
+      if targets_other_repo "$COMMAND"; then
+        exit 0
+      fi
       echo "$BLOCK_MSG" >&2
       exit 2
     fi
