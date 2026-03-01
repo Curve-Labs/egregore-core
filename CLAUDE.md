@@ -232,7 +232,7 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 **Knowledge** — `/deep-reflect` `/archive` `/note` `/add` `/meeting` `/ingest`
 **Reading** — `/open` (open/read/show me/display/pull up a file — always verbatim, never summarize)
 **Identity** — `/me` (view profile or set display name)
-**Coordination** — `/ask` `/quest` `/issue` `/invite`
+**Coordination** — `/ask` `/quest` `/issue` `/invite` `/delete-user`
 **Git** — `/branch` `/commit` `/push` `/pr` `/save`
 **Infra** — `/setup` `/update` `/pull` `/env` `/sync-repos` `/release` `/checkup`
 
@@ -245,6 +245,7 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 - Reading files: `/open` (show full content verbatim) vs just answering (user asks a question about a file, not to read it)
 - Ingesting content: `/ingest meeting` (team meeting from Granola) vs `/ingest user-interview` (research session / onboarding call) vs "process the call" (ambiguous — ask which type)
 - Identity: `/me` (view profile or set display name) — "who am I", "call me oz", "change my name"
+- People: `/invite` (add someone) vs `/delete-user` (remove someone) — "remove user", "kick", "revoke access"
 
 ## Socratic Questioning (MANDATORY)
 
