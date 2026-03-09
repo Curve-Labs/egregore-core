@@ -68,9 +68,18 @@ else
           USAGE_TYPE="founder_group"
         fi
         if [ -f "$STATE_FILE" ]; then
-          jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" --arg ut "$USAGE_TYPE" \
-            '.github_username = $u | .github_name = $n | .name = $n | .onboarding_complete = true | .usage_type = $ut' "$STATE_FILE" > "$STATE_FILE.tmp" \
-            && mv "$STATE_FILE.tmp" "$STATE_FILE"
+          # Existing state file — update identity but preserve onboarding status
+          HAS_ONBOARDING=$(jq -r '.onboarding_complete // "unset"' "$STATE_FILE" 2>/dev/null)
+          if [ "$HAS_ONBOARDING" = "unset" ]; then
+            # State file exists but no onboarding flag — set to false to trigger it
+            jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" --arg ut "$USAGE_TYPE" \
+              '.github_username = $u | .github_name = $n | .name = $n | .onboarding_complete = false | .usage_type = $ut' "$STATE_FILE" > "$STATE_FILE.tmp" \
+              && mv "$STATE_FILE.tmp" "$STATE_FILE"
+          else
+            jq --arg u "$GH_LOGIN" --arg n "${GH_NAME:-$GH_LOGIN}" --arg ut "$USAGE_TYPE" \
+              '.github_username = $u | .github_name = $n | .name = $n | .usage_type = $ut' "$STATE_FILE" > "$STATE_FILE.tmp" \
+              && mv "$STATE_FILE.tmp" "$STATE_FILE"
+          fi
           FIRST_SESSION="false"
         else
           cat > "$STATE_FILE" << STATEEOF
@@ -78,7 +87,7 @@ else
   "github_username": "$GH_LOGIN",
   "github_name": "${GH_NAME:-$GH_LOGIN}",
   "name": "${GH_NAME:-$GH_LOGIN}",
-  "onboarding_complete": true,
+  "onboarding_complete": false,
   "usage_type": "$USAGE_TYPE",
   "first_session": true
 }
