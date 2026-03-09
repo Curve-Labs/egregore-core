@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ascii-oracle",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "ascii-oracle",
+      "port": 5173
+    },
+    {
+      "name": "egregore-site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "egregore-site",
+      "port": 5174
+    }
+  ]
+}

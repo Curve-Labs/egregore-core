@@ -761,7 +761,7 @@ Build a JSON array of queries for `bash bin/graph-batch.sh` calls.
 **Meeting → Person relationships** (INVOLVES):
 ```json
 {
-  "statement": "MATCH (m:Meeting {id: $meetingId}) MERGE (p:Person {name: $personName}) MERGE (m)-[:INVOLVES]->(p)",
+  "statement": "MATCH (m:Meeting {id: $meetingId}) MATCH (p:Person {name: $personName}) MERGE (m)-[:INVOLVES]->(p)",
   "parameters": {"meetingId": "...", "personName": "{graph name from attendee_map}"}
 }
 ```

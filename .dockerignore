@@ -1,0 +1,18 @@
+# Egregore workspace image build exclusions
+# Build context is repo root; only bin/, .claude/, CLAUDE.md, docker/ are needed
+.env
+.egregore-state.json
+.egregore-session-id
+.git
+node_modules/
+memory
+site/
+site 2/
+egregore-site/
+blog/
+ascii-oracle/
+telegram-bot/
+packages/
+.claude/worktrees/
+.claude/settings.local.json
+.claude/projects/

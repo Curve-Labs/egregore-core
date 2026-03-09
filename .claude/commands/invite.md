@@ -106,7 +106,7 @@ Run these two in parallel. Use description "Recording invite in graph" and "Chec
 
 **Create Person node + sync to Supabase:**
 ```bash
-bash bin/graph.sh query "MERGE (p:Person {name: \$name}) ON CREATE SET p.invited = date(), p.invitedBy = \$inviter RETURN p.name" '{"name": "USERNAME", "inviter": "INVITER"}'
+bash bin/graph.sh query "MERGE (p:Person {github: \$github}) ON CREATE SET p.name = \$github, p.invited = date(), p.invitedBy = \$inviter RETURN p.name" '{"github": "USERNAME", "inviter": "INVITER"}'
 ```
 
 Then sync to Supabase (non-fatal):
@@ -124,7 +124,7 @@ Get the inviter name from `git config user.name` (derive short handle: lowercase
 
 **Check Telegram + notify:**
 ```bash
-bash bin/graph.sh query "MATCH (p:Person {name: \$name}) RETURN p.telegramId" '{"name": "USERNAME"}'
+bash bin/graph.sh query "MATCH (p:Person) WHERE p.github = \$username OR p.name = \$username RETURN p.telegramId" '{"username": "USERNAME"}'
 ```
 
 If they have a telegramId, send the invite:
