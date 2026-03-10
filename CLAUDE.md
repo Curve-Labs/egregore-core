@@ -230,7 +230,6 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 
 **Core loop** — `/activity` `/dashboard` `/handoff` `/wrap` `/save` `/reflect` `/todo`
 **Knowledge** — `/deep-reflect` `/archive` `/note` `/add` `/meeting` `/ingest`
-**Reading** — `/open` (open/read/show me/display/pull up a file — always verbatim, never summarize)
 **Identity** — `/me` (view profile or set display name)
 **Coordination** — `/ask` `/quest` `/issue` `/invite` `/delete-user`
 **Connectors** — `/connect` (enable/disable external service integrations like Google Workspace)
@@ -243,7 +242,6 @@ When a user describes intent that maps to a command, invoke it — don't wait fo
 - Ending vs continuing: `/wrap` (personal closure) vs `/handoff` (leaving notes for others) vs `/save` (still working)
 - Things to do: `/todo` (personal task) vs `/quest` (team exploration) vs `/issue` (something broken)
 - Questions: `/ask [person]` (async to teammate) vs just asking (agent can answer from context)
-- Reading files: `/open` (show full content verbatim) vs just answering (user asks a question about a file, not to read it)
 - Ingesting content: `/ingest meeting` (team meeting from Granola) vs `/ingest user-interview` (research session / onboarding call) vs `/ingest google` (Google Workspace content) vs "process the call" (ambiguous — ask which type)
 - Connectors: `/connect google` (enable/auth) vs `/ingest google` (bring content in) — "connect google" = setup, "import from drive" = ingest
 - Identity: `/me` (view profile or set display name) — "who am I", "call me oz", "change my name"
