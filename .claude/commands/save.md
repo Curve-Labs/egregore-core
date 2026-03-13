@@ -76,7 +76,16 @@ Not this: user is leaving/done → `/handoff` (which auto-saves)
    - **If PR creation fails**: stop here. The branch was pushed, so tell the user:
      > PR creation failed, but your branch `{BRANCH}` was pushed.
      > Your commits are safe. Try again with `/save` or create the PR manually.
-   - **If PR succeeds**, detect if markdown-only or has code:
+   - **If PR succeeds**, track it in the graph (fire-and-forget, must not delay response):
+     ```bash
+     PROJ_HASH=$(echo -n "$(pwd)" | md5 2>/dev/null || echo -n "$(pwd)" | md5sum 2>/dev/null | cut -d' ' -f1)
+     SID=$(cat "$HOME/.egregore/session-${PROJ_HASH}.id" 2>/dev/null || echo "")
+     GH_USER=$(jq -r '.github_username // empty' .egregore-state.json 2>/dev/null)
+     REPO_NAME=$(jq -r '.repo_name // "egregore"' egregore.json 2>/dev/null)
+     bash bin/graph-op.sh create-pr "$SID" "$PR_NUMBER" "$REPO_NAME" "$GH_USER" "$PR_TITLE" 2>/dev/null &
+     ```
+     Where `$PR_NUMBER` is extracted from the `gh pr create` output (parse the URL for the number).
+   - Then detect if markdown-only or has code:
      ```bash
      NON_MD=$(git diff develop --name-only | grep -v '\.md$' | head -1)
      ```
@@ -141,7 +150,11 @@ Not this: user is leaving/done → `/handoff` (which auto-saves)
         ```bash
         gh pr create --repo $GITHUB_ORG/$REPO --base develop --title "..." --body "..."
         ```
-     6. User sees: `[repo-name] ✓ Pushed dev/alice/topic-slug → PR #N to develop`
+     6. Track PR in graph (fire-and-forget):
+        ```bash
+        bash bin/graph-op.sh create-pr "$SID" "$PR_NUMBER" "$REPO" "$GH_USER" "$PR_TITLE" 2>/dev/null &
+        ```
+     7. User sees: `[repo-name] ✓ Pushed dev/alice/topic-slug → PR #N to develop`
    - **Use `git -C` with absolute paths** — never `cd` into the repo (avoids permission prompts)
 
 ## Neo4j Sync Logic

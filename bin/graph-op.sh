@@ -132,12 +132,123 @@ case "$OP" in
     " "{\"keep\":\"$KEEP\",\"remove\":\"$REMOVE\"}"
     ;;
 
+  claim-handoff)
+    IMPL_SID="${1:?missing implementing-session-id}"
+    HO_SID="${2:?missing handoff-session-id}"
+    CYPHER="
+      MATCH (impl:Session {id: \$implSid}), (ho:Session {id: \$hoSid})
+      WHERE ho.handoffStatus IS NOT NULL
+      MERGE (impl)-[:IMPLEMENTS]->(ho)
+      RETURN impl.id AS implementor, ho.id AS handoff, ho.topic AS topic
+    "
+    PARAMS="{\"implSid\":\"$IMPL_SID\",\"hoSid\":\"$HO_SID\"}"
+    bash "$SCRIPT_DIR/bin/graph-wal.sh" append "$CYPHER" "$PARAMS" 2>/dev/null || true
+    bash "$GS" query "$CYPHER" "$PARAMS"
+    ;;
+
+  create-pr)
+    SID="${1:?missing session-id}"
+    PR_NUM="${2:?missing pr-number}"
+    REPO="${3:?missing repo}"
+    AUTHOR_GH="${4:?missing author-github}"
+    TITLE="${5:-}"
+    CYPHER="
+      MERGE (pr:PR {number: toInteger(\$num), repo: \$repo})
+      ON CREATE SET pr.author = \$author, pr.status = 'open',
+        pr.createdAt = datetime(), pr.title = \$title
+      WITH pr
+      OPTIONAL MATCH (s:Session {id: \$sid})
+      FOREACH (_ IN CASE WHEN s IS NOT NULL THEN [1] ELSE [] END |
+        MERGE (s)-[:PRODUCED]->(pr))
+      RETURN pr.number AS number, pr.repo AS repo
+    "
+    PARAMS="{\"sid\":\"$SID\",\"num\":$PR_NUM,\"repo\":\"$REPO\",\"author\":\"$AUTHOR_GH\",\"title\":\"$TITLE\"}"
+    bash "$SCRIPT_DIR/bin/graph-wal.sh" append "$CYPHER" "$PARAMS" 2>/dev/null || true
+    bash "$GS" query "$CYPHER" "$PARAMS"
+    ;;
+
+  check-implements)
+    SID="${1:?missing session-id}"
+    bash "$GS" query "
+      MATCH (impl:Session {id: \$sid})-[:IMPLEMENTS]->(ho:Session)-[:BY]->(author:Person)
+      RETURN ho.id AS handoffId, ho.topic AS topic, author.name AS author,
+             author.github AS authorGithub
+    " "{\"sid\":\"$SID\"}"
+    ;;
+
+  update-pr)
+    PR_NUM="${1:?missing pr-number}"
+    REPO="${2:?missing repo}"
+    STATUS="${3:?missing status}"
+    MERGED_AT="${4:-}"
+    if [ -n "$MERGED_AT" ]; then
+      bash "$GS" query "
+        MATCH (pr:PR {number: toInteger(\$num), repo: \$repo})
+        SET pr.status = \$status, pr.mergedAt = datetime(\$mergedAt)
+        RETURN pr.number AS number, pr.status AS status
+      " "{\"num\":$PR_NUM,\"repo\":\"$REPO\",\"status\":\"$STATUS\",\"mergedAt\":\"$MERGED_AT\"}"
+    else
+      bash "$GS" query "
+        MATCH (pr:PR {number: toInteger(\$num), repo: \$repo})
+        SET pr.status = \$status
+        RETURN pr.number AS number, pr.status AS status
+      " "{\"num\":$PR_NUM,\"repo\":\"$REPO\",\"status\":\"$STATUS\"}"
+    fi
+    ;;
+
+  my-merged-prs)
+    AUTHOR_GH="${1:?missing author-github}"
+    SINCE="${2:-}"
+    if [ -n "$SINCE" ]; then
+      bash "$GS" query "
+        MATCH (pr:PR {author: \$author})
+        WHERE pr.status = 'merged' AND pr.mergedAt >= datetime(\$since)
+        RETURN pr.number AS number, pr.repo AS repo, pr.title AS title,
+               toString(pr.mergedAt) AS mergedAt
+        ORDER BY pr.mergedAt DESC LIMIT 10
+      " "{\"author\":\"$AUTHOR_GH\",\"since\":\"${SINCE}T00:00:00Z\"}"
+    else
+      bash "$GS" query "
+        MATCH (pr:PR {author: \$author})
+        WHERE pr.status = 'merged'
+        RETURN pr.number AS number, pr.repo AS repo, pr.title AS title,
+               toString(pr.mergedAt) AS mergedAt
+        ORDER BY pr.mergedAt DESC LIMIT 5
+      " "{\"author\":\"$AUTHOR_GH\"}"
+    fi
+    ;;
+
+  my-implemented-handoffs)
+    AUTHOR_NAME="${1:?missing author-name}"
+    SINCE="${2:-}"
+    if [ -n "$SINCE" ]; then
+      bash "$GS" query "
+        MATCH (impl:Session)-[:IMPLEMENTS]->(ho:Session)-[:BY]->(author:Person)
+        WHERE toLower(author.name) = toLower(\$author)
+          AND impl.wrappedAt >= datetime(\$since)
+        MATCH (impl)-[:BY]->(implementor:Person)
+        RETURN ho.topic AS handoffTopic, implementor.name AS implementedBy,
+               toString(impl.wrappedAt) AS completedAt, impl.summary AS summary
+        ORDER BY impl.wrappedAt DESC LIMIT 10
+      " "{\"author\":\"$AUTHOR_NAME\",\"since\":\"${SINCE}T00:00:00Z\"}"
+    else
+      bash "$GS" query "
+        MATCH (impl:Session)-[:IMPLEMENTS]->(ho:Session)-[:BY]->(author:Person)
+        WHERE toLower(author.name) = toLower(\$author)
+        MATCH (impl)-[:BY]->(implementor:Person)
+        RETURN ho.topic AS handoffTopic, implementor.name AS implementedBy,
+               toString(impl.wrappedAt) AS completedAt, impl.summary AS summary
+        ORDER BY impl.wrappedAt DESC LIMIT 5
+      " "{\"author\":\"$AUTHOR_NAME\"}"
+    fi
+    ;;
+
   wal-status)
     bash "$SCRIPT_DIR/bin/graph-wal.sh" status
     ;;
 
   *)
-    echo '{"error":"unknown operation: '"$OP"'","operations":["mark-read","mark-done","answer-question","resolve-handoffs","set-topic","record-focus","merge-person","wal-status"]}'
+    echo '{"error":"unknown operation: '"$OP"'","operations":["mark-read","mark-done","answer-question","resolve-handoffs","set-topic","record-focus","merge-person","claim-handoff","check-implements","create-pr","update-pr","my-merged-prs","my-implemented-handoffs","wal-status"]}'
     exit 1
     ;;
 

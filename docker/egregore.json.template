@@ -1,9 +1,0 @@
-{
-  "org_name": "${ORG_NAME}",
-  "github_org": "${GITHUB_ORG}",
-  "memory_repo": "${MEMORY_URL}",
-  "api_url": "${API_URL}",
-  "repo_name": "${REPO_NAME}",
-  "slug": "${ORG_SLUG}",
-  "repos": []
-}
