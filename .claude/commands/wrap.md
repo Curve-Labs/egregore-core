@@ -241,6 +241,13 @@ Run the `/save` flow: commit + push working branch, create PR to develop if need
 bash bin/telemetry.sh emit "command" '{"command":"wrap"}' 2>/dev/null &
 ```
 
+## Step 7.5: Worktree cleanup
+
+If currently in a worktree (check: `[ -f .git ]` — worktrees have .git as a file, not directory):
+1. Note the current worktree path for cleanup
+2. Use `ExitWorktree` with action `"remove"` to leave and clean up
+3. If ExitWorktree fails due to uncommitted changes, warn user and use action `"keep"`
+
 ## Step 8: Confirmation TUI
 
 Display the wrap confirmation using the standard TUI box format. 72-char outer width. 4 line patterns only (top `┌─┐`, separator `├─┤`, content `│ │`, bottom `└─┘`). No sub-boxes.

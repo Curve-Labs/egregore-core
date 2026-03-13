@@ -8,6 +8,16 @@ FRAMEWORK_VERSION="2"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
+# --- Worktree detection ---
+# Git worktrees have .git as a FILE (not directory) pointing to the main repo's .git/worktrees/
+IS_WORKTREE="false"
+MAIN_PROJECT_DIR="$SCRIPT_DIR"
+if [ -f "$SCRIPT_DIR/.git" ]; then
+  IS_WORKTREE="true"
+  WT_GITDIR=$(sed 's/^gitdir: //' "$SCRIPT_DIR/.git" 2>/dev/null)
+  MAIN_PROJECT_DIR=$(cd "$WT_GITDIR/../../.." 2>/dev/null && pwd)
+fi
+
 # --- Health tracking (rendered as dots in greeting) ---
 HEALTH_GITHUB="skip"
 HEALTH_GIT="skip"
@@ -203,8 +213,9 @@ if [ "$KEY_NEEDS_FIX" = "true" ]; then
 fi
 
 # --- Self-register in instance registry (for pre-registry installs) ---
+# Worktrees should NOT register as separate instances
 # Wrapped in subshell — registration is optional, must not block session start
-if command -v jq &>/dev/null && [ -f "$CONFIG" ]; then
+if [ "$IS_WORKTREE" = "false" ] && command -v jq &>/dev/null && [ -f "$CONFIG" ]; then
   (
     REGISTRY_DIR="$HOME/.egregore"
     REGISTRY="$REGISTRY_DIR/instances.json"
@@ -274,8 +285,9 @@ compute_boundary() {
   local denied_paths_json="[]"
   local registry="$HOME/.egregore/instances.json"
   if [ -f "$registry" ]; then
-    denied_paths_json=$(jq --arg self "$project_dir" \
-      '[.[] | select(.path != $self) | .path]' "$registry" 2>/dev/null || echo "[]")
+    denied_paths_json=$(jq --arg self "$project_dir" --arg wt_prefix "$project_dir/.claude/worktrees" \
+      '[.[] | select(.path != $self) | select((.path | startswith($wt_prefix)) | not) | .path]' \
+      "$registry" 2>/dev/null || echo "[]")
   fi
 
   # Write boundary file (atomic: write to tmp, then mv)
@@ -340,6 +352,9 @@ done
 
 # Wait for all fetches
 wait 2>/dev/null || true
+
+# --- Worktree orphan cleanup (background, non-blocking) ---
+bash "$SCRIPT_DIR/bin/worktree.sh" cleanup-orphans "$SCRIPT_DIR" 2>/dev/null &
 
 # --- Git health check ---
 if git show-ref --verify --quiet refs/remotes/origin/develop 2>/dev/null; then
@@ -417,7 +432,15 @@ ACTION="ready"
 SAVED_BRANCH=""
 BRANCH="${CURRENT_BRANCH:-develop}"
 
-if ! setup_develop 2>/dev/null; then
+if [ "$IS_WORKTREE" = "true" ]; then
+  # Inside a worktree — skip develop checkout, we're already on our branch
+  BRANCH=$(git branch --show-current 2>/dev/null || echo "?")
+  DEVELOP_SYNCED="true"
+  # Use main project's .env and state if ours are missing
+  if [ ! -f "$SCRIPT_DIR/.env" ] && [ -f "$MAIN_PROJECT_DIR/.env" ]; then
+    export ENV_FILE="$MAIN_PROJECT_DIR/.env"
+  fi
+elif ! setup_develop 2>/dev/null; then
   HEALTH_GIT="fail"
 fi
 

@@ -1,5 +1,7 @@
 Save your contributions to Egregore. Pushes working branch, creates PR to develop.
 
+**Worktree note:** Git operations (commit, push, `gh pr create`) work normally from within a worktree — no special handling needed. After save completes, work continues in the worktree (cleanup happens on `/wrap`).
+
 ## When to invoke
 
 User says: "push my work", "sync changes", "commit and push", "save everything", "push this up"

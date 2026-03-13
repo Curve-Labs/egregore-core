@@ -37,9 +37,15 @@ That's it. Do NOT list commands. Do NOT show a menu. Just the greeting + that qu
 **This is a mandatory behavioral rule.** When the user answers "What are you working on?" (or says anything describing work), your **first action** — before reading files, before exploring code, before anything else — is to create a working branch:
 
 1. Derive a topic slug from what the user said (same rules as `/branch`)
-2. `git fetch origin develop --quiet && git checkout -b dev/{author}/{slug} origin/develop`
-3. Confirm: `On dev/{author}/{slug} now.`
-4. Update the session in the graph (fire-and-forget, must not delay response):
+2. Create the branch at the right commit: `git fetch origin develop --quiet && git branch dev/{author}/{slug} origin/develop`
+3. Enter worktree: use `EnterWorktree` with `name` set to the slug
+4. Inside the worktree, switch to the named branch: `git checkout dev/{author}/{slug}`
+5. Run setup: `bash <main-project-dir>/bin/worktree.sh setup "$(pwd)" "<main-project-dir>"` (where main-project-dir is the directory you were in before EnterWorktree — use the absolute path so it works regardless of which branch the worktree is on)
+6. Confirm: `On dev/{author}/{slug} (worktree).`
+
+**Fallback:** If `EnterWorktree` fails (not in a git repo, tool unavailable, etc.), fall back to the old flow: `git checkout -b dev/{author}/{slug} origin/develop`.
+
+7. Update the session in the graph (fire-and-forget, must not delay response):
    ```bash
    bash bin/graph-op.sh set-topic "$(cat .egregore-session-id 2>/dev/null)" "topic from slug" "dev/author/slug" 2>/dev/null &
    ```
