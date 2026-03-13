@@ -1,4 +1,4 @@
-First-time setup for Egregore. Sets up shared memory first, projects are optional.
+First-time setup for Egregore.
 
 Arguments: $ARGUMENTS
 
@@ -7,16 +7,16 @@ Arguments: $ARGUMENTS
 - `/setup` — Full setup (memory + optional projects)
 - `/setup [project]` — Add a specific project later
 
-## CRITICAL: Always use SSH
+## CRITICAL: Always use HTTPS
 
-Repos are private. Always use SSH:
+Repos are private. Always use HTTPS (github-auth.sh sets up credential storage):
 ```bash
-git clone git@github.com:{github_org}/[repo].git
+git clone https://github.com/{github_org}/[repo].git
 ```
 
 **If clone fails:**
 ```
-Can't access repo. Check your SSH keys: ssh -T git@github.com
+Can't access repo. Re-authenticate: bash bin/github-auth.sh
 ```
 
 ## Dynamic config
@@ -44,7 +44,7 @@ Setting up Egregore...
       Checking for $MEMORY_DIR...
 
       IF not exists (as sibling ../$MEMORY_DIR):
-        git clone git@github.com:$GITHUB_ORG/$MEMORY_DIR.git ../$MEMORY_DIR
+        git clone https://github.com/$GITHUB_ORG/$MEMORY_DIR.git ../$MEMORY_DIR
         ✓ Cloned
 
       IF already exists:
@@ -56,20 +56,20 @@ Setting up Egregore...
       ✓ Linked as ./memory
 
 [2/3] Registering you in the knowledge graph...
-      Getting your identity: git config user.name → "Oz Broccoli"
+      Getting your identity: git config user.name → "Alice Smith"
 
       What should we call you? (short name for the team)
-      > oz
+      > alice
 
-      MERGE (p:Person {name: '$shortName'}) ...
+      MERGE (p:Person {github: '$github'}) ON CREATE SET p.name = '$shortName' ...
       ✓ Registered as "$shortName" ($fullName)
 
 [3/3] Project codebases
 
       Memory is ready. Now, do you want to work on any project code?
 
-      • tristero — Coordination infrastructure (Python)
-      • lace — Knowledge graph system (Python + Node)
+      • backend — Coordination infrastructure (Python)
+      • frontend — Knowledge graph system (Python + Node)
 
       Type project names (comma-separated), 'all', or 'none'
 
@@ -80,13 +80,14 @@ Setting up Egregore...
 
 When completing setup, register the person in the knowledge graph:
 
-1. Get full name from git: `git config user.name` → "Oguzhan Broccoli"
-2. Ask for short name: "What should we call you?" → "oz"
+1. Get full name from git: `git config user.name` → "Alice Smith"
+2. Ask for short name: "What should we call you?" → "alice"
 3. Create/update Person node via Neo4j MCP
 
 ```cypher
-MERGE (p:Person {name: $name})
-ON CREATE SET p.joined = date(), p.fullName = $fullName
+MERGE (p:Person {github: $github})
+ON CREATE SET p.name = $name, p.joined = date(), p.fullName = $fullName
+ON MATCH SET p.name = $name, p.fullName = $fullName
 RETURN p.name AS name, p.joined AS joined
 ```
 
@@ -101,30 +102,30 @@ jq --arg repo "$REPO" '.repos += [$repo] | .repos |= unique' egregore.json > tmp
 ```
 
 ```
-> /setup tristero
+> /setup backend
 
 Setting up Tristero...
 
 [1/4] Getting the repo...
-      Checking for ../tristero...
+      Checking for ../backend...
 
       IF not exists:
-        git clone git@github.com:$GITHUB_ORG/tristero.git ../tristero
-        ✓ Cloned to ../tristero
+        git clone https://github.com/$GITHUB_ORG/backend.git ../backend
+        ✓ Cloned to ../backend
 
       IF already exists:
-        cd ../tristero && git pull
+        cd ../backend && git pull
         ✓ Already have it, pulled latest
 
 [2/4] Loading shared configuration...
-      cd ../tristero && git submodule update --init --recursive
+      cd ../backend && git submodule update --init --recursive
       ✓ egregore submodule loaded
 
 [3/4] Linking shared memory...
       Checking if memory symlink exists...
 
       IF not linked:
-        ln -s ../$MEMORY_DIR ../tristero/memory
+        ln -s ../$MEMORY_DIR ../backend/memory
         ✓ Linked as ./memory
 
       IF already linked:
@@ -132,7 +133,7 @@ Setting up Tristero...
 
 [4/4] Setting up Python environment...
       Creating virtual environment and installing dependencies...
-      cd ../tristero && uv venv && source .venv/bin/activate && uv pip install -r requirements.txt
+      cd ../backend && uv venv && source .venv/bin/activate && uv pip install -r requirements.txt
       ✓ Environment ready
 
 Setup complete.
@@ -153,7 +154,7 @@ What you can do now:
   /reflect      — Save a decision or finding
   /pull         — Get latest from team
 
-To add a project later: /setup tristero
+To add a project later: /setup backend
 ```
 
 ## Next

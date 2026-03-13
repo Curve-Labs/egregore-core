@@ -31,14 +31,40 @@ EMPTY='{"fields":[],"values":[]}'
 
 # Graph data: single API call (all queries run server-side)
 (
-  if [ -n "$API_URL" ] && [ -n "$API_KEY" ]; then
-    curl -sf "${API_URL}/api/activity/dashboard?github_username=$(printf '%s' "$GH_USER" | jq -sRr @uri)" \
+  GRAPH_STATUS="offline"
+  GRAPH_REASON=""
+  if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
+    GRAPH_REASON="missing_config"
+  else
+    # Store HTTP status code alongside response body
+    HTTP_CODE=$(curl -s -o "$TMPDIR/activity_raw.json" -w "%{http_code}" \
+      "${API_URL}/api/activity/dashboard?github_username=$(printf '%s' "$GH_USER" | jq -sRr @uri)" \
       -H "Authorization: Bearer $API_KEY" \
-      --max-time 30 > "$TMPDIR/activity.json" 2>/dev/null
+      --connect-timeout 5 --max-time 15 2>/dev/null || echo "000")
+
+    if [ "$HTTP_CODE" = "000" ]; then
+      GRAPH_REASON="unreachable"
+    elif [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+      GRAPH_REASON="auth_error"
+    elif [ "$HTTP_CODE" -ge 500 ] 2>/dev/null; then
+      GRAPH_REASON="server_error"
+    elif [ -s "$TMPDIR/activity_raw.json" ] && jq -e '.me' "$TMPDIR/activity_raw.json" >/dev/null 2>&1; then
+      cp "$TMPDIR/activity_raw.json" "$TMPDIR/activity.json"
+      GRAPH_STATUS="connected"
+    else
+      GRAPH_REASON="invalid_response"
+    fi
   fi
-  # If API call failed or config missing, write empty
-  if [ ! -s "$TMPDIR/activity.json" ] || ! jq -e '.me' "$TMPDIR/activity.json" >/dev/null 2>&1; then
-    echo '{}' > "$TMPDIR/activity.json"
+
+  # If not connected, write status-only response
+  if [ "$GRAPH_STATUS" != "connected" ]; then
+    jq -n --arg status "$GRAPH_STATUS" --arg reason "$GRAPH_REASON" \
+      '{graph_status: $status, graph_reason: $reason}' > "$TMPDIR/activity.json"
+  else
+    # Inject graph_status into successful response
+    jq --arg status "$GRAPH_STATUS" '. + {graph_status: $status}' \
+      "$TMPDIR/activity.json" > "$TMPDIR/activity_merged.json" \
+      && mv "$TMPDIR/activity_merged.json" "$TMPDIR/activity.json"
   fi
 ) &
 API_PID=$!

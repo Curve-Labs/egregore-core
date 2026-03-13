@@ -1,4 +1,11 @@
-Activity dashboard. Display it immediately — no preamble, no narration, no reasoning text. Output the box and nothing else before AskUserQuestion.
+See what's happening across the team — recent sessions, handoffs, and open work.
+
+Display it immediately — no preamble, no narration, no reasoning text. Output the box and nothing else before AskUserQuestion.
+
+## When to invoke
+
+User says: "catch me up", "what's going on", "show dashboard", "where did I leave off", "what happened", "any updates", "what did I miss"
+Not this: if user wants to *do* something specific, route to that command instead
 
 Topic: $ARGUMENTS
 
@@ -10,15 +17,43 @@ Run ONE command to get all dashboard data:
 bash bin/activity-data.sh
 ```
 
-Returns JSON: `me`, `org`, `date`, `my_sessions`, `team_sessions`, `quests`, `pending_questions`, `answered_questions`, `handoffs_to_me`, `all_handoffs`, `knowledge_gap`, `orphans`, `checkins`, `todos_merged`, `focus_history`, `prs`, `disk`, `trends`.
+Returns JSON with these fields. Arrays are arrays of objects (NOT `{fields, values}` format).
 
-The `todos_merged` object combines `activeTodoCount`, `blockedCount`, `deferredCount`, `staleBlockedCount`, and `lastCheckinDate` in one query result.
+**Arrays of objects:**
+- `my_sessions` — `[{date, topic, id, filePath, handedTo}, ...]`
+- `team_sessions` — `[{date, topic, by}, ...]`
+- `quests` — `[{quest, title, artifacts, daysSince, score}, ...]`
+- `pending_questions` — `[{setId, topic, created, from}, ...]`
+- `answered_questions` — `[{setId, topic, answeredBy}, ...]`
+- `handoffs_to_me` — `[{topic, date, author, filePath, sessionId, status, response}, ...]`
+- `all_handoffs` — `[{topic, date, from, to, filePath}, ...]`
+- `checkins` — `[{id, summary, date, by, total}, ...]`
+- `focus_history` — `[{shown, selected, dismissed, date, topic}, ...]`
 
-The `focus_history` object contains the last 5 sessions where the user selected a Focus option: `shown` (options presented), `selected` (what was chosen), `dismissed` (options not chosen), `date`, `topic`.
+**Flat objects:**
+- `todos_merged` — `{activeTodoCount, blockedCount, deferredCount, staleBlockedCount, lastCheckinDate}`
+- `knowledge_gap` — `{gapCount}`
+- `orphans` — `{orphanCount}`
+- `trends.resolution` — `{avgDays, resolved}`
+- `trends.throughput` — `{created, completed}`
+- `trends.capture` — `{total, captured}`
 
-The `trends` object contains: `cadence` (sessions per week, 4 weeks), `resolution` (handoff avg days, 30d), `throughput` (todos created vs done, 28d), `capture` (sessions with artifacts / total, 28d).
+**Other:**
+- `trends.cadence` — `[{weeksAgo, sessions}, ...]`
+- `me` — string (person name)
+- `org`, `date` — strings (added client-side)
+- `prs` — `[{number, title, author}, ...]` (from git, client-side)
+- `disk` — `{handoffs, decisions}` (from filesystem, client-side)
 
-If the command fails, fall back to reading `memory/` files. Add `(offline)` after ✦ in header.
+The response includes `graph_status` (`"connected"` or `"offline"`) and `graph_reason` (one of: `missing_config`, `unreachable`, `auth_error`, `server_error`, `invalid_response`).
+
+- `graph_status: "connected"` → normal dashboard
+- `graph_status: "offline"` → fall back to reading `memory/` files. Add `(offline)` after ✦ in header. Show the reason in footer:
+  - `unreachable` → `Graph unreachable — check your network connection`
+  - `auth_error` → `Graph auth failed — run /env to check API key`
+  - `server_error` → `Graph server error — try again shortly`
+  - `missing_config` → `Graph not configured — run /setup`
+  - `invalid_response` → `Graph returned unexpected data — try again`
 
 ## Step 2: Render dashboard
 
@@ -33,6 +68,14 @@ Output the TUI box directly. 72 chars wide. Use these frame lines (copy exactly)
 Content rows: `│  {text padded with trailing spaces}  │`
 
 **DO NOT count characters or show reasoning.** Approximate padding is fine — the frame is decorative, not pixel-perfect. Go straight from data to rendered output.
+
+### Topic display rules (MANDATORY)
+
+When displaying a session topic anywhere in the activity view:
+- If `topic` is non-null: show it as-is
+- If `topic` is null/empty: show the branch slug humanized (drop the `dev/author/` prefix, replace hyphens with spaces). E.g. `dev/oz/session-naming-bug` → `session naming bug`
+- If branch is also null or is `develop`/`main`/`master`: show the session date as fallback (e.g. `Feb 24 session`)
+- **NEVER show "untitled", "current session", "quick session", or any invented label**
 
 ### Sections (separated by `├────┤`)
 
@@ -52,12 +95,12 @@ Content rows: `│  {text padded with trailing spaces}  │`
 - Other handoffs → `    {from} → {to}: {topic} ({when})`
 - Numbered items (● and ◐) first, blank line, then ○ + others.
 
-**Sessions** — ALWAYS render this section. NEVER skip it:
-- `◦ YOUR SESSIONS` — read `my_sessions.values` from the JSON. Show top 5. Format: `{date}  {topic}`. If the array is empty, show `(none yet)`.
-  - Interleave check-ins from `checkins` (by current user) in chronological order: `{date}  Check-in: {summary}`
-- `◦ TEAM` — read `team_sessions.values` from the JSON. This is a DIFFERENT field from my_sessions. Show top 5. Format: `{date}  {name}: {topic}`. If the array is empty, show `(none yet)`.
-  - Interleave check-ins from `checkins` (by others) in chronological order: `{date}  {name}: Check-in: {summary}`
-- CRITICAL: my_sessions and team_sessions are independent. One can be empty while the other has data. You MUST check both fields separately.
+**Sessions** — ALWAYS render. NEVER skip:
+- `◦ YOUR SESSIONS` — iterate `my_sessions` array. Each object has `.date` and `.topic`. Show top 5: `{date}  {topic}`. If array is empty: `(none yet)`.
+  - Interleave check-ins from `checkins` (where `.by` matches `me`) in chronological order: `{date}  Check-in: {summary}`
+- `◦ TEAM` — iterate `team_sessions` array. Each object has `.date`, `.topic`, `.by`. Show top 5: `{date}  {by}: {topic}`. If array is empty: `(none yet)`.
+  - Interleave check-ins from `checkins` (where `.by` differs from `me`) in chronological order: `{date}  {by}: Check-in: {summary}`
+- `my_sessions` and `team_sessions` are independent arrays. One can be empty `[]` while the other has data.
 - Blank line between sub-sections.
 
 **Quests & PRs** (skip if both empty):
