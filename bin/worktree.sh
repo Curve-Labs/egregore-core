@@ -49,8 +49,42 @@ case "$CMD" in
       ln -sfn "$MAIN_DIR/egregore.json" "$WT_PATH/egregore.json"
     fi
 
-    # Write PID marker for orphan detection
-    echo "$$" > "$WT_PATH/.egregore-worktree-pid"
+    # Walk up process tree to find:
+    #   1. Claude Code PID (long-lived) for orphan detection
+    #   2. Terminal TTY (unique per tab) for statusline matching
+    #
+    # BUG FIX: $$ is this script's PID — dies immediately when setup
+    # finishes. cleanup-orphans then sees it as dead and deletes the
+    # worktree from under a live session. We need the Claude Code
+    # process PID (node), which lives as long as the session does.
+    _pid=$$
+    _cc_pid=""
+    _tty=""
+    while [ "$_pid" -gt 1 ] 2>/dev/null; do
+      # Check if this ancestor is Claude Code (node process)
+      if [ -z "$_cc_pid" ]; then
+        _cmd=$(ps -o comm= -p "$_pid" 2>/dev/null | tr -d ' ')
+        case "$_cmd" in
+          node|claude) _cc_pid="$_pid" ;;
+        esac
+      fi
+      # Find first ancestor with a real TTY
+      if [ -z "$_tty" ]; then
+        _ptty=$(ps -o tty= -p "$_pid" 2>/dev/null | tr -d ' ')
+        if [ -n "$_ptty" ] && [ "$_ptty" != "??" ]; then
+          _tty="$_ptty"
+        fi
+      fi
+      # Stop if we have both
+      [ -n "$_cc_pid" ] && [ -n "$_tty" ] && break
+      _pid=$(ps -o ppid= -p "$_pid" 2>/dev/null | tr -d ' ')
+    done
+
+    # Write PID marker for orphan detection (Claude Code PID, not script PID)
+    echo "${_cc_pid:-$$}" > "$WT_PATH/.egregore-worktree-pid"
+
+    # Write TTY marker so statusline can match session → worktree
+    [ -n "$_tty" ] && echo "$_tty" > "$WT_PATH/.egregore-worktree-tty"
 
     echo "Worktree setup complete: $WT_PATH"
     ;;
