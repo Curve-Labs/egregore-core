@@ -17,7 +17,7 @@ A shared intelligence layer for organizations using Claude Code. Persistent memo
 ## Setup
 
 ```bash
-npx create-egregore --local
+npx create-egregore@latest --local
 ```
 
 Signs in with GitHub, creates repos under your org, sets up shared memory, and configures everything locally. No server or account needed.
@@ -27,7 +27,7 @@ Signs in with GitHub, creates repos under your org, sets up shared memory, and c
 Got invited? Run:
 
 ```bash
-npx create-egregore join <github-org>
+npx create-egregore@latest join <org>/<repo>
 ```
 
 Signs in with GitHub, accepts the invitation, clones the team's repos, and sets up your workspace.
@@ -60,7 +60,7 @@ Some commands to get started:
 Adds them as a collaborator on your repos. Tell them to run:
 
 ```
-npx create-egregore join <your-github-org>
+npx create-egregore@latest join <your-org>/<repo>
 ```
 
 ## Upgrade to managed
