@@ -5,7 +5,7 @@ Arguments: $ARGUMENTS (Optional: "sync" for batch mode, "backfill" to re-process
 ## Usage
 
 - `/meeting` — Interactive: list recent unprocessed meetings, pick one
-- `/meeting sync` — Batch: process all unprocessed meetings from configured folders
+- `/meeting sync` — Batch: process all unprocessed meetings
 - `/meeting [search]` — Find and process a specific meeting by title
 - `/meeting backfill` — Re-process already-ingested meetings with richer extraction
 
@@ -262,34 +262,18 @@ Extracted, not turned into Artifact files. Schema per action:
 
 Mechanical steps that stay precise. Exact Cypher queries, exact file paths, exact state management.
 
-### Step 0: Config check
+### Step 0: Check Granola MCP connection
 
-Check if Granola is available:
-```bash
-bash bin/granola.sh test
-```
+Granola data is accessed exclusively via MCP. The Granola MCP server must be configured in `.claude/mcp.json` and authenticated.
 
-If it fails (Granola not installed), stop with:
-> Granola not found on this machine. Install Granola and record some meetings first.
+1. **Check MCP availability**: Use `ToolSearch` with query `"granola"` to check if Granola MCP tools are loaded.
 
-Read folder config from `.egregore-state.json`:
-```bash
-jq -r '.granola_folders // empty' .egregore-state.json
-```
+2. **If tools are available** (e.g. `list_meetings`, `get_meeting_transcript`, `get_meetings`, `query_granola_meetings`): proceed to Step 0.5.
 
-**If `granola_folders` is not set** — first-time folder selection:
-1. List available folders:
-   ```bash
-   bash bin/granola.sh folders
-   ```
-2. Present folders via AskUserQuestion:
-   ```
-   question: "Which Granola folders should Egregore watch for meetings?"
-   header: "Folders"
-   multiSelect: true
-   options: [list of folders from output]
-   ```
-3. Save selected folders to `.egregore-state.json` under `granola_folders` (array of folder names).
+3. **If tools are NOT available**: check `.claude/mcp.json` for the Granola server config.
+   - **If config exists but tools aren't loaded**: "Granola MCP is configured but not connected. Restart Claude Code to load the MCP server, then authenticate with `/mcp` → select granola → Authenticate."
+   - **If config doesn't exist**: "Granola MCP not configured. Run `/connect granola` to set it up."
+   - Stop in either case.
 
 ### Step 0.5: Route subcommand
 
@@ -297,17 +281,14 @@ If `$ARGUMENTS` is `backfill`, jump to **Backfill Mode** (bottom of this documen
 
 ### Step 1: Fetch unprocessed meetings
 
-Read processed meeting IDs:
+Read processed meeting IDs from state:
 ```bash
 jq -r '.processed_meetings // {} | keys[]' .egregore-state.json
 ```
 
-Build exclude list (comma-separated IDs), then fetch from each configured folder:
-```bash
-bash bin/granola.sh list --folder "FolderName" --exclude "id1,id2,..."
-```
+Call the `list_meetings` MCP tool to get recent meetings. Filter out already-processed IDs client-side.
 
-If `$ARGUMENTS` is a search term (not "sync", not "backfill", and not empty), use `bash bin/granola.sh search "$ARGUMENTS"` to find matches across configured folders.
+If `$ARGUMENTS` is a search term (not "sync", not "backfill", and not empty), use the `get_meetings` MCP tool to search by title/content.
 
 ### Step 2: Select meetings
 
@@ -333,11 +314,13 @@ If exactly one match, use it. If multiple, present via AskUserQuestion. If none:
 
 ### Step 3: Fetch meeting data
 
-```bash
-bash bin/granola.sh get <doc-id>
-```
+Use the `get_meeting_transcript` MCP tool with the selected meeting's ID to retrieve the full transcript.
 
-Parse the output JSON. You now have: `panel_text`, `transcript_text`, `transcript_structured`, `title`, `date`, `attendees`.
+Use `get_meetings` or `list_meetings` for metadata (title, date, attendees) if not already available from Step 1.
+
+The MCP tools return structured data directly — no JSON parsing or jq needed.
+
+You now have: notes/summary, transcript, title, date, attendees.
 
 ### Step 4: Load cross-meeting context (single batch call)
 
@@ -834,7 +817,7 @@ Triggered by `/meeting backfill`. Re-processes already-ingested meetings to seed
    ```
 
 3. **Process each meeting**:
-   - Fetch via `bash bin/granola.sh get <doc-id>`
+   - Fetch via `get_meeting_transcript` MCP tool
    - Agent freedom applies — choose approach per meeting based on user's depth preference
    - No intent harvesting for backfill (historical, no user to ask)
    - No Continuity lens (nothing to compare against for initial backfill)
@@ -878,19 +861,19 @@ Triggered by `/meeting backfill`. Re-processes already-ingested meetings to seed
 
 | Scenario | Handling |
 |----------|----------|
-| Granola not installed | Stop with clear message — no error, just guidance |
+| Granola MCP not connected | Guide user to `/connect granola` or restart Claude Code |
 | No unprocessed meetings | "All meetings are already processed. Nothing new to ingest." |
 | Empty panel + empty transcript | Skip meeting: "No content found for this meeting." |
 | Empty panel, has transcript | Transcript-only analysis. All items confidence ≤ 0.7. |
 | Has panel, empty transcript | Panel-only analysis. Substance limited to scaffold. |
-| Meeting already processed | Skip silently (filtered by --exclude) |
+| Meeting already processed | Skip silently (filtered by processed_meetings check) |
 | Neo4j unavailable | Still create files, skip graph ops. Warn: "Graph offline — files saved, will sync on next /save" |
 | No quest matches | Create artifacts without quest links (no warning needed) |
 | Agent topology produced incomplete output | Retry with different approach (e.g., fall back to inline) |
 | User asked for quick extraction | Respect the intent, don't over-analyze |
 | No graph context | Continuity lens has limited value, agent may skip it |
 | Agent returns invalid JSON | Same as agent failure — continue with whatever succeeded |
-| transcript_structured empty | Pass transcript_text instead |
+| MCP tool returns error | Check auth status — may need re-authentication via `/mcp` |
 | Memory symlink missing | Error: "Run /setup first — memory not linked" |
 | User skips all meetings | "Nothing to process. Run /meeting later when you're ready." |
 | Reflection finds no tension | Skip reflection checkpoint entirely — don't force it |

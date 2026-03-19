@@ -42,6 +42,30 @@ npx create-egregore
 
 Walks you through GitHub auth, org selection, and repo setup in the terminal.
 
+### Local mode (no server needed)
+
+Set up Egregore using only GitHub — no API server, no account required:
+
+```bash
+npx create-egregore --local
+```
+
+This creates repos under your GitHub org, sets up shared memory, and configures everything locally. Uses GitHub device flow for auth.
+
+To invite someone:
+
+```bash
+/invite <github-username>
+```
+
+They join with:
+
+```bash
+npx create-egregore join <your-github-org>
+```
+
+Local mode works entirely on the filesystem — no knowledge graph, no Telegram, no dashboard. Run `/connect` later to enable those features.
+
 ## What happens
 
 1. **Authenticate** — Sign in with GitHub (OAuth, no tokens to copy)
@@ -87,9 +111,10 @@ Sends a GitHub org invitation and generates an invite link. They click, authenti
 
 Egregore gives your team a shared brain that persists across Claude Code sessions:
 
-- **Memory** — Git-based shared knowledge repo (conversations, decisions, patterns)
-- **Knowledge graph** — Query across sessions, people, and artifacts
-- **Notifications** — Telegram for async handoffs and questions
+- **Memory** — Git-based shared knowledge repo (decisions, patterns, handoffs)
+- **Local mode** — Works fully offline with filesystem-based memory
+- **Knowledge graph** — Optional: query across sessions, people, and artifacts
+- **Notifications** — Optional: Telegram for async handoffs and questions
 - **Commands** — Slash commands for common workflows, no git knowledge needed
 - **Repos** — Managed repos are cloned alongside your instance for shared context
 

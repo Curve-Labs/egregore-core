@@ -52,13 +52,13 @@ If `--configs` flag is provided, filter to only those config names (comma-separa
 
 For each input in the corpus, look up the input type in the spec's `## Input Resolution` table to find the shell command. Substitute `{id}` with the actual input ID.
 
-```bash
-# Example: for "meeting:7df47eba-..." with resolution "bash bin/granola.sh get {id}"
-bash bin/granola.sh get 7df47eba-...
+```
+# Example: for "meeting:7df47eba-..." with resolution via Granola MCP
+Use get_meeting_transcript MCP tool with id 7df47eba-...
 ```
 
 If no Input Resolution table exists in the spec, fall back to type-based defaults:
-- `meeting` → `bash bin/granola.sh get {id}`
+- `meeting` → Granola MCP: `get_meeting_transcript` + `list_meetings` for metadata
 - `document` → read the file at `{id}`
 - `query` → use `{id}` as inline text
 

@@ -6,6 +6,11 @@
 # No set -e — must never accidentally block by crashing
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
+# --- Guard: if project dir no longer exists (worktree deleted), exit silently ---
+if [ ! -d "$PROJECT_DIR" ]; then
+  exit 0
+fi
+
 # --- Read session ID (written by session-start.sh) ---
 SESSION_ID=""
 SID_FILE="$PROJECT_DIR/.egregore-session-id"
@@ -65,5 +70,43 @@ TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # --- Append JSONL line (O(1) local write) ---
 echo "{\"ts\":\"$TS\",\"tool\":\"$TOOL\",\"path\":\"$PATH_VALUE\"}" >> "$BUFFER" 2>/dev/null
+
+# --- Advisory drift check (Edit/Write only) ---
+# If the file we just edited also changed on develop, surface a warning.
+# Uses local refs only (no fetch here). Background fetch staleness ≤5min
+# is handled by the fetch guard below.
+DRIFT_MSG=""
+if [ "$TOOL" = "Edit" ] || [ "$TOOL" = "Write" ]; then
+  if [ -n "$PATH_VALUE" ] && [ "$PATH_VALUE" != "unknown" ]; then
+    REPO_DIR="$(pwd)"
+
+    # Staleness guard: background-fetch develop if FETCH_HEAD is >5 min old
+    FETCH_HEAD="$REPO_DIR/.git/FETCH_HEAD"
+    # In worktrees .git is a file, resolve to actual git dir
+    if [ -f "$REPO_DIR/.git" ] && [ ! -d "$REPO_DIR/.git" ]; then
+      GIT_DIR=$(git -C "$REPO_DIR" rev-parse --git-dir 2>/dev/null)
+      FETCH_HEAD="${GIT_DIR:+$GIT_DIR/FETCH_HEAD}"
+    fi
+    LAST_FETCH=0
+    if [ -f "$FETCH_HEAD" ]; then
+      LAST_FETCH=$(stat -f %m "$FETCH_HEAD" 2>/dev/null || stat -c %Y "$FETCH_HEAD" 2>/dev/null || echo 0)
+    fi
+    NOW=$(date +%s)
+    if (( NOW - LAST_FETCH > 300 )) 2>/dev/null; then
+      git -C "$REPO_DIR" fetch origin develop --quiet 2>/dev/null &
+    fi
+
+    # Check if this file has changes on develop that our branch doesn't have.
+    # merge-base diff: files changed on develop since we branched off.
+    if git -C "$REPO_DIR" diff "$(git -C "$REPO_DIR" merge-base HEAD origin/develop 2>/dev/null)"..origin/develop --name-only 2>/dev/null | grep -qF "$PATH_VALUE"; then
+      DRIFT_MSG="⚠ $PATH_VALUE also changed on develop — consider running /save soon to rebase"
+    fi
+  fi
+fi
+
+# Return JSON with optional systemMessage for drift warning
+if [ -n "$DRIFT_MSG" ]; then
+  printf '{"continue":true,"systemMessage":"%s"}\n' "$DRIFT_MSG"
+fi
 
 exit 0
