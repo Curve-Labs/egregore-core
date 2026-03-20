@@ -749,20 +749,33 @@ fi
   git log --author="$AUTHOR" --format="%ar|%s" -1 2>/dev/null > "$CTX_DIR/activity" || echo "" > "$CTX_DIR/activity"
 ) &
 
-# 4. Team recent memory commits (background)
+# 4. Team presence — active branches per person (background)
 (
+  # Git: active dev/* branches (excluding self)
+  SELF_LC=$(echo "$AUTHOR" | tr '[:upper:]' '[:lower:]')
+  SELF_DISPLAY_LC=""
+  if [ -f "$SCRIPT_DIR/.egregore-state.json" ]; then
+    SELF_DISPLAY_LC=$(jq -r '.display_name // empty' "$SCRIPT_DIR/.egregore-state.json" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+  fi
+  BRANCH_DATA=$(git -C "$SCRIPT_DIR" branch -r --format='%(refname:short)' 2>/dev/null | grep "^origin/dev/" | sed 's|^origin/dev/||' || echo "")
+
   JSON="[]"
-  if [ -d "$SCRIPT_DIR/memory/.git" ]; then
-    JSON="["
-    FIRST=true
-    while IFS='|' read -r T_AUTHOR T_TIME T_MSG; do
-      [ -z "$T_AUTHOR" ] && continue
-      T_MSG_ESC=$(echo "$T_MSG" | sed 's/"/\\"/g')
-      $FIRST || JSON="$JSON,"
-      JSON="$JSON{\"author\":\"$T_AUTHOR\",\"time\":\"$T_TIME\",\"message\":\"$T_MSG_ESC\"}"
-      FIRST=false
-    done <<< "$(git -C "$SCRIPT_DIR/memory" log --format="%an|%ar|%s" -5 2>/dev/null)"
-    JSON="$JSON]"
+  if [ -n "$BRANCH_DATA" ]; then
+    JSON=$(echo "$BRANCH_DATA" | while IFS='/' read -r B_AUTHOR B_SLUG_REST || [ -n "$B_AUTHOR" ]; do
+      [ -z "$B_AUTHOR" ] && continue
+      B_AUTHOR_LC=$(echo "$B_AUTHOR" | tr '[:upper:]' '[:lower:]')
+      [ "$B_AUTHOR_LC" = "$SELF_LC" ] && continue
+      [ -n "$SELF_DISPLAY_LC" ] && [ "$B_AUTHOR_LC" = "$SELF_DISPLAY_LC" ] && continue
+      B_HUMAN=$(echo "$B_SLUG_REST" | tr '-' ' ')
+      echo "${B_AUTHOR_LC}|${B_HUMAN}"
+    done | jq -Rn '
+      [inputs | split("|") | {author: .[0], branch: .[1]}]
+      | group_by(.author)
+      | map({
+          name: .[0].author,
+          branches: (if (. | length) > 2 then [.[0:2][] | .branch] + ["+\(length - 2) more"] else [.[] | .branch] end)
+        })
+    ' 2>/dev/null || echo "[]")
   fi
   echo "$JSON" > "$CTX_DIR/team"
 ) &
@@ -776,23 +789,43 @@ fi
   echo "$SUMMARY" > "$CTX_DIR/soul_summary"
 ) &
 
-# 6. Handoffs addressed to user (background)
+# 6. Handoffs addressed to user (background, enriched with author/topic)
 (
   JSON="[]"
+  RICH="[]"
   if [ -d "$SCRIPT_DIR/memory/handoffs" ]; then
-    ADDRESSED=$(grep -rl "to: $AUTHOR\|to:$AUTHOR" "$SCRIPT_DIR/memory/handoffs/" 2>/dev/null | head -5 || true)
+    ADDRESSED=$(grep -rl "to: $AUTHOR\|to:$AUTHOR" "$SCRIPT_DIR/memory/handoffs/" 2>/dev/null | sort -r | head -5 || true)
     JSON="["
+    RICH="["
     FIRST=true
     for AF in $ADDRESSED; do
       [ -z "$AF" ] && continue
       AF_NAME=$(basename "$AF" .md)
+      AF_AUTHOR=$(sed -n 's/^\*\*Author\*\*: *//p' "$AF" 2>/dev/null | head -1)
+      if [ -z "$AF_AUTHOR" ]; then
+        AF_AUTHOR=$(sed -n 's/^From: *//p' "$AF" 2>/dev/null | head -1)
+      fi
+      AF_TOPIC=$(sed -n 's/^# Handoff: *//p' "$AF" 2>/dev/null | head -1)
+      if [ -z "$AF_TOPIC" ]; then
+        AF_TOPIC=$(sed -n 's/^# *//p' "$AF" 2>/dev/null | head -1)
+      fi
+      AF_DATE=$(sed -n 's/^\*\*Date\*\*: *//p' "$AF" 2>/dev/null | head -1)
+      if [ -z "$AF_DATE" ]; then
+        AF_DATE=$(sed -n 's/^Date: *//p' "$AF" 2>/dev/null | head -1)
+      fi
       $FIRST || JSON="$JSON,"
+      $FIRST || RICH="$RICH,"
       JSON="$JSON\"$AF_NAME\""
+      AF_TOPIC_ESC=$(echo "$AF_TOPIC" | sed 's/"/\\"/g')
+      AF_AUTHOR_ESC=$(echo "$AF_AUTHOR" | sed 's/"/\\"/g')
+      RICH="$RICH{\"name\":\"$AF_NAME\",\"author\":\"$AF_AUTHOR_ESC\",\"topic\":\"$AF_TOPIC_ESC\",\"date\":\"$AF_DATE\"}"
       FIRST=false
     done
     JSON="$JSON]"
+    RICH="$RICH]"
   fi
   echo "$JSON" > "$CTX_DIR/addressed"
+  echo "$RICH" > "$CTX_DIR/addressed_rich"
 ) &
 
 # 7. Graph health (background — zero added latency, runs in parallel)
@@ -937,35 +970,59 @@ if [ "$ID_PADDING" -lt 1 ]; then ID_PADDING=1; fi
 printf "\n%s%*s%s\n" "$IDENTITY_LEFT" "$ID_PADDING" "" "$IDENTITY_RIGHT"
 echo "$SEPARATOR"
 
-# --- Team activity (secondary info) ---
+# --- Section 1: Handoffs addressed to you (highest priority) ---
+ADDRESSED_RICH=$(cat "$CTX_DIR/addressed_rich" 2>/dev/null || echo "[]")
+ADDRESSED_COUNT=$(echo "$ADDRESSED_RICH" | jq 'length' 2>/dev/null || echo "0")
+if [ "$ADDRESSED_COUNT" -gt 0 ] 2>/dev/null && [ "$ADDRESSED_COUNT" != "0" ]; then
+  echo "  ◦ for you"
+  echo "$ADDRESSED_RICH" | jq -r '.[] | "\(.author)\t\(.date)\t\(.topic)"' 2>/dev/null | while IFS=$'\t' read -r H_AUTHOR H_DATE H_TOPIC; do
+    [ -z "$H_AUTHOR" ] && continue
+    H_NAME=$(echo "$H_AUTHOR" | awk '{print tolower($1)}')
+    if [ ${#H_NAME} -gt 8 ]; then H_NAME="${H_NAME:0:8}"; fi
+    # Convert date to relative
+    H_NOW=$(date +%s)
+    H_EPOCH=$(date -j -f "%Y-%m-%d" "${H_DATE%%T*}" "+%s" 2>/dev/null || \
+              date -d "${H_DATE%%T*}" "+%s" 2>/dev/null || echo "0")
+    H_DELTA=$(( H_NOW - H_EPOCH ))
+    if [ "$H_DELTA" -lt 86400 ] 2>/dev/null; then H_AGO="today"
+    elif [ "$H_DELTA" -lt 172800 ] 2>/dev/null; then H_AGO="yesterday"
+    else H_AGO="$(( H_DELTA / 86400 ))d ago"
+    fi
+    # Truncate topic: 67 - 2(indent) - 2(● ) - 11(name) - 12(time) = 40
+    if [ ${#H_TOPIC} -gt 40 ]; then H_TOPIC="${H_TOPIC:0:39}…"; fi
+    printf "  ● %-9s%-12s%s\n" "$H_NAME" "$H_AGO" "$H_TOPIC"
+  done
+  echo ""
+fi
+
+# --- Section 2: Team presence (who's around + what they're working on) ---
 TEAM_JSON=$(cat "$CTX_DIR/team" 2>/dev/null || echo "[]")
 TEAM_COUNT=$(echo "$TEAM_JSON" | jq 'length' 2>/dev/null || echo "0")
 if [ "$TEAM_COUNT" -gt 0 ] 2>/dev/null && [ "$TEAM_COUNT" != "0" ]; then
-  echo "$TEAM_JSON" | jq -r '.[] | "  \(.author)\t\(.message)\t\(.time)"' 2>/dev/null | while IFS=$'\t' read -r T_AUTHOR T_MSG T_TIME; do
-    # Extract first name only, lowercase
-    T_NAME=$(echo "$T_AUTHOR" | awk '{print tolower($1)}')
-    # Truncate message to fit
-    T_MSG_SHORT=$(echo "$T_MSG" | cut -c1-42)
-    # Right-align time
-    LEFT_PART="  ${T_NAME}    ${T_MSG_SHORT}"
-    LEFT_LEN=${#LEFT_PART}
-    TIME_LEN=${#T_TIME}
-    T_PAD=$((LINE_WIDTH - LEFT_LEN - TIME_LEN))
-    if [ "$T_PAD" -lt 1 ]; then T_PAD=1; fi
-    printf "%s%*s%s\n" "$LEFT_PART" "$T_PAD" "" "$T_TIME"
+  echo "  ◦ around"
+  echo "$TEAM_JSON" | jq -r '.[] | "\(.name)\t\(.branches | join(", "))"' 2>/dev/null | while IFS=$'\t' read -r P_NAME P_BRANCHES; do
+    [ -z "$P_NAME" ] && continue
+    if [ ${#P_NAME} -gt 10 ]; then P_NAME="${P_NAME:0:10}"; fi
+    # Truncate branches: 67 - 2(indent) - 11(name) = 54
+    if [ ${#P_BRANCHES} -gt 54 ]; then P_BRANCHES="${P_BRANCHES:0:50}..."; fi
+    printf "  %-11s%s\n" "$P_NAME" "$P_BRANCHES"
   done
 fi
 
-# Show lifecycle events (merged PRs + implemented handoffs)
+# --- Section 3: Recently merged PRs + implemented handoffs ---
 LIFECYCLE_JSON=$(cat "$CTX_DIR/lifecycle" 2>/dev/null || echo '{}')
 MERGED_COUNT=$(echo "$LIFECYCLE_JSON" | jq '.merged_prs.values // [] | length' 2>/dev/null || echo "0")
 IMPL_COUNT=$(echo "$LIFECYCLE_JSON" | jq '.implemented_handoffs.values // [] | length' 2>/dev/null || echo "0")
 
-if [ "$MERGED_COUNT" -gt 0 ] 2>/dev/null; then
-  echo "$LIFECYCLE_JSON" | jq -r '.merged_prs.values[]? // empty | "  ✓ PR #\(.[0]) merged (\(.[1]))"' 2>/dev/null || true
-fi
-if [ "$IMPL_COUNT" -gt 0 ] 2>/dev/null; then
-  echo "$LIFECYCLE_JSON" | jq -r '.implemented_handoffs.values[]? // empty | "  ✓ \(.[1]) worked on your handoff: \(.[0])"' 2>/dev/null || true
+if [ "$MERGED_COUNT" -gt 0 ] 2>/dev/null || [ "$IMPL_COUNT" -gt 0 ] 2>/dev/null; then
+  echo ""
+  echo "  ◦ merged"
+  if [ "$MERGED_COUNT" -gt 0 ] 2>/dev/null; then
+    echo "$LIFECYCLE_JSON" | jq -r '.merged_prs.values[]? // empty | "  ✓ PR #\(.[0]) \(.[1])"' 2>/dev/null || true
+  fi
+  if [ "$IMPL_COUNT" -gt 0 ] 2>/dev/null; then
+    echo "$LIFECYCLE_JSON" | jq -r '.implemented_handoffs.values[]? // empty | "  ✓ \(.[1]) worked on your handoff"' 2>/dev/null || true
+  fi
 fi
 
 # Show auto-save notice if work was committed from a previous branch
