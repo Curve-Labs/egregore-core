@@ -158,9 +158,13 @@ Privacy-respecting, opt-out telemetry. After every slash command, emit fire-and-
 Never collected: file contents, code, env var values, conversation content.
 On first session (if `telemetry_noticed` not set in state file), mention the notice once, then set `telemetry_noticed: true`. Full spec: `.claude/context/telemetry.md`.
 
-## Offline Mode
+## Mode
 
-When `EGREGORE_API_KEY` is not configured, Egregore runs in local mode. Graph queries return empty results. Commands that write to `memory/` still work. Commands that need the graph show reduced output. Run `/connect` to enable knowledge graph + dashboard.
+Egregore runs in two modes, set by `mode` in `egregore.json`:
+
+**Local mode** (`"mode": "local"`) — Filesystem-only. No API, no graph, no Telegram. All core commands work: `/reflect`, `/handoff`, `/quest`, `/ask`, `/activity`, `/dashboard`, `/todo`. Memory is the source of truth. Don't mention `/connect`, graph, or API features unless the user asks about upgrading.
+
+**Connected mode** (`"mode": "connected"`) — Full features. Graph, dashboard, notifications, hosted workspaces. If the graph is offline, show troubleshooting. Use `/env` to check API key, `/checkup` for diagnostics.
 
 ## Environment Isolation
 

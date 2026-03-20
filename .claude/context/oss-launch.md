@@ -1,26 +1,26 @@
-Egregore is being prepared for an open-source release. The OSS
-version must work when Neo4j, Supabase, and the Egregore API
-are NOT configured (no API key in .env). The connected version
-(with API key) continues to use all services as before.
+Egregore ships as one codebase with two modes, set by `mode` in `egregore.json`:
 
-Both modes live in the same codebase (CL/egregore-core).
-Changes are developed and tested here on the develop branch.
-OSS-ready changes will later be cherry-picked to a separate
-public repo (egregore-ai/egregore). The connected/paid code
-paths must never break — OSS changes are additive fallbacks.
+**Local mode** (`"mode": "local"`) — OSS. No API, no graph, no Telegram.
+Installed via `npx create-egregore --local`. All core commands work
+with filesystem only: `/reflect`, `/handoff`, `/quest`, `/ask`,
+`/activity`, `/dashboard`, `/todo`, `/invite`. Memory is the source
+of truth. Never mention `/connect`, graph, or API features in local
+mode UI — it's a valid standalone experience, not a broken state.
 
-When EGREGORE_API_KEY is present → full behavior, graph,
-notifications, dashboard, everything works as it does today.
+**Connected mode** (`"mode": "connected"`) — Full features.
+Installed via `npx create-egregore --token` or `npx create-egregore`
+(interactive API flow). Graph, dashboard, notifications, hosted
+workspaces all active. If graph is offline, show troubleshooting.
 
-When EGREGORE_API_KEY is absent → local mode. Commands degrade
-gracefully: return empty results from graph.sh, skip notifications,
-write markdown to memory/, use filesystem for all reads.
+Mode detection: read `mode` from `egregore.json`. Fallback: if `mode`
+is missing, check `api_url` — empty means local, set means connected.
+
+Both modes live in the same codebase (CL/egregore-core → egregore-ai/egregore).
+Changes are developed on develop branch. Connected code paths must never break.
 
 Rules:
 - NEVER remove existing graph/API/Supabase code paths.
-- ADD fallback behavior when API key is missing.
-- Commands must be useful in local mode OR show "/connect to enable."
+- ADD `mode` checks in command specs: local mode skips graph/API calls silently.
+- Commands in local mode: no "Graph offline" warnings, no "/connect" suggestions.
 - Files = truth, graph = query layer on top.
-- Tag command specs with tier: 1 (local), 2 (free API), 3 (paid).
-- All changes must pass the existing test suite — connected mode
-  must work exactly as before.
+- All changes must pass the existing test suite — connected mode unchanged.

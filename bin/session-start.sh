@@ -180,10 +180,11 @@ fi
 ENV_FILE="$SCRIPT_DIR/.env"
 CONFIG="$SCRIPT_DIR/egregore.json"
 
-# Detect local mode: no api_url in egregore.json means intentionally local/OSS
+# Detect local mode: explicit mode field OR no api_url means intentionally local/OSS
 LOCAL_MODE="false"
+EGREGORE_MODE=$(jq -r '.mode // empty' "$CONFIG" 2>/dev/null)
 API_URL_CONFIGURED=$(jq -r '.api_url // empty' "$CONFIG" 2>/dev/null)
-if [ -z "$API_URL_CONFIGURED" ]; then
+if [ "$EGREGORE_MODE" = "local" ] || [ -z "$API_URL_CONFIGURED" ]; then
   LOCAL_MODE="true"
 fi
 
@@ -1002,7 +1003,7 @@ if [ "$LOCAL_MODE" = "true" ]; then
       fi
     fi
 
-    FOOTER_RIGHT="/connect to enable graph + dashboard"
+    FOOTER_RIGHT="local mode"
 
     FL_LEN=${#FOOTER_LEFT}
     FR_LEN=${#FOOTER_RIGHT}
