@@ -30,6 +30,22 @@ Six moments. Everything else is invisible plumbing.
 VERIFY → WELCOME → HARVEST_IDENTITY → HARVEST_CONNECTION → CONSENT → ORIENT → COMPLETE
 ```
 
+## Local mode gate (applies to ALL states below)
+
+During VERIFY, you will check `api_url` from `egregore.json`. Store the result for the entire flow.
+
+**If `api_url` is empty — this is local mode. For the ENTIRE onboarding flow:**
+- **DO NOT call `bin/graph.sh` under any circumstances.**
+- **DO NOT call `curl` or any HTTP endpoint.**
+- **DO NOT run any code block that contacts an API, Neo4j, or Supabase.**
+- The ONLY external calls allowed are `git` operations (push memory).
+
+**If `api_url` is set — connected mode.** All API calls proceed normally.
+
+This is non-negotiable. Graph calls in local mode confuse the user and serve no purpose — `graph.sh` returns empty results anyway.
+
+---
+
 ## Resumption
 
 Read `.egregore-state.json`. If `onboarding.phase` exists and `onboarding_complete` is false, resume from that phase. Do NOT restart from VERIFY — jump directly to the saved phase and use any data already in state.
@@ -48,9 +64,10 @@ Run all checks in a single bash call — the user should see nothing if everythi
 ```bash
 TOKEN=$(grep '^GITHUB_TOKEN=' .env 2>/dev/null | cut -d'=' -f2-) && \
 APIKEY=$(grep '^EGREGORE_API_KEY=' .env 2>/dev/null | cut -d'=' -f2-) && \
+API_URL=$(jq -r '.api_url // empty' egregore.json 2>/dev/null) && \
 SYMLINK=$(test -L memory && echo "ok" || echo "") && \
 ORG=$(jq -r '.org_name' egregore.json 2>/dev/null) && \
-echo "token:${TOKEN:+ok} apikey:${APIKEY:+ok} memory:${SYMLINK} org:${ORG}"
+echo "token:${TOKEN:+ok} apikey:${APIKEY:+ok} apiurl:${API_URL:+ok} memory:${SYMLINK} org:${ORG}"
 ```
 
 Read `egregore.json`, `egregore.md`, and `.egregore-state.json` in parallel (needed for WELCOME) — batch this with the check above so VERIFY and WELCOME file reads happen together.
@@ -58,7 +75,8 @@ Read `egregore.json`, `egregore.md`, and `.egregore-state.json` in parallel (nee
 **Exit conditions:**
 - IF all three checks pass → WELCOME
 - IF `GITHUB_TOKEN` missing → run `bash bin/github-auth.sh`, re-check. IF still missing → HALT: "GitHub auth failed. Run `bash bin/github-auth.sh` manually."
-- IF `EGREGORE_API_KEY` missing → HALT: "Missing API key. Ask your team admin for it, then add `EGREGORE_API_KEY=ek_...` to `.env`."
+- IF `EGREGORE_API_KEY` missing AND `api_url` is set → HALT: "Missing API key. Ask your team admin for it, then add `EGREGORE_API_KEY=ek_...` to `.env`."
+- IF `EGREGORE_API_KEY` missing AND `api_url` is empty → skip (local mode — no API needed)
 - IF `memory/` missing → run workspace setup:
   ```bash
   MEMORY_REPO="$(jq -r '.memory_repo' egregore.json)"
@@ -186,14 +204,18 @@ questions:
 
 **API calls:**
 
-Save state AND call the API in parallel — do NOT do these sequentially:
+Save state AND call the API in parallel — do NOT do these sequentially.
+
+**Skip this call if `api_url` is empty (local mode).** Only run when connected:
 ```bash
-API_URL="$(jq -r '.api_url' egregore.json)"
-API_KEY="$(grep '^EGREGORE_API_KEY=' .env | cut -d'=' -f2-)"
-curl -sf "${API_URL}/api/user/ensure" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"github_username":"...","github_name":"...","display_name":"..."}' 2>/dev/null
+API_URL="$(jq -r '.api_url // empty' egregore.json)"
+if [ -n "$API_URL" ]; then
+  API_KEY="$(grep '^EGREGORE_API_KEY=' .env | cut -d'=' -f2-)"
+  curl -sf "${API_URL}/api/user/ensure" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{"github_username":"...","github_name":"...","display_name":"..."}' 2>/dev/null
+fi
 ```
 
 **Exit:** → HARVEST_CONNECTION (always). Transition immediately — do NOT output anything between states except the next AskUserQuestion.
@@ -274,7 +296,11 @@ questions:
 
 **Actions:**
 
-AskUserQuestion with multiSelect:
+AskUserQuestion with multiSelect.
+
+**Local mode:** Check `api_url` from `egregore.json`. If empty, omit the "Notifications" option (no Telegram without API). Only show Session tracking and Anonymous telemetry.
+
+**Connected mode:** Show all three options.
 
 ```
 questions:
@@ -287,7 +313,7 @@ questions:
         description: "Powers /dashboard and /handoff. Your sessions appear in /activity."
       - label: "Anonymous telemetry"
         description: "Command names, session durations, error codes. Never code or content."
-      - label: "Notifications"
+      - label: "Notifications"              ← ONLY in connected mode (api_url set)
         description: "Receive Telegram DMs when someone hands off to you or @mentions you."
 ```
 
@@ -332,7 +358,9 @@ Flat keys are required for backward compatibility — `bin/telemetry.sh` and `bi
 
 **Actions:**
 
-1. Query graph for active quests AND recent handoffs in a single bash call — do NOT make two separate graph queries:
+1. **If local mode (`api_url` empty): DO NOT run the graph query below.** Go straight to displaying "It's early — you're one of the first here." and the AskUserQuestion in step 3.
+
+   **If connected mode (`api_url` set):** Query graph for active quests AND recent handoffs in a single bash call — do NOT make two separate graph queries:
 ```bash
 QUESTS=$(bash bin/graph.sh query "MATCH (q:Quest {status: 'active'}) OPTIONAL MATCH (a:Artifact)-[:PART_OF]->(q) RETURN q.id AS quest, q.title AS title, count(a) AS artifacts ORDER BY count(a) DESC LIMIT 3" 2>/dev/null) && \
 HANDOFFS=$(bash bin/graph.sh query "MATCH (s:Session) WHERE s.date IS NOT NULL MATCH (s)-[:BY]->(author:Person) RETURN s.topic AS topic, author.name AS author ORDER BY s.date DESC LIMIT 3" 2>/dev/null) && \
@@ -340,9 +368,10 @@ echo "QUESTS:$QUESTS|||HANDOFFS:$HANDOFFS"
 ```
 
 2. Display activity summary:
+   - IF local mode (no `api_url`): "It's early — you're one of the first here."
    - IF quests exist: "Here's what's active:" followed by quest list with artifact counts
    - IF handoffs exist: "Recent sessions:" followed by 2-3 recent sessions with authors
-   - IF empty: "It's early — you're one of the first here."
+   - IF connected but empty results: "It's early — you're one of the first here."
 
 3. AskUserQuestion:
 ```
@@ -359,6 +388,7 @@ questions:
 
 4. IF "Jump in":
    Show 1-2 specific suggestions based on harvest answers:
+   - IF local mode: "Run `/dashboard` to see your workspace, or just tell me what you're working on."
    - IF focus = `building` AND quests exist: "Check out the {quest_title} quest — `/quest {slug}`"
    - IF focus = `exploring`: "Try `/activity` to see what's happening, or `/reflect` to capture your first thought."
    - IF focus = `evaluating`: "Run `/dashboard` to see the system from your perspective."
@@ -378,9 +408,11 @@ questions:
 
 **Entry:** ORIENT completed
 
-**Actions (all executed, no conditionals):**
+**Actions (steps 1-2 always execute; steps 3-4 are connected mode only):**
 
-**Batching:** Run steps 1-4 in parallel (egregore.md update + memory commit + graph MERGE + Supabase sync). Then run steps 5-7 in one parallel call (state update + shell alias + telemetry). The user should see ONE message at the end: "You're in." — not a play-by-play of each step. Suppress ALL output with `2>/dev/null` or variable capture.
+**Local mode: DO NOT run steps 3 or 4. DO NOT call `bin/graph.sh` or `curl`.** The person file in memory (step 2) is sufficient. Only run steps 1, 2, 5, 6, 7.
+
+**Batching:** In connected mode, run steps 1-4 in parallel (egregore.md update + memory commit + graph MERGE + Supabase sync). In local mode, run steps 1-2 in parallel (egregore.md update + memory commit). Then run steps 5-7 in one parallel call (state update + shell alias + telemetry). The user should see ONE message at the end: "You're in." — not a play-by-play of each step. Suppress ALL output with `2>/dev/null` or variable capture.
 
 ### 1. Update `egregore.md` Members section
 
@@ -408,6 +440,8 @@ cd memory && git add -A && git commit -m "Add {github_username}" && git push && 
 ```
 
 ### 3. Create/update Person node in Neo4j
+
+**Skip this step entirely if `api_url` is empty (local mode).** The person file in memory (step 2) is sufficient.
 
 **Important:** The graph has a uniqueness constraint on `(Person.name, Person.org)`. The MERGE must match on `github` to find existing nodes, but must handle the case where another Person already has the same display name. Use a two-step approach:
 
@@ -443,8 +477,10 @@ Read `org_slug` from `egregore.json` → `github_org` field, lowercased and hyph
 
 ### 4. Sync to Supabase
 
+**Skip this step entirely if `api_url` is empty (local mode).**
+
 ```bash
-API_URL="$(jq -r '.api_url' egregore.json)"
+API_URL="$(jq -r '.api_url // empty' egregore.json)"
 API_KEY="$(grep '^EGREGORE_API_KEY=' .env | cut -d'=' -f2-)"
 curl -sf "${API_URL}/api/user/ensure" \
   -H "Authorization: Bearer $API_KEY" \
