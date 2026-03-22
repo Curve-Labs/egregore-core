@@ -9,6 +9,13 @@ if [ ! -f "$CONFIG" ]; then
   exit 1
 fi
 
+# --- Local mode gate: bail immediately ---
+_MODE=$(jq -r '.mode // "connected"' "$CONFIG" 2>/dev/null)
+if [ "$_MODE" = "local" ]; then
+  echo '{"status":"offline","reason":"local_mode"}'
+  exit 0
+fi
+
 # Source .env if it exists (for local overrides)
 if [ -f "$SCRIPT_DIR/.env" ]; then
   set -a; source "$SCRIPT_DIR/.env"; set +a

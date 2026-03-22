@@ -10,6 +10,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# --- Local mode gate: bail immediately ---
+_MODE=$(jq -r '.mode // "connected"' "$SCRIPT_DIR/egregore.json" 2>/dev/null)
+if [ "$_MODE" = "local" ]; then
+  echo '{"sessionId":"","resolved":0,"mode":"local"}'
+  exit 0
+fi
+
 # --- Validate input ---
 FILE_ARG="${1:?Usage: index-handoff.sh <handoff-file-path>}"
 

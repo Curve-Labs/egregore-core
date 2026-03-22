@@ -115,6 +115,11 @@ Tell them to run:
   npx create-egregore@latest join {github_org}/{repo_name}
 ```
 
+**Telegram group link:** After the join command, check `egregore.json` for `telegram_group_link`. If present, append:
+```
+Telegram group: {telegram_group_link}
+```
+
 If core HTTP status is 422: user was already a collaborator — show "already has access."
 
 If core HTTP status is 403 or other error:
@@ -195,6 +200,11 @@ Share this link with {username}:
 
 They'll authenticate with GitHub, accept the org invite,
 and get a one-line install command.
+```
+
+**Telegram group link:** After the invite link block, check `egregore.json` for `telegram_group_link`. If present, append:
+```
+Telegram group: {telegram_group_link}
 ```
 
 **GitHub invite failed** (github_invite contains an error):

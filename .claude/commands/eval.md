@@ -39,7 +39,14 @@ bash bin/eval-op.sh get-runs <pipeline-id>
 bash bin/eval-op.sh get-latest-report <pipeline-id>
 ```
 
-If Neo4j is unavailable, skip — show file-based data only.
+**Mode detection:**
+```bash
+MODE=$(jq -r '.mode // "connected"' egregore.json 2>/dev/null)
+```
+
+**Local mode** (`mode === "local"`): Skip `bin/eval-op.sh` calls entirely — do NOT run them. Show pipeline metadata from `eval-specs/*.md` files only. For each pipeline, show "No runs yet" instead of run history. Do NOT show any graph-related messaging.
+
+**Connected mode**: If `bin/eval-op.sh` returns empty or errors, skip — show file-based data only.
 
 ### Step 3: Display TUI
 

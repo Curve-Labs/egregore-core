@@ -50,7 +50,27 @@ This is non-negotiable. Graph calls in local mode confuse the user and serve no 
 
 Read `.egregore-state.json`. If `onboarding.phase` exists and `onboarding_complete` is false, resume from that phase. Do NOT restart from VERIFY — jump directly to the saved phase and use any data already in state.
 
-If `onboarding_complete` is true, say: "You're already set up. Run `/me` to update your profile, or just start working." Then stop.
+If `onboarding_complete` is true, validate the people file before accepting it:
+
+```bash
+USERNAME=$(jq -r '.github_username // empty' .egregore-state.json 2>/dev/null)
+PEOPLE_FILE="memory/people/${USERNAME}.md"
+if [ -f "$PEOPLE_FILE" ]; then
+  # Check if file has real content (Role/Focus/Work style) vs invite stub
+  HAS_ROLE=$(grep -c '^Role:' "$PEOPLE_FILE" 2>/dev/null || echo 0)
+  HAS_FOCUS=$(grep -c '^Focus:' "$PEOPLE_FILE" 2>/dev/null || echo 0)
+  echo "valid:$(( HAS_ROLE > 0 && HAS_FOCUS > 0 ? 1 : 0 ))"
+else
+  echo "valid:0"
+fi
+```
+
+- IF `valid:1` → say: "You're already set up. Run `/me` to update your profile, or just start working." Then stop.
+- IF `valid:0` → the people file is missing or still an invite stub. Reset state and resume:
+  ```bash
+  jq '.onboarding_complete = false | .onboarding.phase = "orient"' .egregore-state.json > .egregore-state.tmp && mv .egregore-state.tmp .egregore-state.json
+  ```
+  Say: "Looks like setup didn't fully land last time — picking up where we left off." Then resume from ORIENT (harvest data is preserved in state).
 
 ---
 
@@ -412,7 +432,27 @@ questions:
 
 **Local mode: DO NOT run steps 3 or 4. DO NOT call `bin/graph.sh` or `curl`.** The person file in memory (step 2) is sufficient. Only run steps 1, 2, 5, 6, 7.
 
-**Batching:** In connected mode, run steps 1-4 in parallel (egregore.md update + memory commit + graph MERGE + Supabase sync). In local mode, run steps 1-2 in parallel (egregore.md update + memory commit). Then run steps 5-7 in one parallel call (state update + shell alias + telemetry). The user should see ONE message at the end: "You're in." — not a play-by-play of each step. Suppress ALL output with `2>/dev/null` or variable capture.
+**Batching:** In connected mode, run steps 1-4 in parallel (egregore.md update + memory commit + graph MERGE + Supabase sync). In local mode, run steps 1-2 in parallel (egregore.md update + memory commit).
+
+**CRITICAL — gate step 5 on steps 1-2:** After steps 1-2 complete, verify the people file was actually written before proceeding to step 5:
+
+```bash
+USERNAME=$(jq -r '.github_username // empty' .egregore-state.json 2>/dev/null)
+PEOPLE_FILE="memory/people/${USERNAME}.md"
+if [ -f "$PEOPLE_FILE" ] && grep -q '^Role:' "$PEOPLE_FILE" 2>/dev/null; then
+  echo "people_file:ok"
+else
+  echo "people_file:missing"
+fi
+```
+
+- IF `people_file:ok` → proceed to steps 5-7 (state update + shell alias + telemetry)
+- IF `people_file:missing` → do NOT set `onboarding_complete: true`. Instead:
+  - Set `onboarding.phase = "orient"` in state (so next session resumes from ORIENT)
+  - Tell the user: "Almost done, but your profile didn't save to memory. This can happen if there's a git conflict. Try `/onboarding` again — your answers are saved, so you won't need to re-answer questions."
+  - Stop. Do NOT proceed to steps 5-7.
+
+Then run steps 5-7 in one parallel call (state update + shell alias + telemetry). The user should see ONE message at the end: "You're in." — not a play-by-play of each step. Suppress ALL output with `2>/dev/null` or variable capture.
 
 ### 1. Update `egregore.md` Members section
 
