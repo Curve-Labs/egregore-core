@@ -26,7 +26,7 @@ Parse `$ARGUMENTS`:
 Get org/repo:
 ```bash
 GITHUB_ORG=$(jq -r '.github_org' egregore.json)
-REPO_NAME=$(jq -r '.repo_name // "curve-labs-core"' egregore.json)
+REPO_NAME=$(jq -r '.repo_name // "egregore"' egregore.json)
 ```
 
 ## Step 1: Fetch PR metadata

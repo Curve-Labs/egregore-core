@@ -81,4 +81,4 @@ Want the knowledge graph, real-time dashboard, and Telegram notifications? Visit
 
 ## Built by
 
-[Curve Labs](https://curvelabs.eu)
+[Egregore Labs](https://egregore.xyz)
