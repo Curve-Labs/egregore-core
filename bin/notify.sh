@@ -16,9 +16,10 @@ if [ "$_MODE" = "local" ]; then
   exit 0
 fi
 
-# Source .env if it exists (for local overrides)
+# Load specific variables from .env if it exists (safe extraction, no arbitrary code execution)
 if [ -f "$SCRIPT_DIR/.env" ]; then
-  set -a; source "$SCRIPT_DIR/.env"; set +a
+  EGREGORE_API_URL="${EGREGORE_API_URL:-$(grep '^EGREGORE_API_URL=' "$SCRIPT_DIR/.env" 2>/dev/null | cut -d'=' -f2- || true)}"
+  EGREGORE_API_KEY="${EGREGORE_API_KEY:-$(grep '^EGREGORE_API_KEY=' "$SCRIPT_DIR/.env" 2>/dev/null | cut -d'=' -f2- || true)}"
 fi
 
 # Check if API mode or direct mode
