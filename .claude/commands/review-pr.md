@@ -19,7 +19,7 @@ Not this: "/pr" (create a PR), "/test" (validate local changes)
 
 Parse `$ARGUMENTS`:
 - **PR number** (e.g. `123`, `#123`) → review that single PR
-- **Author** (e.g. `cem`, `cemf`, `fcdagdelen`) → list all open PRs from that author
+- **Author** (e.g. `alice`, `bob`) → list all open PRs from that author
 - **`--all`** → list all open PRs
 - **Empty** → list all open PRs targeting develop
 
