@@ -18,6 +18,72 @@ Arguments: $ARGUMENTS (Optional: text to add, "done N", "cancel N", quest slug, 
 - `/todo [quest-slug]` — Quest-scoped view
 - `/todo all` — Include done/cancelled (14 days)
 
+## Step 0: Mode detection
+
+```bash
+MODE=$(jq -r '.mode // "connected"' egregore.json 2>/dev/null)
+```
+
+**Local mode** (`mode === "local"`): Skip ALL `bin/graph.sh` calls — do NOT run them. Do NOT show any graph-related messaging ("Graph offline", "will sync", Neo4j, etc.).
+
+Local-mode storage: `memory/todos/{person}.md` — a YAML-frontmatter markdown file per user.
+
+Local-mode flow:
+- **All routes** (add, list, done, cancel, check): same UX and TUI rendering, backed by YAML parse/write instead of Cypher queries.
+- **Quest matching**: scan `memory/quests/` directory — read each `.md` file's frontmatter, filter for `status: active`, match by: (a) slug appears in todo text, or (b) 2+ significant word overlap between todo text and quest `title`. Use the same matching logic as connected mode.
+- **Quest-slug resolution** (for `/todo [quest-slug]`): scan `memory/quests/` for a file whose frontmatter `slug` or filename (minus `.md`) matches the input. If found and `status: active`, show quest-scoped view. If not found, treat as Add route.
+- **Person detection**: scan `memory/people/` directory — derive short names from filenames (e.g., `alice.md` → `alice`). When todo text mentions a known person name, note it but skip MENTIONS relationship and `/ask` routing (not available in local mode).
+- **CheckIn persistence**: not available in local mode (no graph storage). The check-in flow still works interactively but check-in history is not persisted.
+- **Notifications**: skip entirely — do not mention notifications.
+
+### Local-mode file format
+
+File: `memory/todos/{person}.md`
+
+```yaml
+---
+todos:
+  - id: "2026-03-30-bartu-001"
+    text: "review bugs manually"
+    status: open
+    priority: 0
+    created: "2026-03-30T22:00:00Z"
+    completed: null
+    quest: null
+    source: manual
+    topics: []
+    blockedBy: null
+    deferredUntil: null
+    lastNote: null
+    lastTransition: null
+    lastTransitionDate: null
+    lastCheckIn: null
+    evolvedTo: null
+---
+```
+
+### Local-mode initialization
+
+On first use, the directory and file may not exist. Before any read or write:
+1. `mkdir -p memory/todos/`
+2. If `memory/todos/{person}.md` does not exist, create it with:
+   ```yaml
+   ---
+   todos: []
+   ---
+   ```
+
+### Local-mode route adjustments
+
+- **Add**: Ensure directory and file exist (see initialization above). Parse text, determine priority, check `memory/quests/` for quest matching (read frontmatter `status: active` from quest files). Generate todo ID as `YYYY-MM-DD-{person}-{NNN}` where NNN is zero-padded 3 digits: count existing entries in the `todos` array whose `id` starts with today's `YYYY-MM-DD-{person}-` prefix, add 1 (e.g., if 2 exist for today, next is `003`). Append to the YAML `todos` array. Write file.
+- **List**: Read the YAML file, filter by status, sort by priority desc then created desc. Render same TUI.
+- **Done/Cancel**: Read file, filter to `status: open` items only (matching connected-mode behavior — blocked and deferred items must be unblocked/un-deferred first). Sort by priority desc then created desc (same order as List display). Positional references (e.g., `todo done 2`) resolve against this filtered+sorted list — position 2 means the 2nd displayed item, not the 2nd entry in the raw YAML array. For text match, search the `text` field of filtered items. Update matched item's status + `completed` timestamp + `lastTransitionDate` in the YAML. Write file.
+- **Check**: Read file, filter active items, walk through with AskUserQuestion (same UX). Update statuses in YAML after each item. Skip CheckIn node creation.
+- **Quest view**: Read file, filter todos where `quest` matches the slug. Same TUI with quest header.
+- **All** (`/todo all`): Read file, include done/cancelled items where `completed` is within the last 14 days (`completed >= 14 days ago`). Sort by status (open first, then done/cancelled by completed date desc). Render same TUI with status indicators.
+
+**Connected mode**: Full behavior including graph nodes and notifications as specified below.
+
 ## Step 1: Get Current User
 
 ```bash
@@ -553,7 +619,8 @@ Output:
 
 | Scenario | Handling |
 |----------|----------|
-| Neo4j unavailable | "Graph offline — todos need the knowledge graph. Try again when connected." |
+| Neo4j unavailable (connected mode) | Show warning: "Graph offline — todos need the knowledge graph. Try again when connected." |
+| Local mode | Skip all graph calls silently — no warnings, no "graph offline" messaging. YAML file is the source of truth. TUI renders identically. |
 | No open todos (list) | "No open todos. /todo [text] to add one." |
 | Text matches multiple (done/cancel) | Show matches, AskUserQuestion to pick |
 | Person not in graph (mention) | Save todo without MENTIONS. Warn: "[name] not found in graph." |
@@ -611,7 +678,7 @@ Relationships:
 
 - **All Neo4j via bin/graph.sh** — never construct curl calls directly
 - **All notifications via bin/notify.sh** — never curl to APIs directly
-- **Graph-only** — no markdown files for todos
+- **Graph-only (connected mode)** — no markdown files for todos in connected mode. Local mode uses `memory/todos/{person}.md` YAML files as source of truth.
 - **Positional numbers** — always re-query to map positions, never cache
 - **Ask routing** — when a todo mentions a person + implies a question, create both Todo and QuestionSet
 - **No sub-boxes** — only outer frame `│` and `├────┤` separators

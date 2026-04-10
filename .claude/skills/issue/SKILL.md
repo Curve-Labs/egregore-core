@@ -9,6 +9,23 @@ Topic: $ARGUMENTS
 
 **Auto-saves.** No need to run `/save` after (create mode only).
 
+## Mode detection
+
+```bash
+MODE=$(jq -r '.mode // "connected"' egregore.json 2>/dev/null)
+```
+
+**Local mode** (`mode === "local"`): Skip ALL `bin/graph.sh` and `bin/notify.sh` calls — do NOT run them. Do NOT show any graph-related messaging ("Graph offline", "will sync", Neo4j, etc.).
+
+Local-mode flow:
+- **Create mode**: Step 0 context capture — run Bash call 1 (git identity + state) normally; skip Bash call 2's `bin/graph.sh test` line (keep the memory-symlink and egregore.json checks); skip the Neo4j recent-session query entirely. Steps 1-2 (description, smart routing) work normally. Step 3 — write the markdown file to `memory/knowledge/issues/` normally, but skip the Neo4j `CREATE (i:Issue)` node and the progress message referencing "graph". Step 4 — skip graph routing updates (Neo4j node creation, relationship updates), but preserve `gh issue create` if the smart routing targets a GitHub repo (GitHub CLI is independent of the graph). Skip Step 5 notifications entirely. Steps 6-7 (auto-save, confirmation TUI) work normally — in the TUI, show `✓ Saved to memory` (omit "graphed" and "team notified").
+- **List mode**: Read issues from `memory/knowledge/issues/` directory — derive `id` from filename (e.g., `2026-03-30-memory-bug.md` → `memory-bug`), parse frontmatter for `title`, `status`, `recipient`, `date` (display as created), `topics`, `author` (display as reportedBy). Render same TUI.
+- **Close mode**: Find issue file in `memory/knowledge/issues/`, update frontmatter `status: closed` + add `closed: {date}`. Skip graph update. If frontmatter has `github_url`, still run `gh issue close "{github_url}" 2>/dev/null` — GitHub CLI is independent of the graph.
+- **Search mode**: Grep through `memory/knowledge/issues/` files for matching text. Render same TUI.
+- **Notifications**: Skip entirely — do not mention notifications.
+
+**Connected mode**: Full behavior including graph nodes and notifications as specified below.
+
 ## Execution rules
 
 **Neo4j-first.** All queries via `bash bin/graph.sh query "..."`. No MCP. No direct curl to Neo4j.
@@ -292,8 +309,8 @@ github_url:
 - **Recent commits**: {last 5 oneline from Step 0}
 - **Uncommitted changes**: {git status short from Step 0}
 - **Memory**: {linked/missing from Step 0}
-- **Graph**: {connected/offline from Step 0}
-- **Recent sessions**: {topic list from Neo4j Step 0}
+- **Graph**: {connected/offline from Step 0; local mode: omit this line}
+- **Recent sessions**: {topic list from Neo4j Step 0; local mode: omit this line}
 ISSUEEOF
 ```
 
